@@ -100,7 +100,8 @@ button, a, input { font: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 640px;
+  /* Wide enough to hold the tagline on a single line at desktop widths. */
+  max-width: 860px;
 }
 
 /* Transparent artwork, so the gradient runs behind it rather than round it. */
@@ -109,15 +110,25 @@ button, a, input { font: inherit; }
   width: min(430px, 84%);
   height: auto;
   filter: drop-shadow(0 10px 26px rgba(12, 81, 87, 0.16));
+  animation: landing-logo-float 6s ease-in-out infinite;
+  /* Promotes the layer so the loop stays smooth rather than repainting. */
+  will-change: transform;
+}
+
+@keyframes landing-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-13px); }
 }
 
 .landing-tagline {
-  margin: 4px 0 0;
-  max-width: 30ch;
+  /* No max-width: the copy is meant to sit on one line, and .landing-inner
+   * caps it. It still wraps naturally once the screen is narrower than that. */
+  margin: 6px 0 0;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.45;
-  color: #3c5750;
+  color: var(--teal-deep);
+  text-wrap: pretty;
 }
 
 .landing-menu {
@@ -161,12 +172,13 @@ button, a, input { font: inherit; }
 
 .landing-alt:hover { background: #fff; border-color: var(--teal); }
 
+/* One line under the buttons, same reasoning as the tagline. */
 .landing-note {
   margin: 26px 0 0;
-  max-width: 44ch;
   font-size: 12px;
   line-height: 1.5;
   color: #5b7773;
+  text-wrap: pretty;
 }
 
 .landing-progress {
@@ -905,4 +917,6 @@ body.photo-lightbox-open { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
+  /* The floating logo is decoration; hold it still for anyone who asks. */
+  .landing-logo { animation: none; }
 }
