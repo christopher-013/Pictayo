@@ -214,19 +214,17 @@ button, a, input { font: inherit; }
 }
 
 /*
- * Line art rather than the full-colour logo.
+ * The full-colour logo, kept small.
  *
- * This sits directly above the date strip and the first row of thumbnails, and
- * the colour version — dog, photo, folded map, two-tone wordmark — is a lot of
- * competing detail in that position. The outlines keep it recognisable while
- * letting the photos hold the attention. Its transparency also lets the header
- * gradient run straight through.
+ * It sits directly above the date strip and the first row of thumbnails, so
+ * size is what keeps it from competing with them. Its transparency lets the
+ * header gradient run straight through rather than boxing it in.
  */
 .app-logo { margin: 0; line-height: 0; }
 
 .app-logo img {
   display: block;
-  width: 150px;
+  width: 118px;
   max-width: 100%;
   height: auto;
 }
@@ -951,7 +949,7 @@ body.photo-lightbox-open { overflow: hidden; }
   .app-actions { width: 100%; }
   .app-actions .btn { flex: 1 1 auto; }
 
-  .app-logo img { width: 124px; }
+  .app-logo img { width: 102px; }
   .app-header-inner { gap: 8px; padding: 8px 12px 6px; }
   .app-actions { width: auto; justify-content: center; }
   .app-actions .btn { flex: 0 1 auto; padding: 8px 11px; font-size: 12px; }
