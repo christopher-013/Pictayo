@@ -21,9 +21,22 @@
   --bg2: #ede9e3;
   --bg3: #ffffff;
 
-  --teal: #0f766e;
-  --teal-deep: #164e63;
-  --teal-bg: #d8f3ef;
+  /*
+   * Brand colours, sampled from brand/logo-source.png.
+   *
+   * The logo's teal is #01a5ab, which only reaches 2.7:1 against the pale
+   * header gradient — under the 3:1 that even large text needs. --brand-teal is
+   * that hue nudged just dark enough to pass (3.2:1) while staying visually
+   * indistinguishable beside the logo. The purple is used exactly as sampled;
+   * it already clears 4.6:1.
+   */
+  --brand-teal: #019aa0;
+  --brand-purple: #6559e9;
+
+  /* Functional teals: dark enough to carry body text and white-on-colour. */
+  --teal: #0a7c82;
+  --teal-deep: #0c5157;
+  --teal-bg: #d6f2f4;
   --pin: #e5484d;
   --pin-soft: #ef5d55;
 
@@ -56,8 +69,8 @@ button, a, input { font: inherit; }
   position: sticky;
   top: 0;
   z-index: 50;
-  background: linear-gradient(135deg, #fffdf4, #eefaf7);
-  border-bottom: 1px solid rgba(15, 118, 110, 0.18);
+  background: linear-gradient(135deg, #fffdf4, #e9f8f9);
+  border-bottom: 1px solid rgba(10, 124, 130, 0.18);
   box-shadow: 0 2px 14px rgba(17, 56, 68, 0.07);
 }
 
@@ -74,45 +87,51 @@ button, a, input { font: inherit; }
 
 .app-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
 
+/*
+ * The mascot, circle-cropped. The source art sits on white with a sliver of
+ * map in one corner; the circle clips that away, and the ring stops a white
+ * subject dissolving into the pale header behind it.
+ */
 .app-brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
-  background: var(--teal);
-  font-size: 23px;
-  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.28);
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(1, 154, 160, 0.35), 0 3px 10px rgba(10, 124, 130, 0.22);
 }
 
+/* Wordmark, set to match the logo: lowercase, two-tone, tight tracking. */
 .app-brand h1 {
   margin: 0;
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 800;
-  line-height: 1.1;
-  color: var(--teal-deep);
-  letter-spacing: -0.2px;
+  line-height: 1.05;
+  letter-spacing: -0.4px;
+  text-transform: lowercase;
 }
 
-.app-tagline { margin: 1px 0 0; font-size: 12px; color: #52727a; }
+.app-brand h1 .wm-a { color: var(--brand-teal); }
+.app-brand h1 .wm-b { color: var(--brand-purple); }
+
+.app-tagline { margin: 2px 0 0; font-size: 12px; color: #4f7076; }
 
 .app-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .btn {
   padding: 9px 14px;
-  border: 1px solid #c9e8df;
+  border: 1px solid #b9e3e6;
   border-radius: 9px;
   background: #fff;
-  color: #205e65;
+  color: #0a6c72;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
 }
 
-.btn:hover:not(:disabled) { background: #edf8f5; border-color: var(--teal); }
+.btn:hover:not(:disabled) { background: #e6f6f7; border-color: var(--teal); }
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.42; cursor: default; }
 
@@ -120,9 +139,9 @@ button, a, input { font: inherit; }
   background: var(--teal);
   border-color: var(--teal);
   color: #fff;
-  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.24);
+  box-shadow: 0 3px 10px rgba(10, 124, 130, 0.24);
 }
-.btn-primary:hover:not(:disabled) { background: #0d635c; border-color: #0d635c; }
+.btn-primary:hover:not(:disabled) { background: #086970; border-color: #086970; }
 
 .btn-quiet { border-color: var(--border); color: var(--ink3); background: transparent; }
 .btn-quiet:hover:not(:disabled) { background: #fff; border-color: var(--pin); color: var(--pin); }
@@ -147,7 +166,7 @@ button, a, input { font: inherit; }
 /* ── Import ────────────────────────────────────────────────────────────── */
 
 .dropzone {
-  border: 2px dashed #b9ddd5;
+  border: 2px dashed #a8dade;
   border-radius: var(--r);
   background: #fbfefd;
   padding: 26px 18px;
@@ -156,7 +175,7 @@ button, a, input { font: inherit; }
   transition: background-color 140ms ease, border-color 140ms ease;
 }
 
-.dropzone:hover, .dropzone:focus-visible { background: #edf8f5; border-color: var(--teal); outline: none; }
+.dropzone:hover, .dropzone:focus-visible { background: #e6f6f7; border-color: var(--teal); outline: none; }
 .dropzone.is-dragover { background: var(--teal-bg); border-color: var(--teal); border-style: solid; }
 
 .dropzone-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -170,15 +189,15 @@ button, a, input { font: inherit; }
 
 .progress {
   padding: 11px 13px;
-  border: 1px solid #b9ddd5;
+  border: 1px solid #a8dade;
   border-radius: 10px;
-  background: #e8f6f3;
+  background: #e3f5f6;
 }
 
 .progress-bar {
   height: 7px;
   border-radius: 999px;
-  background: rgba(15, 118, 110, 0.16);
+  background: rgba(10, 124, 130, 0.16);
   overflow: hidden;
 }
 
@@ -190,7 +209,7 @@ button, a, input { font: inherit; }
   transition: width 180ms ease;
 }
 
-.progress-label { margin-top: 7px; font-size: 12px; font-weight: 700; color: #174f57; }
+.progress-label { margin-top: 7px; font-size: 12px; font-weight: 700; color: #0f5158; }
 
 .library-empty {
   padding: 30px 22px;
@@ -199,6 +218,14 @@ button, a, input { font: inherit; }
   background: var(--bg3);
   text-align: center;
   color: var(--ink3);
+}
+
+/* The full logo gets one prominent outing, on the empty state. */
+.library-empty-logo {
+  display: block;
+  width: min(430px, 82%);
+  height: auto;
+  margin: 0 auto 6px;
 }
 
 .library-empty h2 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
@@ -223,17 +250,17 @@ button, a, input { font: inherit; }
 .day-chip {
   flex: 0 0 auto;
   padding: 6px 11px;
-  border: 1px solid #c9e8df;
+  border: 1px solid #b9e3e6;
   border-radius: 999px;
   background: #fff;
-  color: #205e65;
+  color: #0a6c72;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.day-chip:hover { background: #edf8f5; border-color: var(--teal); }
+.day-chip:hover { background: #e6f6f7; border-color: var(--teal); }
 .day-chip b { color: var(--ink3); font-weight: 700; margin-left: 5px; }
 
 /* ── Day section ───────────────────────────────────────────────────────── */
@@ -254,9 +281,9 @@ button, a, input { font: inherit; }
 .photo-day-map {
   position: relative;
   overflow: hidden;
-  border: 1px solid #bfd8d4;
+  border: 1px solid #b6d9dc;
   border-radius: 15px;
-  background: #dff5f2;
+  background: #dcf4f5;
   box-shadow: 0 5px 18px rgba(17, 56, 68, 0.12);
 }
 
@@ -266,12 +293,12 @@ button, a, input { font: inherit; }
   justify-content: space-between;
   gap: 10px;
   padding: 12px 13px 9px;
-  background: linear-gradient(135deg, #fffdf4, #eefaf7);
-  border-bottom: 1px solid rgba(15, 118, 110, 0.15);
+  background: linear-gradient(135deg, #fffdf4, #e9f8f9);
+  border-bottom: 1px solid rgba(10, 124, 130, 0.15);
 }
 
 .photo-day-map-title { font-size: 17px; font-weight: 800; color: var(--teal-deep); line-height: 1.2; }
-.photo-day-map-sub { font-size: 11px; color: #52727a; line-height: 1.35; margin-top: 3px; }
+.photo-day-map-sub { font-size: 11px; color: #4f7076; line-height: 1.35; margin-top: 3px; }
 
 .photo-day-map-count {
   flex-shrink: 0;
@@ -402,9 +429,9 @@ button, a, input { font: inherit; }
   max-width: 240px;
   padding: 5px 8px;
   border-radius: 999px;
-  background: #edf8f5;
-  border: 1px solid #c9e8df;
-  color: #205e65;
+  background: #e6f6f7;
+  border: 1px solid #b9e3e6;
+  color: #0a6c72;
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
@@ -443,9 +470,9 @@ button, a, input { font: inherit; }
   gap: 10px;
   padding: 9px 11px;
   border-radius: 10px;
-  background: #e8f6f3;
-  border: 1px solid #b9ddd5;
-  color: #174f57;
+  background: #e3f5f6;
+  border: 1px solid #a8dade;
+  color: #0f5158;
   font-size: 12px;
   font-weight: 700;
 }
@@ -530,7 +557,7 @@ button, a, input { font: inherit; }
   font-size: 9px;
   color: var(--teal);
   background: var(--teal-bg);
-  border: 1px solid rgba(15, 118, 110, 0.2);
+  border: 1px solid rgba(10, 124, 130, 0.2);
   border-radius: 999px;
   padding: 2px 5px;
   white-space: nowrap;
@@ -639,7 +666,7 @@ button, a, input { font: inherit; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-.photo-lightbox-close:active { transform: scale(0.94); background: rgba(15, 118, 110, 0.9); }
+.photo-lightbox-close:active { transform: scale(0.94); background: rgba(10, 124, 130, 0.9); }
 
 .photo-lightbox-nav {
   position: absolute;
@@ -663,7 +690,7 @@ button, a, input { font: inherit; }
 
 .photo-lightbox-nav.prev { left: 8px; }
 .photo-lightbox-nav.next { right: 8px; }
-.photo-lightbox-nav:active { transform: scale(0.94); background: rgba(15, 118, 110, 0.9); }
+.photo-lightbox-nav:active { transform: scale(0.94); background: rgba(10, 124, 130, 0.9); }
 .photo-lightbox-nav:disabled { opacity: 0.22; cursor: default; pointer-events: none; transform: none; background: rgba(0, 0, 0, 0.45); }
 
 .photo-lightbox-info {
@@ -676,8 +703,8 @@ button, a, input { font: inherit; }
 .photo-lightbox-info-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .photo-lightbox-title { font-size: 16px; font-weight: 700; line-height: 1.3; color: #fff; }
 .photo-lightbox-count { font-size: 13px; color: rgba(255, 255, 255, 0.62); white-space: nowrap; }
-.photo-lightbox-location { font-size: 14px; line-height: 1.3; color: #5eead4; margin-top: 5px; }
-.photo-lightbox-location a { color: #5eead4; text-decoration: underline; text-underline-offset: 2px; }
+.photo-lightbox-location { font-size: 14px; line-height: 1.3; color: #5fe3e8; margin-top: 5px; }
+.photo-lightbox-location a { color: #5fe3e8; text-decoration: underline; text-underline-offset: 2px; }
 .photo-lightbox-desc { font-size: 14px; line-height: 1.4; color: rgba(255, 255, 255, 0.82); margin-top: 5px; }
 
 .photo-lightbox-captured {

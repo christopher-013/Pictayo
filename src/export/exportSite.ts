@@ -46,7 +46,9 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
     options.onProgress?.((done += 1), photos.length);
   }
 
-  files['index.html'] = new TextEncoder().encode(buildHtml(days, title, files));
+  files['index.html'] = new TextEncoder().encode(
+    buildHtml(days, title, files, await brandMarkDataUri()),
+  );
   files['README.md'] = new TextEncoder().encode(buildReadme(title));
 
   // fflate returns Uint8Array<ArrayBufferLike>; BlobPart wants an ArrayBuffer-
@@ -54,6 +56,30 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
   // SharedArrayBuffer — so narrowing it is safe.
   const archive = (await zipAsync(files)) as Uint8Array<ArrayBuffer>;
   return new Blob([archive], { type: 'application/zip' });
+}
+
+/**
+ * The mascot, inlined as a data URI rather than shipped as a file.
+ *
+ * At ~9KB it costs less than the extra request would, and it keeps the export
+ * to exactly the files the user's own photos need. Failure is non-fatal — the
+ * header simply renders without it.
+ */
+async function brandMarkDataUri(): Promise<string> {
+  try {
+    // Relative so it resolves whether the app is served from a domain root or
+    // a project sub-path.
+    const response = await fetch('mark.webp');
+    if (!response.ok) return '';
+
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    let binary = '';
+    for (const byte of buffer) binary += String.fromCharCode(byte);
+
+    return `data:image/webp;base64,${btoa(binary)}`;
+  } catch {
+    return '';
+  }
 }
 
 function assetName(id: string, mime: string): string {
@@ -76,7 +102,12 @@ function zipAsync(files: Record<string, Uint8Array>): Promise<Uint8Array> {
   });
 }
 
-function buildHtml(days: DayGroup[], title: string, files: Record<string, Uint8Array>): string {
+function buildHtml(
+  days: DayGroup[],
+  title: string,
+  files: Record<string, Uint8Array>,
+  markDataUri: string,
+): string {
   const lightboxItems: string[] = [];
 
   const sections = days
@@ -137,11 +168,16 @@ function buildHtml(days: DayGroup[], title: string, files: Record<string, Uint8A
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeAttr(title)}</title>
+${markDataUri ? `<link rel="icon" href="${markDataUri}">` : ''}
+<meta name="theme-color" content="#019aa0">
 <style>${EXPORT_CSS}</style>
 </head>
 <body>
-<header class="site-header"><h1>${escapeAttr(title)}</h1>
-<p>${days.length} day${days.length === 1 ? '' : 's'} · ${days.reduce((n, d) => n + d.photos.length, 0)} photos</p></header>
+<header class="site-header">
+${markDataUri ? `<img class="site-mark" src="${markDataUri}" alt="" width="192" height="192">` : ''}
+<div><h1>${escapeAttr(title)}</h1>
+<p>${days.length} day${days.length === 1 ? '' : 's'} · ${days.reduce((n, d) => n + d.photos.length, 0)} photos</p></div>
+</header>
 <main>${sections}</main>
 <div class="photo-lightbox" id="lb" aria-hidden="true"><div class="photo-lightbox-dialog">
 <div class="photo-lightbox-stage">
@@ -249,20 +285,21 @@ nothing that expires. Photos are stored in \`assets/photos/\` at up to 1600px.
 }
 
 const EXPORT_CSS = `
-:root{--ink:#1a1a1a;--ink2:#3d3d3d;--ink3:#787878;--bg:#f5f2ee;--bg2:#ede9e3;--bg3:#fff;--teal:#0f766e;--pin:#e5484d;--border:rgba(0,0,0,.09)}
+:root{--ink:#1a1a1a;--ink2:#3d3d3d;--ink3:#787878;--bg:#f5f2ee;--bg2:#ede9e3;--bg3:#fff;--teal:#0a7c82;--pin:#e5484d;--border:rgba(0,0,0,.09)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45}
 button,a{font:inherit}
-.site-header{padding:22px 18px 14px;background:linear-gradient(135deg,#fffdf4,#eefaf7);border-bottom:1px solid rgba(15,118,110,.18)}
-.site-header h1{margin:0;font-size:24px;color:#164e63}
-.site-header p{margin:4px 0 0;font-size:13px;color:#52727a}
+.site-header{display:flex;align-items:center;gap:14px;padding:18px 18px 16px;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.18)}
+.site-mark{flex:0 0 52px;width:52px;height:52px;border-radius:50%;object-fit:cover;background:#fff;box-shadow:0 0 0 2px rgba(1,154,160,.35),0 3px 10px rgba(10,124,130,.22)}
+.site-header h1{margin:0;font-size:24px;color:#0c5157}
+.site-header p{margin:4px 0 0;font-size:13px;color:#4f7076}
 main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-direction:column;gap:26px}
 .day-section{display:flex;flex-direction:column;gap:12px}
 .sec-label{font-size:15px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink3)}
-.photo-day-map{position:relative;overflow:hidden;border:1px solid #bfd8d4;border-radius:15px;background:#dff5f2;box-shadow:0 5px 18px rgba(17,56,68,.12)}
-.photo-day-map-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 13px 9px;background:linear-gradient(135deg,#fffdf4,#eefaf7);border-bottom:1px solid rgba(15,118,110,.15)}
-.photo-day-map-title{font-size:17px;font-weight:800;color:#164e63}
-.photo-day-map-sub{font-size:11px;color:#52727a;margin-top:3px}
+.photo-day-map{position:relative;overflow:hidden;border:1px solid #b6d9dc;border-radius:15px;background:#dcf4f5;box-shadow:0 5px 18px rgba(17,56,68,.12)}
+.photo-day-map-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 13px 9px;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.15)}
+.photo-day-map-title{font-size:17px;font-weight:800;color:#0c5157}
+.photo-day-map-sub{font-size:11px;color:#4f7076;margin-top:3px}
 .photo-day-map-count{flex-shrink:0;background:var(--teal);color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .photo-day-map-canvas{position:relative;aspect-ratio:16/9;min-height:185px;max-height:520px;background:#bfe8ef}
 .photo-google-map{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;background:#e5e7eb}
@@ -273,10 +310,10 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-dir
 .photo-map-pin-html:hover,.photo-map-pin-html.is-active{z-index:4;background:var(--teal);transform:translate(-50%,-100%) rotate(-45deg) scale(1.14)}
 .photo-map-open{position:absolute;right:8px;bottom:8px;z-index:3;padding:7px 10px;border-radius:7px;background:#fff;color:#1a73e8;border:1px solid #dadce0;font-size:10px;font-weight:700;text-decoration:none}
 .photo-day-map-legend{display:flex;gap:6px;overflow-x:auto;padding:9px 10px 10px;background:#fffdf8}
-.photo-map-place{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;max-width:240px;padding:5px 8px;border-radius:999px;background:#edf8f5;border:1px solid #c9e8df;color:#205e65;font-size:11px;white-space:nowrap;cursor:pointer}
+.photo-map-place{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;max-width:240px;padding:5px 8px;border-radius:999px;background:#e6f6f7;border:1px solid #b9e3e6;color:#0a6c72;font-size:11px;white-space:nowrap;cursor:pointer}
 .photo-map-place b{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#ef5d55;color:#fff;font-size:9px}
 .photo-map-place span{overflow:hidden;text-overflow:ellipsis}
-.photo-filter-bar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:10px;background:#e8f6f3;border:1px solid #b9ddd5;color:#174f57;font-size:12px;font-weight:700}
+.photo-filter-bar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:10px;background:#e3f5f6;border:1px solid #a8dade;color:#0f5158;font-size:12px;font-weight:700}
 .photo-filter-bar.active{display:flex}
 .photo-filter-clear{flex-shrink:0;padding:6px 9px;border:0;border-radius:7px;background:var(--teal);color:#fff;font-size:11px;font-weight:800;cursor:pointer}
 .photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -289,7 +326,7 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-dir
 .photo-card img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--bg2)}
 .photo-nopreview{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;aspect-ratio:1/1;background:var(--bg2);color:var(--ink3);font-size:11px;text-align:center}
 .photo-meta{padding:7px 7px 8px}
-.photo-kind{display:inline-block;font-size:9px;color:var(--teal);background:#d8f3ef;border:1px solid rgba(15,118,110,.2);border-radius:999px;padding:2px 5px;margin-bottom:4px}
+.photo-kind{display:inline-block;font-size:9px;color:var(--teal);background:#d6f2f4;border:1px solid rgba(10,124,130,.2);border-radius:999px;padding:2px 5px;margin-bottom:4px}
 .photo-location{font-size:12px;color:var(--teal);margin-bottom:4px}
 .photo-location a{color:var(--teal);text-underline-offset:2px}
 .photo-desc{font-size:11px;color:var(--ink3);line-height:1.3}
@@ -307,8 +344,8 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-dir
 .photo-lightbox-info-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .photo-lightbox-title{font-size:16px;font-weight:700}
 .photo-lightbox-count{font-size:13px;color:rgba(255,255,255,.62);white-space:nowrap}
-.photo-lightbox-location{font-size:14px;color:#5eead4;margin-top:5px}
-.photo-lightbox-location a{color:#5eead4}
+.photo-lightbox-location{font-size:14px;color:#5fe3e8;margin-top:5px}
+.photo-lightbox-location a{color:#5fe3e8}
 .photo-lightbox-desc{font-size:14px;color:rgba(255,255,255,.82);margin-top:5px}
 .photo-lightbox-captured{font-size:13px;color:rgba(255,255,255,.65);margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)}
 body.lb-open{overflow:hidden}

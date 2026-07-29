@@ -40,6 +40,27 @@ with no EXIF date at all.
 
 Other scripts: `npm run build` (typecheck + production build), `npm run typecheck`.
 
+## Branding
+
+`brand/logo-source.png` is the master artwork. Nothing references it directly —
+at 1.25MB it is larger than the whole app bundle — so `npm run brand` derives
+what actually ships into `public/`: the circular mascot mark, favicons, an
+Open Graph image, and the full logo used on the empty state.
+
+Two things that script handles which are easy to get wrong by hand:
+
+- The source's background is `rgb(254,254,254)`, not white. That one step is
+  invisible alone but draws a faint rectangle around the logo on a white card,
+  and no encoder setting fixes it — even lossless WebP preserves the 254
+  faithfully. The pixels are normalised to `#ffffff` before encoding.
+- The mascot crop was picked by rendering candidates *at favicon size*. Framings
+  that included the whole photo-and-map composition turned to mush at 40px.
+
+Brand colours are sampled from the artwork: teal `#01a5ab`, purple `#6559e9`.
+The teal is used as `--brand-teal: #019aa0` — the same hue nudged just dark
+enough to clear 3:1 contrast on the pale header, which the raw value misses.
+Functional teals are darker still so body text and white-on-colour stay legible.
+
 ## How the map works
 
 There is **no Google Maps API key**, no billing account, and no map library.
@@ -127,6 +148,13 @@ serving a production build from a `/PicturePicture/` prefix and running a full
 import against it.
 
 No `.nojekyll` is needed — nothing in `dist/` is underscore-prefixed.
+
+**One thing to set once the domain is fixed:** the `og:image` tag in
+`index.html` is a relative path, because the final URL isn't known yet. The Open
+Graph spec wants an absolute one, and most crawlers won't resolve a relative
+path — so link previews will show no image until it reads something like
+`https://christopher-013.github.io/PicturePicture/og-image.png`. Everything else
+is deliberately relative and should stay that way.
 
 ### Cloudflare Pages
 
