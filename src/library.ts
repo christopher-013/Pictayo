@@ -2,6 +2,7 @@ import type { DayGroup, MapRegion, Photo, PlaceCluster } from './types';
 import { clusterPhotos, splitIntoRegions } from './geo/cluster';
 import { centerOf, fitZoom } from './geo/mercator';
 import { formatCoords, googleMapsUrl, type Geocoder } from './geo/geocode';
+import { cachedLandmarkName, type LandmarkFinder } from './geo/landmark';
 import { UNDATED_KEY, formatDayLabel } from './meta/datetime';
 import { MetadataDescriber, type DescriptionProvider } from './meta/describe';
 
@@ -79,11 +80,44 @@ async function buildDay(
 }
 
 async function nameCluster(cluster: PlaceCluster, geocoder: Geocoder): Promise<void> {
-  const place = await geocoder.lookup(cluster.lat, cluster.lon);
+  const [place, landmark] = await Promise.all([
+    geocoder.lookup(cluster.lat, cluster.lon),
+    // Cache-only: assembling the library must not wait on the landmark service.
+    cachedLandmarkName(cluster.lat, cluster.lon),
+  ]);
+
   // Coordinates are a poor label but an honest one — better than a blank pin
   // when the lookup fails or the device is offline.
-  cluster.place = place?.name ?? formatCoords(cluster.lat, cluster.lon);
+  cluster.area = place?.name ?? formatCoords(cluster.lat, cluster.lon);
+  cluster.landmark = landmark;
+  cluster.place = landmark ?? cluster.area;
   cluster.mapsUrl = googleMapsUrl(cluster.lat, cluster.lon);
+}
+
+/**
+ * Second pass: look up the landmark each cluster sits inside.
+ *
+ * Separate from {@link buildLibrary} because it is slow — Overpass has to be
+ * queried a couple of seconds apart — and the timeline should not wait on it.
+ * This only warms the cache; the caller rebuilds the library afterwards, which
+ * is where the names actually get used.
+ *
+ * Returns whether anything new was found, so a rebuild can be skipped when
+ * there is nothing to show for it.
+ */
+export async function enrichLandmarks(
+  days: DayGroup[],
+  finder: LandmarkFinder,
+): Promise<boolean> {
+  const clusters = days.flatMap((day) => day.regions.flatMap((region) => region.clusters));
+  let found = false;
+
+  for (const cluster of clusters) {
+    if (cluster.landmark) continue;
+    if (await finder.find(cluster.lat, cluster.lon)) found = true;
+  }
+
+  return found;
 }
 
 function toMapRegion(clusters: PlaceCluster[], index: number): MapRegion {

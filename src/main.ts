@@ -3,8 +3,9 @@ import './styles.css';
 import type { DayGroup, Photo } from './types';
 import { wirePicker } from './import/picker';
 import { ingestFiles } from './import/ingest';
-import { buildLibrary } from './library';
+import { buildLibrary, enrichLandmarks } from './library';
 import { CachedGeocoder } from './geo/geocode';
+import { OverpassLandmarkFinder } from './geo/landmark';
 import {
   clearLibrary,
   estimateUsageBytes,
@@ -26,9 +27,11 @@ const SAVE_BATCH_SIZE = 24;
 const photos = new Map<string, PersistedPhoto>();
 const thumbs = new Map<string, Blob>();
 const geocoder = new CachedGeocoder();
+const landmarkFinder = new OverpassLandmarkFinder();
 
 let days: DayGroup[] = [];
 let busy = false;
+let enriching = false;
 
 const el = {
   landing: must('landing'),
@@ -92,8 +95,12 @@ async function restore(): Promise<void> {
     console.warn('Could not read the saved library', error);
   }
 
-  if (photos.size > 0) await refresh();
-  else updateChrome();
+  if (photos.size > 0) {
+    await refresh();
+    void enrichInBackground();
+  } else {
+    updateChrome();
+  }
 }
 
 async function handleFiles(files: File[]): Promise<void> {
@@ -137,6 +144,7 @@ async function handleFiles(files: File[]): Promise<void> {
 
     setProgress(files.length, files.length, 'Looking up places…');
     await refresh();
+    void enrichInBackground();
 
     if (failures > 0) {
       setNotice(
@@ -158,6 +166,28 @@ async function refresh(): Promise<void> {
   days = await buildLibrary(list, geocoder);
   setDays(days);
   updateChrome();
+}
+
+/**
+ * Names the landmarks in the background, then rebuilds so the captions and pin
+ * labels pick them up.
+ *
+ * Deliberately not awaited by {@link refresh}: Overpass has to be queried a
+ * couple of seconds apart, so a trip's worth of places can take a minute. The
+ * library is usable immediately with area names and sharpens up afterwards.
+ */
+async function enrichInBackground(): Promise<void> {
+  if (enriching || days.length === 0) return;
+  enriching = true;
+
+  try {
+    if (await enrichLandmarks(days, landmarkFinder)) await refresh();
+  } catch (error) {
+    // A landmark is a nicety; area names are already on screen.
+    console.warn('Landmark lookup failed', error);
+  } finally {
+    enriching = false;
+  }
 }
 
 async function handleExport(): Promise<void> {

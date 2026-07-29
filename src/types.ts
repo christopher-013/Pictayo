@@ -62,8 +62,15 @@ export interface PlaceCluster {
   lat: number;
   lon: number;
   photoIds: string[];
-  /** Resolved place name, or formatted coordinates when geocoding found nothing. */
+  /**
+   * The name to display: the enclosing landmark when one was found ("Tokyo
+   * Dome"), otherwise the reverse-geocoded area, otherwise coordinates.
+   */
   place: string;
+  /** The reverse-geocoded area, always — "Bunkyo-ku, Tokyo". */
+  area: string;
+  /** The enclosing landmark, once one has been looked up. */
+  landmark: string | null;
   mapsUrl: string;
   /** Earliest and latest capture instants in this cluster, for caption context. */
   firstAt: number | null;

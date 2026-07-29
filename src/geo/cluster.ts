@@ -67,6 +67,8 @@ export function clusterPhotos(photos: Photo[], radiusMeters = 250): PlaceCluster
         lon: gps.lon,
         photoIds: [photo.id],
         place: '',
+        area: '',
+        landmark: null,
         mapsUrl: '',
         firstAt: photo.meta.takenAt,
         lastAt: photo.meta.takenAt,

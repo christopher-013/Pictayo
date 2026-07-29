@@ -1,5 +1,5 @@
 import type { Caption, Photo, PlaceCluster } from '../types';
-import { formatClock, timeOfDayPhrase } from './datetime';
+import { timeOfDayPhrase } from './datetime';
 import { googleMapsUrl } from '../geo/geocode';
 
 /**
@@ -29,25 +29,28 @@ export interface DescriptionProvider {
 }
 
 export class MetadataDescriber implements DescriptionProvider {
-  describe({ photo, cluster, clusterSize }: DescriptionContext): Caption {
+  describe({ photo, cluster }: DescriptionContext): Caption {
     const location = cluster?.place ?? '';
     const mapsUrl = cluster ? googleMapsUrl(cluster.lat, cluster.lon) : '';
 
-    return { location, desc: this.compose(photo, cluster, clusterSize), mapsUrl };
+    return { location, desc: this.compose(photo, cluster), mapsUrl };
   }
 
-  private compose(photo: Photo, cluster: PlaceCluster | null, clusterSize: number): string {
+  private compose(photo: Photo, cluster: PlaceCluster | null): string {
     const when = timeOfDayPhrase(photo.meta.takenAt);
 
     if (!cluster) return this.withoutLocation(photo, when);
 
-    const parts = [when ? `${capitalize(when)} at ${cluster.place}.` : `At ${cluster.place}.`];
+    // When a landmark was found, `place` is the landmark and `area` is the
+    // surrounding district — worth naming both, since "Tokyo Dome" alone
+    // doesn't say which city. With no landmark the two are equal and the
+    // area would just repeat itself.
+    const where =
+      cluster.area && cluster.area !== cluster.place
+        ? `${cluster.place}, ${cluster.area}`
+        : cluster.place;
 
-    if (clusterSize > 1) {
-      const span = formatSpan(cluster.firstAt, cluster.lastAt);
-      const company = `One of ${clusterSize} photos from this spot`;
-      parts.push(span ? `${company}, ${span}.` : `${company}.`);
-    }
+    const parts = [when ? `${capitalize(when)} at ${where}.` : `At ${where}.`];
 
     // The time is only as trustworthy as its source. Say so rather than let a
     // copied or re-encoded file present its modification date as a capture time.
@@ -77,23 +80,6 @@ export class MetadataDescriber implements DescriptionProvider {
 
     return camera ? `${base} Shot on ${camera}.` : base;
   }
-}
-
-/** "4:42–5:33 PM", collapsing to a single time when the span is a moment. */
-function formatSpan(firstAt: number | null, lastAt: number | null): string {
-  if (firstAt === null || lastAt === null) return '';
-
-  const start = formatClock(firstAt);
-  const end = formatClock(lastAt);
-  if (!start || !end) return '';
-  if (start === end) return start;
-
-  // "4:42 PM–5:33 PM" reads better as "4:42–5:33 PM" when both share a meridiem.
-  const startMeridiem = start.slice(-2);
-  const endMeridiem = end.slice(-2);
-  if (startMeridiem === endMeridiem) return `${start.slice(0, -3)}–${end}`;
-
-  return `${start}–${end}`;
 }
 
 /** Camera makers often repeat the brand in the model ("Canon Canon EOS R6"). */

@@ -11,7 +11,15 @@ import type { Photo, Place } from '../types';
  */
 
 const DB_NAME = 'picturepicture';
-const DB_VERSION = 1;
+/** v2 added the landmark cache. */
+const DB_VERSION = 2;
+
+/** A cached Overpass answer. An empty name records "asked, nothing there". */
+export interface CachedLandmark {
+  key: string;
+  name: string;
+  kind: string;
+}
 
 /** Runtime-only fields are stripped before persisting. */
 export type PersistedPhoto = Omit<Photo, 'thumbUrl' | 'displayUrl' | 'caption'>;
@@ -21,17 +29,25 @@ interface PicturePictureDB extends DBSchema {
   thumbs: { key: string; value: Blob };
   displays: { key: string; value: Blob };
   places: { key: string; value: Place };
+  landmarks: { key: string; value: CachedLandmark };
 }
 
 let dbPromise: Promise<IDBPDatabase<PicturePictureDB>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<PicturePictureDB>> {
   dbPromise ??= openDB<PicturePictureDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      db.createObjectStore('photos', { keyPath: 'id' });
-      db.createObjectStore('thumbs');
-      db.createObjectStore('displays');
-      db.createObjectStore('places', { keyPath: 'key' });
+    // Guarded per version so an existing v1 library upgrades in place rather
+    // than failing on stores that already exist.
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('photos', { keyPath: 'id' });
+        db.createObjectStore('thumbs');
+        db.createObjectStore('displays');
+        db.createObjectStore('places', { keyPath: 'key' });
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('landmarks', { keyPath: 'key' });
+      }
     },
   });
   return dbPromise;
@@ -113,6 +129,16 @@ export async function getCachedPlace(key: string): Promise<Place | undefined> {
 export async function putCachedPlace(place: Place): Promise<void> {
   const db = await getDB();
   await db.put('places', place);
+}
+
+export async function getCachedLandmark(key: string): Promise<CachedLandmark | undefined> {
+  const db = await getDB();
+  return db.get('landmarks', key);
+}
+
+export async function putCachedLandmark(landmark: CachedLandmark): Promise<void> {
+  const db = await getDB();
+  await db.put('landmarks', landmark);
 }
 
 /**

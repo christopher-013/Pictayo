@@ -21,14 +21,18 @@ Everything runs in the browser. Photos are never uploaded.
 4. **Cluster by place** — nearby geotags collapse into a single map pin, so a day
    of 200 photos becomes a handful of places.
 5. **Name those places** — one reverse-geocode lookup per cluster, cached locally.
-6. **Caption** — from place, time of day, and cluster context.
-7. **Browse** — one day per page, chosen from a date strip that runs oldest on
+6. **Name the landmark** — reverse geocoding answers "which district is this?",
+   which is true but rarely what the photo is *of*. A second pass asks which
+   mapped areas *contain* the point, so photos shot in the stands say **Tokyo
+   Dome** rather than Bunkyo-ku. See [Landmarks](#landmarks).
+7. **Caption** — from landmark, place, and time of day.
+8. **Browse** — one day per page, chosen from a date strip that runs oldest on
    the left to newest on the right. Each card names the places that day's photos
    were taken, busiest first, shortened to their most specific part — "Shinjuku,
    Tokyo" becomes "Shinjuku", since the broader half repeats across every day of
    a trip. The selected day lives in the URL hash, so the back button steps
    through days and a link to one survives a reload.
-8. **Export** — a self-contained static site you can publish anywhere.
+9. **Export** — a self-contained static site you can publish anywhere.
 
 Each day renders on its own rather than as one long timeline: a few hundred
 photos meant every day's maps and thumbnails were live at once. The day map
@@ -91,6 +95,38 @@ visual design comes from. The difference is that Tokyo2026's metadata was all
 hand-authored — an 89KB literal table of capture times, hardcoded coordinates,
 manually verified place names, fixed Tokyo map bounds. PicturePicture derives
 every one of those from the files themselves, and works anywhere on Earth.
+
+## Landmarks
+
+Getting from a coordinate to "Tokyo Dome" needs a different question than
+reverse geocoding asks.
+
+The obvious approach — find the nearest point of interest — is wrong, and
+confidently so. Asked about the middle of Tokyo Dome it returns an unnamed
+restaurant; asked about a street in Takadanobaba it returns a pharmacy. It finds
+whatever tiny thing is closest, not the thing you are standing inside.
+
+So instead this asks Overpass which mapped areas **contain** the point
+(`is_in`), and picks the most specific interesting one. A point inside Tokyo
+Dome is also inside "Tokyo Dome City" and inside Bunkyō ward; the ranking in
+`src/geo/landmark.ts` prefers the stadium, and ignores administrative
+boundaries entirely since reverse geocoding already covers those.
+
+Three things make this safe to depend on:
+
+- **It never blocks the timeline.** Overpass has to be queried gently, so a
+  trip's worth of places takes a minute. The library renders immediately with
+  district names and sharpens up afterwards.
+- **Results are cached in IndexedDB**, misses included, so a place is only ever
+  asked about once no matter how many times you re-import.
+- **Failure is invisible.** If the service is down, names stay as districts.
+  The public instance is genuinely flaky — testing drew a 429 and a 504 within
+  minutes while identical queries succeeded either side of them — so requests
+  rotate through community mirrors rather than giving up on the first refusal.
+
+If you publish this app somewhere busy, consider that Overpass is a free service
+run for the OpenStreetMap community. The usage here is modest and cached, but a
+high-traffic deployment should point at its own instance.
 
 ## Storage
 
