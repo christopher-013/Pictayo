@@ -133,13 +133,29 @@ vision-model provider means writing one new file and passing it to
 
 ## Exporting
 
-**Export site** downloads a ZIP containing `index.html`, `assets/photos/`, and a
-README. Open it straight off disk, or publish the folder as-is to GitHub Pages
-or any static host — there is no build step.
+**Export site** downloads a ZIP that looks and behaves like the app. Open
+`index.html` straight off disk, or publish the folder as-is to GitHub Pages or
+any static host — there is no build step.
 
-Pin positions are baked into the exported HTML as percentages, so the maps are
-correct even with JavaScript disabled. The small inline script only powers
-filtering and the lightbox.
+```
+index.html          first day
+day-2.html …        one page per day
+assets/site.css     shared by every page
+assets/site.js
+assets/logo.webp
+assets/photos/
+README.md
+```
+
+**One real HTML page per day**, not JavaScript view-switching. That means every
+day has its own shareable URL, the browser loads only the photos for the day
+being viewed rather than the whole library at once, and the date strip works
+with scripting disabled. CSS, JS and the logo are separate files so they are
+fetched once and cached across pages instead of being duplicated into each one.
+
+Pin positions are baked into the HTML as percentages, so the maps are correct
+with JavaScript off entirely. The script only powers filtering, the lightbox,
+and collapsing the map.
 
 ## Deploying
 

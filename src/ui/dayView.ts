@@ -1,6 +1,7 @@
 import type { DayGroup, Photo } from '../types';
 import { escapeAttr } from '../util/escape';
-import { UNDATED_KEY, formatCaptured } from '../meta/datetime';
+import { formatCaptured } from '../meta/datetime';
+import { chipParts, placesFor } from './dayChip';
 import { clearDayFilter, dayGroupHtml, filterDayByCluster, type LightboxCollector } from './dayGroup';
 import {
   observeMaps,
@@ -141,61 +142,6 @@ function chipHtml(day: DayGroup): string {
     `<span class="day-chip-where">${escapeAttr(places.label)}</span>` +
     '</button>'
   );
-}
-
-/** How many place names a chip shows before falling back to a count. */
-const MAX_CHIP_PLACES = 2;
-
-/**
- * The places a day's photos were taken, busiest first.
- *
- * Names are shortened to their most specific part — "Shinjuku, Tokyo" becomes
- * "Shinjuku" — because the chip has room for a landmark, not an address, and
- * the broader half repeats across every day of a trip anyway.
- */
-function placesFor(day: DayGroup): { label: string; all: string[] } {
-  const clusters = day.regions
-    .flatMap((region) => region.clusters)
-    .slice()
-    .sort((a, b) => b.photoIds.length - a.photoIds.length);
-
-  const seen = new Set<string>();
-  const names: string[] = [];
-
-  for (const cluster of clusters) {
-    const short = cluster.place.split(',')[0]?.trim();
-    if (!short || seen.has(short)) continue;
-    seen.add(short);
-    names.push(short);
-  }
-
-  if (names.length === 0) {
-    const count = day.photos.length;
-    return { label: `${count} photo${count === 1 ? '' : 's'}`, all: [] };
-  }
-
-  const shown = names.slice(0, MAX_CHIP_PLACES);
-  const extra = names.length - shown.length;
-
-  return { label: extra > 0 ? `${shown.join(' · ')} +${extra}` : shown.join(' · '), all: names };
-}
-
-/** "Sat, Jun 6, 2026" → { month: "JUN", number: "6", weekday: "SAT" } */
-function chipParts(day: DayGroup): { month: string; number: string; weekday: string } {
-  if (day.dayKey === UNDATED_KEY) return { month: '', number: '?', weekday: 'UNDATED' };
-
-  const instant = Date.parse(`${day.dayKey}T00:00:00Z`);
-  if (Number.isNaN(instant)) return { month: '', number: '?', weekday: '' };
-
-  const date = new Date(instant);
-  const fmt = (options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(date);
-
-  return {
-    month: fmt({ month: 'short' }).toUpperCase(),
-    number: fmt({ day: 'numeric' }),
-    weekday: fmt({ weekday: 'short' }).toUpperCase(),
-  };
 }
 
 function wireDelegation(): void {

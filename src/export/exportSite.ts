@@ -1,28 +1,38 @@
-import { zip } from 'fflate';
-import type { DayGroup } from '../types';
+import { zip, type Zippable } from 'fflate';
+import type { DayGroup, MapRegion } from '../types';
 import { escapeAttr } from '../util/escape';
 import { formatCaptured } from '../meta/datetime';
 import { embedUrl, interactiveUrl } from '../ui/photoMap';
+import { chipParts, placesFor } from '../ui/dayChip';
 import { loadDisplay } from '../store/db';
 import { fitZoom } from '../geo/mercator';
 
 /**
  * Exports the library as a self-contained static site.
  *
- * The output is a plain folder — `index.html` plus `assets/photos/*` — that
- * works opened straight off disk and drops onto GitHub Pages unchanged. That
- * matters because the map is a keyless Google embed: there is no API key to
- * configure and no script to load, so the exported page has no setup step and
- * nothing that can expire.
+ * The output is a plain folder that works opened straight off disk and drops
+ * onto GitHub Pages unchanged. That matters because the map is a keyless Google
+ * embed: there is no API key to configure and no script to load, so the
+ * exported page has no setup step and nothing that can expire.
  *
- * Pin positions are baked in as percentages rather than recomputed at runtime,
- * so the exported page needs no JavaScript for the map to be correct. A small
- * inline script handles only filtering and the lightbox.
+ * Structure mirrors the app: one real HTML page per day rather than one long
+ * scroll. Real pages, not JavaScript view-switching, so every day gets its own
+ * shareable URL, the browser only loads the images for the day being viewed,
+ * and navigation works with scripting disabled entirely. CSS, JS and the logo
+ * are separate files so the browser caches them once across all the pages.
+ *
+ * Pin positions are baked in as percentages, so the maps are correct even with
+ * no JavaScript at all. The script only powers filtering, the lightbox, and
+ * collapsing the map.
  */
 
 /** Matches the aspect-ratio the exported CSS gives the map canvas. */
 const EXPORT_CANVAS_WIDTH = 900;
 const EXPORT_CANVAS_HEIGHT = 506;
+
+/** Images are already compressed; only the text files are worth deflating. */
+const STORE = { level: 0 } as const;
+const DEFLATE = { level: 9 } as const;
 
 export interface ExportOptions {
   title?: string;
@@ -31,7 +41,8 @@ export interface ExportOptions {
 
 export async function exportSite(days: DayGroup[], options: ExportOptions = {}): Promise<Blob> {
   const title = options.title?.trim() || 'My Photo Map';
-  const files: Record<string, Uint8Array> = {};
+  const files: Zippable = {};
+  const photoPaths = new Map<string, string>();
 
   const photos = days.flatMap((day) => day.photos.filter((p) => !p.previewUnavailable));
   let done = 0;
@@ -39,146 +50,161 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
   for (const photo of photos) {
     const blob = await loadDisplay(photo.id).catch(() => undefined);
     if (blob) {
-      files[`assets/photos/${assetName(photo.id, blob.type)}`] = new Uint8Array(
-        await blob.arrayBuffer(),
-      );
+      const path = `assets/photos/${photo.id}.${extensionFor(blob.type)}`;
+      files[path] = [new Uint8Array(await blob.arrayBuffer()), STORE];
+      photoPaths.set(photo.id, path);
     }
     options.onProgress?.((done += 1), photos.length);
   }
 
-  files['index.html'] = new TextEncoder().encode(
-    buildHtml(days, title, files, await brandMarkDataUri()),
-  );
-  files['README.md'] = new TextEncoder().encode(buildReadme(title));
+  // Shared across every page, so they download once rather than per day.
+  const [logo, favicon] = await Promise.all([fetchAsset('logo.webp'), fetchAsset('favicon.png')]);
+  if (logo) files['assets/logo.webp'] = [logo, STORE];
+  if (favicon) files['assets/favicon.png'] = [favicon, STORE];
 
-  // fflate returns Uint8Array<ArrayBufferLike>; BlobPart wants an ArrayBuffer-
-  // backed view. It always is one here — fflate never allocates on a
-  // SharedArrayBuffer — so narrowing it is safe.
+  files['assets/site.css'] = [encode(EXPORT_CSS), DEFLATE];
+  files['assets/site.js'] = [encode(EXPORT_JS), DEFLATE];
+
+  days.forEach((day, index) => {
+    files[pageFor(index)] = [
+      encode(buildDayPage({ day, days, index, title, photoPaths, hasLogo: Boolean(logo) })),
+      DEFLATE,
+    ];
+  });
+
+  files['README.md'] = [encode(buildReadme(title, days)), DEFLATE];
+
   const archive = (await zipAsync(files)) as Uint8Array<ArrayBuffer>;
   return new Blob([archive], { type: 'application/zip' });
 }
 
 /**
- * The mascot, inlined as a data URI rather than shipped as a file.
- *
- * At ~9KB it costs less than the extra request would, and it keeps the export
- * to exactly the files the user's own photos need. Failure is non-fatal — the
- * header simply renders without it.
+ * The first day is `index.html` so the folder has a working root, and the rest
+ * get their own file. No redirect, and no page duplicated.
  */
-async function brandMarkDataUri(): Promise<string> {
+function pageFor(index: number): string {
+  return index === 0 ? 'index.html' : `day-${index + 1}.html`;
+}
+
+function extensionFor(mime: string): string {
+  return mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg';
+}
+
+function encode(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
+}
+
+/** Pulls one of the app's own brand assets to bundle into the export. */
+async function fetchAsset(path: string): Promise<Uint8Array | null> {
   try {
-    // Relative so it resolves whether the app is served from a domain root or
+    // Relative, so it resolves whether the app is served from a domain root or
     // a project sub-path.
-    const response = await fetch('mark.webp');
-    if (!response.ok) return '';
-
-    const buffer = new Uint8Array(await response.arrayBuffer());
-    let binary = '';
-    for (const byte of buffer) binary += String.fromCharCode(byte);
-
-    return `data:image/webp;base64,${btoa(binary)}`;
+    const response = await fetch(path);
+    if (!response.ok) return null;
+    return new Uint8Array(await response.arrayBuffer());
   } catch {
-    return '';
+    return null;
   }
 }
 
-function assetName(id: string, mime: string): string {
-  const ext = mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg';
-  return `${id}.${ext}`;
-}
-
-function assetPathFor(id: string, files: Record<string, Uint8Array>): string | null {
-  for (const ext of ['webp', 'jpg', 'png']) {
-    const path = `assets/photos/${id}.${ext}`;
-    if (files[path]) return path;
-  }
-  return null;
-}
-
-function zipAsync(files: Record<string, Uint8Array>): Promise<Uint8Array> {
+function zipAsync(files: Zippable): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
-    // Images are already compressed; level 0 keeps the export fast.
-    zip(files, { level: 0 }, (err, data) => (err ? reject(err) : resolve(data)));
+    zip(files, {}, (err, data) => (err ? reject(err) : resolve(data)));
   });
 }
 
-function buildHtml(
-  days: DayGroup[],
-  title: string,
-  files: Record<string, Uint8Array>,
-  markDataUri: string,
-): string {
+interface PageContext {
+  day: DayGroup;
+  days: DayGroup[];
+  index: number;
+  title: string;
+  photoPaths: Map<string, string>;
+  hasLogo: boolean;
+}
+
+function buildDayPage(context: PageContext): string {
+  const { day, days, index, title, photoPaths, hasLogo } = context;
+
   const lightboxItems: string[] = [];
 
-  const sections = days
-    .map((day) => {
-      const cards = day.photos
-        .map((photo) => {
-          const path = assetPathFor(photo.id, files);
-          const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
-          const caption = photo.caption;
+  const cards = day.photos
+    .map((photo) => {
+      const path = photoPaths.get(photo.id);
+      const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
+      const caption = photo.caption;
 
-          const media = path
-            ? `<button class="photo-full-link" type="button" data-i="${lightboxItems.push(
-                JSON.stringify({
-                  src: path,
-                  title: photo.name,
-                  location: caption?.location ?? '',
-                  desc: caption?.desc ?? '',
-                  mapsUrl: caption?.mapsUrl ?? '',
-                  captured,
-                }),
-              ) - 1}"><img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`
-            : '<div class="photo-nopreview"><span>🖼️</span>No preview available</div>';
+      const media = path
+        ? `<button class="photo-full-link" type="button" data-i="${
+            lightboxItems.push(
+              JSON.stringify({
+                src: path,
+                title: photo.name,
+                location: caption?.location ?? '',
+                desc: caption?.desc ?? '',
+                mapsUrl: caption?.mapsUrl ?? '',
+                captured,
+              }),
+            ) - 1
+          }"><img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`
+        : '<div class="photo-nopreview"><span aria-hidden="true">🖼️</span>No preview available</div>';
 
-          const location = caption?.location
-            ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
-            : '';
-
-          return (
-            `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
-            media +
-            '<div class="photo-meta">' +
-            `<div class="photo-kind">${photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
-            location +
-            (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
-            (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
-            '</div></div>'
-          );
-        })
-        .join('');
-
-      const maps = day.regions.map((region) => staticMapHtml(region)).join('');
+      const location = caption?.location
+        ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
+        : '';
 
       return (
-        `<section class="day-section" id="day-${escapeAttr(day.dayKey)}">` +
-        `<div class="sec-label">${escapeAttr(day.label)} · Photos</div>` +
-        maps +
-        '<div class="photo-filter-bar" data-filter-bar><span data-filter-label></span>' +
-        '<button class="photo-filter-clear" type="button" data-filter-clear>Show all photos</button></div>' +
-        `<div class="photo-grid">${cards}</div>` +
-        '</section>'
+        `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
+        media +
+        '<div class="photo-meta">' +
+        `<div class="photo-kind">${photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
+        location +
+        (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
+        (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
+        '</div></div>'
       );
     })
     .join('');
+
+  const maps = day.regions.map((region, i) => staticMapHtml(region, i, day.regions.length)).join('');
+  const untagged = day.photos.length - day.taggedCount;
+
+  const totalPhotos = days.reduce((n, d) => n + d.photos.length, 0);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeAttr(title)}</title>
-${markDataUri ? `<link rel="icon" href="${markDataUri}">` : ''}
+<title>${escapeAttr(`${title} — ${day.label}`)}</title>
 <meta name="theme-color" content="#019aa0">
-<style>${EXPORT_CSS}</style>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
+
 <header class="site-header">
-${markDataUri ? `<img class="site-mark" src="${markDataUri}" alt="" width="192" height="192">` : ''}
-<div><h1>${escapeAttr(title)}</h1>
-<p>${days.length} day${days.length === 1 ? '' : 's'} · ${days.reduce((n, d) => n + d.photos.length, 0)} photos</p></div>
+${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="" width="760" height="456">' : ''}
+<h1>${escapeAttr(title)}</h1>
+<p>${days.length} day${days.length === 1 ? '' : 's'} · ${totalPhotos} photo${totalPhotos === 1 ? '' : 's'}</p>
 </header>
-<main>${sections}</main>
+
+<nav class="day-nav" aria-label="Choose a day">
+<div class="day-nav-scroll">
+${days.map((d, i) => navChipHtml(d, i, i === index)).join('\n')}
+</div>
+</nav>
+
+<main>
+<section class="day-section">
+<div class="sec-label">${escapeAttr(day.label)} · Photos</div>
+${maps || noMapNoticeHtml(day)}
+${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
+<div class="photo-filter-bar" data-filter-bar><span data-filter-label></span>
+<button class="photo-filter-clear" type="button" data-filter-clear>Show all photos</button></div>
+<div class="photo-grid">${cards}</div>
+</section>
+</main>
+
 <div class="photo-lightbox" id="lb" aria-hidden="true"><div class="photo-lightbox-dialog">
 <div class="photo-lightbox-stage">
 <button class="photo-lightbox-close" id="lb-close" aria-label="Close">×</button>
@@ -193,22 +219,58 @@ ${markDataUri ? `<img class="site-mark" src="${markDataUri}" alt="" width="192" 
 <div class="photo-lightbox-desc" id="lb-desc"></div>
 <div class="photo-lightbox-captured" id="lb-cap"></div>
 </div></div></div>
-<script>var LB=[${lightboxItems.join(',')}];${EXPORT_JS}</script>
+
+<script>var LB=[${lightboxItems.join(',')}];</script>
+<script src="assets/site.js"></script>
 </body>
 </html>`;
 }
 
+function navChipHtml(day: DayGroup, index: number, active: boolean): string {
+  const parts = chipParts(day);
+  const places = placesFor(day);
+  const count = day.photos.length;
+
+  const tooltip = places.all.length
+    ? `${day.label} — ${places.all.join(', ')} · ${count} photo${count === 1 ? '' : 's'}`
+    : `${day.label} — ${count} photo${count === 1 ? '' : 's'}`;
+
+  return (
+    `<a class="day-chip${active ? ' is-active' : ''}" href="${escapeAttr(pageFor(index))}"` +
+    `${active ? ' aria-current="page"' : ''} title="${escapeAttr(tooltip)}">` +
+    `<span class="day-chip-mon">${escapeAttr(parts.month)}</span>` +
+    `<span class="day-chip-num">${escapeAttr(parts.number)}</span>` +
+    `<span class="day-chip-dow">${escapeAttr(parts.weekday)}</span>` +
+    `<span class="day-chip-where">${escapeAttr(places.label)}</span>` +
+    '</a>'
+  );
+}
+
+function noMapNoticeHtml(day: DayGroup): string {
+  const count = day.photos.length;
+  return (
+    '<div class="photo-empty">' +
+    `None of the ${count} photo${count === 1 ? '' : 's'} from this day carry location data, ` +
+    'so there’s nothing to plot.' +
+    '</div>'
+  );
+}
+
+function untaggedNoticeHtml(count: number): string {
+  return (
+    '<div class="photo-map-note">' +
+    `📍 ${count} photo${count === 1 ? '' : 's'} from this day ` +
+    `${count === 1 ? 'has' : 'have'} no location data, so ${count === 1 ? 'it isn’t' : 'they aren’t'} on the map.` +
+    '</div>'
+  );
+}
+
 /**
  * A map whose pins are positioned in percentages, computed here rather than in
- * the browser. The exported page therefore renders its maps correctly with
- * JavaScript disabled entirely.
+ * the browser, so the exported page renders its maps correctly with JavaScript
+ * disabled entirely.
  */
-function staticMapHtml(region: {
-  clusters: { id: string; lat: number; lon: number; place: string; photoIds: string[] }[];
-  centerLat: number;
-  centerLon: number;
-  taggedCount: number;
-}): string {
+function staticMapHtml(region: MapRegion, index: number, total: number): string {
   const points = region.clusters.map((c) => ({ lat: c.lat, lon: c.lon }));
   const zoom = fitZoom(points, EXPORT_CANVAS_WIDTH, EXPORT_CANVAS_HEIGHT);
 
@@ -250,11 +312,22 @@ function staticMapHtml(region: {
     )
     .join('');
 
+  const title = total > 1 ? `🗺️ Photo trail · map ${index + 1} of ${total}` : '🗺️ Photo trail';
+  const sub =
+    total > 1
+      ? 'This day’s photos span more than one part of the world, so each map covers one of them.'
+      : 'Photo locations plotted from the original geotags.';
+
   return (
-    '<div class="photo-day-map">' +
-    '<div class="photo-day-map-head"><div><div class="photo-day-map-title">🗺️ Photo trail</div>' +
-    '<div class="photo-day-map-sub">Photo locations plotted from the original geotags.</div></div>' +
-    `<div class="photo-day-map-count">${region.taggedCount} tagged</div></div>` +
+    `<div class="photo-day-map" data-region="${escapeAttr(region.id)}">` +
+    '<button class="photo-day-map-head" type="button" data-map-toggle aria-expanded="true">' +
+    '<span class="photo-day-map-headings">' +
+    `<span class="photo-day-map-title">${escapeAttr(title)}</span>` +
+    `<span class="photo-day-map-sub">${escapeAttr(sub)}</span></span>` +
+    `<span class="photo-day-map-count">${region.taggedCount} tagged</span>` +
+    '<span class="photo-day-map-chevron" aria-hidden="true">▾</span>' +
+    '</button>' +
+    '<div class="photo-day-map-body">' +
     '<div class="photo-day-map-canvas">' +
     `<iframe class="photo-google-map" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" src="${escapeAttr(
       embedUrl(region.centerLat, region.centerLon, zoom),
@@ -265,42 +338,88 @@ function staticMapHtml(region: {
     )}" target="_blank" rel="noopener">View interactive map ↗</a>` +
     '</div>' +
     `<div class="photo-day-map-legend">${legend}</div>` +
-    '</div>'
+    '</div></div>'
   );
 }
 
-function buildReadme(title: string): string {
+function buildReadme(title: string, days: DayGroup[]): string {
+  const pages = days
+    .map((day, i) => `- \`${pageFor(i)}\` — ${day.label} (${day.photos.length} photos)`)
+    .join('\n');
+
   return `# ${title}
 
 Exported from PicturePicture.
 
 Open \`index.html\` in a browser, or publish this folder as-is:
 
-- **GitHub Pages** — commit the folder to a repository and enable Pages for that branch.
+- **GitHub Pages** — commit the folder to a repository and enable Pages for it.
 - **Any static host** — upload the folder; there is no build step.
 
+## Pages
+
+One page per day, each with its own URL so you can link to a single day:
+
+${pages}
+
+\`assets/site.css\`, \`assets/site.js\` and \`assets/logo.webp\` are shared by every
+page. Photos live in \`assets/photos/\` at up to 1600px.
+
 The maps use Google's keyless embed, so there is no API key to configure and
-nothing that expires. Photos are stored in \`assets/photos/\` at up to 1600px.
+nothing that expires. Pin positions are baked into the HTML, so the maps are
+correct even with JavaScript turned off — the script only handles filtering,
+the lightbox, and collapsing the map.
 `;
 }
 
 const EXPORT_CSS = `
-:root{--ink:#1a1a1a;--ink2:#3d3d3d;--ink3:#787878;--bg:#f5f2ee;--bg2:#ede9e3;--bg3:#fff;--teal:#0a7c82;--pin:#e5484d;--border:rgba(0,0,0,.09)}
+:root{
+--ink:#1a1a1a;--ink2:#3d3d3d;--ink3:#787878;
+--bg:#f5f2ee;--bg2:#ede9e3;--bg3:#fff;
+--brand-teal:#019aa0;--teal:#0a7c82;--teal-deep:#0c5157;--pin:#e5484d;
+--border:rgba(0,0,0,.09);
+--brand-gradient:
+  radial-gradient(circle at 84% 16%, rgba(1,165,171,.30), transparent 34%),
+  radial-gradient(circle at 12% 86%, rgba(101,89,233,.24), transparent 42%),
+  radial-gradient(circle at 92% 88%, rgba(229,72,77,.13), transparent 46%),
+  linear-gradient(150deg,#fffdf4 0%,#fdf4e4 26%,#e2f5f3 62%,#e9e6ff 100%);
+}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45}
 button,a{font:inherit}
-.site-header{display:flex;align-items:center;gap:14px;padding:18px 18px 16px;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.18)}
-.site-mark{flex:0 0 52px;width:52px;height:52px;border-radius:50%;object-fit:cover;background:#fff;box-shadow:0 0 0 2px rgba(1,154,160,.35),0 3px 10px rgba(10,124,130,.22)}
-.site-header h1{margin:0;font-size:24px;color:#0c5157}
-.site-header p{margin:4px 0 0;font-size:13px;color:#4f7076}
-main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-direction:column;gap:26px}
+.site-header{display:flex;flex-direction:column;align-items:center;gap:2px;padding:18px 18px 14px;background:var(--brand-gradient);border-bottom:1px solid rgba(10,124,130,.14);text-align:center}
+.site-logo{display:block;width:188px;max-width:100%;height:auto}
+.site-header h1{margin:6px 0 0;font-size:22px;color:var(--teal-deep)}
+.site-header p{margin:3px 0 0;font-size:13px;color:#4f7076}
+.day-nav{position:sticky;top:0;z-index:40;background:rgba(255,253,246,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(10,124,130,.16);box-shadow:0 3px 14px rgba(12,81,87,.08)}
+.day-nav-scroll{display:flex;gap:8px;overflow-x:auto;max-width:1400px;margin:0 auto;padding:10px 18px;scrollbar-width:none}
+.day-nav-scroll::-webkit-scrollbar{display:none}
+.day-chip{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:86px;max-width:168px;padding:7px 12px;border:1.5px solid #cfe8ea;border-radius:12px;background:#fff;text-decoration:none;transition:background-color 160ms ease,border-color 160ms ease}
+.day-chip:hover{background:#f0fafa;border-color:var(--teal)}
+.day-chip.is-active{background:linear-gradient(135deg,var(--brand-teal),#0a7c82);border-color:transparent;box-shadow:0 4px 14px rgba(10,124,130,.34)}
+.day-chip-mon{font-size:10px;font-weight:800;letter-spacing:.7px;color:#6f8f92}
+.day-chip-num{font-size:19px;font-weight:800;line-height:1.05;color:var(--teal-deep)}
+.day-chip-dow{font-size:10px;font-weight:700;letter-spacing:.7px;color:#8aa2a4}
+.day-chip-where{max-width:100%;margin-top:4px;padding-top:4px;border-top:1px solid rgba(10,124,130,.14);font-size:10px;font-weight:700;line-height:1.25;color:var(--teal);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.day-chip.is-active .day-chip-mon{color:rgba(255,255,255,.72)}
+.day-chip.is-active .day-chip-num{color:#fff}
+.day-chip.is-active .day-chip-dow{color:rgba(255,255,255,.66)}
+.day-chip.is-active .day-chip-where{color:#fff;border-top-color:rgba(255,255,255,.3)}
+main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .day-section{display:flex;flex-direction:column;gap:12px}
 .sec-label{font-size:15px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink3)}
 .photo-day-map{position:relative;overflow:hidden;border:1px solid #b6d9dc;border-radius:15px;background:#dcf4f5;box-shadow:0 5px 18px rgba(17,56,68,.12)}
-.photo-day-map-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 13px 9px;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.15)}
-.photo-day-map-title{font-size:17px;font-weight:800;color:#0c5157}
-.photo-day-map-sub{font-size:11px;color:#4f7076;margin-top:3px}
+.photo-day-map-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;padding:12px 13px 9px;border:0;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.15);text-align:left;cursor:pointer}
+.photo-day-map-head:hover{background:linear-gradient(135deg,#fffbe8,#dff4f6)}
+.photo-day-map-headings{min-width:0;flex:1}
+.photo-day-map-title{display:block;font-size:17px;font-weight:800;color:var(--teal-deep);line-height:1.2}
+.photo-day-map-sub{display:block;font-size:11px;color:#4f7076;margin-top:3px}
 .photo-day-map-count{flex-shrink:0;background:var(--teal);color:#fff;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+.photo-day-map-chevron{flex-shrink:0;align-self:center;color:var(--teal);font-size:15px;line-height:1;transition:transform 180ms ease}
+.photo-day-map.is-collapsed .photo-day-map-body{display:none}
+.photo-day-map.is-collapsed .photo-day-map-head{border-bottom:0}
+.photo-day-map.is-collapsed .photo-day-map-chevron{transform:rotate(-90deg)}
 .photo-day-map-canvas{position:relative;aspect-ratio:16/9;min-height:185px;max-height:520px;background:#bfe8ef}
 .photo-google-map{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;background:#e5e7eb}
 .photo-map-overlay{position:absolute;inset:0;pointer-events:none}
@@ -313,6 +432,7 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-dir
 .photo-map-place{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;max-width:240px;padding:5px 8px;border-radius:999px;background:#e6f6f7;border:1px solid #b9e3e6;color:#0a6c72;font-size:11px;white-space:nowrap;cursor:pointer}
 .photo-map-place b{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#ef5d55;color:#fff;font-size:9px}
 .photo-map-place span{overflow:hidden;text-overflow:ellipsis}
+.photo-map-note{padding:0 11px 9px;background:#fffdf8;color:#71828a;font-size:10px;line-height:1.3}
 .photo-filter-bar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:10px;background:#e3f5f6;border:1px solid #a8dade;color:#0f5158;font-size:12px;font-weight:700}
 .photo-filter-bar.active{display:flex}
 .photo-filter-clear{flex-shrink:0;padding:6px 9px;border:0;border-radius:7px;background:var(--teal);color:#fff;font-size:11px;font-weight:800;cursor:pointer}
@@ -331,6 +451,7 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-dir
 .photo-location a{color:var(--teal);text-underline-offset:2px}
 .photo-desc{font-size:11px;color:var(--ink3);line-height:1.3}
 .photo-captured{font-size:10px;color:var(--ink2);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
+.photo-empty{background:var(--bg3);border:1px dashed var(--border);border-radius:14px;padding:18px;color:var(--ink3);font-size:13px;text-align:center}
 .photo-lightbox{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(4,10,18,.92)}
 .photo-lightbox.open{display:flex}
 .photo-lightbox-dialog{position:relative;width:min(100%,1000px);height:min(92vh,1000px);display:grid;grid-template-rows:minmax(0,1fr) auto;background:#090d12;border-radius:12px;overflow:hidden}
@@ -349,7 +470,14 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px;display:flex;flex-dir
 .photo-lightbox-desc{font-size:14px;color:rgba(255,255,255,.82);margin-top:5px}
 .photo-lightbox-captured{font-size:13px;color:rgba(255,255,255,.65);margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)}
 body.lb-open{overflow:hidden}
-@media(max-width:560px){.photo-day-map-canvas{aspect-ratio:4/3}.photo-lightbox-stage{padding:54px 48px 10px}}
+@media(max-width:560px){
+.site-logo{width:158px}
+.day-nav-scroll{padding:8px 12px}
+.day-chip{min-width:78px;max-width:132px;padding:6px 9px}
+main{padding:12px 12px 48px}
+.photo-day-map-canvas{aspect-ratio:4/3}
+.photo-lightbox-stage{padding:54px 48px 10px}
+}
 `;
 
 const EXPORT_JS = `
@@ -361,11 +489,11 @@ img.src=it.src;img.alt=it.title;el('lb-title').textContent=it.title;
 el('lb-count').textContent=(i+1)+' / '+LB.length;
 el('lb-prev').disabled=i<=0;el('lb-next').disabled=i>=LB.length-1;
 var lo=el('lb-loc');lo.innerHTML='';lo.style.display=it.location?'block':'none';
-if(it.location){lo.appendChild(document.createTextNode('📍 '));
+if(it.location){lo.appendChild(document.createTextNode('\\u{1F4CD} '));
 if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_blank';a.rel='noopener';a.textContent=it.location;lo.appendChild(a)}
 else lo.appendChild(document.createTextNode(it.location))}
 var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
-var c=el('lb-cap');c.textContent=it.captured?'🕒 '+it.captured:'';c.style.display=it.captured?'block':'none'}
+var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
 function open(n){i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open')}
 function close(){lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');img.removeAttribute('src');i=-1}
 function go(d){var n=i+d;if(n<0||n>=LB.length)return;i=n;show()}
@@ -377,21 +505,33 @@ var sx=0,sy=0,stage=lb.querySelector('.photo-lightbox-stage');
 stage.addEventListener('touchstart',function(e){var t=e.changedTouches[0];sx=t.clientX;sy=t.clientY},{passive:true});
 stage.addEventListener('touchend',function(e){var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
 if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1)},{passive:true});
+
+var KEY='pp:maps-collapsed';
+function collapsed(){try{return localStorage.getItem(KEY)==='1'}catch(e){return false}}
+function store(v){try{localStorage.setItem(KEY,v?'1':'0')}catch(e){}}
+if(collapsed()){Array.prototype.forEach.call(document.querySelectorAll('.photo-day-map'),function(m){
+m.classList.add('is-collapsed');var h=m.querySelector('[data-map-toggle]');if(h)h.setAttribute('aria-expanded','false')})}
+
+function clear(s){Array.prototype.forEach.call(s.querySelectorAll('.photo-card'),function(c){c.classList.remove('hidden')});
+Array.prototype.forEach.call(s.querySelectorAll('.photo-map-pin-html'),function(x){x.classList.remove('is-active')});
+s.querySelector('[data-filter-bar]').classList.remove('active')}
+
 document.addEventListener('click',function(e){
-var o=e.target.closest('[data-i]');if(o){open(Number(o.getAttribute('data-i')));return}
-var s=e.target.closest('.day-section');if(!s)return;
-if(e.target.closest('[data-filter-clear]')){clear(s);return}
-var p=e.target.closest('.photo-map-pin-html,.photo-map-place');if(!p)return;
+var t=e.target;
+var mt=t.closest('[data-map-toggle]');
+if(mt){var m=mt.closest('.photo-day-map');var c=m.classList.toggle('is-collapsed');
+mt.setAttribute('aria-expanded',String(!c));store(c);return}
+var o=t.closest('[data-i]');if(o){open(Number(o.getAttribute('data-i')));return}
+var s=t.closest('.day-section');if(!s)return;
+if(t.closest('[data-filter-clear]')){clear(s);return}
+var p=t.closest('.photo-map-pin-html,.photo-map-place');if(!p)return;
 var id=p.getAttribute('data-cluster'),act=s.querySelector('.photo-map-pin-html.is-active');
 if(act&&act.getAttribute('data-cluster')===id){clear(s);return}
 var n=0;Array.prototype.forEach.call(s.querySelectorAll('.photo-card'),function(c){
 var m=c.getAttribute('data-cluster')===id;c.classList.toggle('hidden',!m);if(m)n++});
 Array.prototype.forEach.call(s.querySelectorAll('.photo-map-pin-html'),function(x){
 x.classList.toggle('is-active',x.getAttribute('data-cluster')===id)});
-s.querySelector('[data-filter-label]').textContent='📍 '+p.getAttribute('data-place')+' · '+n+' photo'+(n===1?'':'s');
+s.querySelector('[data-filter-label]').textContent='\\u{1F4CD} '+p.getAttribute('data-place')+' \\u00B7 '+n+' photo'+(n===1?'':'s');
 s.querySelector('[data-filter-bar]').classList.add('active')});
-function clear(s){Array.prototype.forEach.call(s.querySelectorAll('.photo-card'),function(c){c.classList.remove('hidden')});
-Array.prototype.forEach.call(s.querySelectorAll('.photo-map-pin-html'),function(x){x.classList.remove('is-active')});
-s.querySelector('[data-filter-bar]').classList.remove('active')}
 })();
 `;
