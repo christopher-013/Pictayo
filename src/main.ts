@@ -16,7 +16,7 @@ import {
   type PhotoRecord,
 } from './store/db';
 import { initLightbox } from './ui/lightbox';
-import { renderTimeline } from './ui/timeline';
+import { initDayView, setDays } from './ui/dayView';
 import { revokeAll, thumbUrlFor } from './ui/media';
 import { exportSite } from './export/exportSite';
 
@@ -31,8 +31,8 @@ let days: DayGroup[] = [];
 let busy = false;
 
 const el = {
-  timeline: must('timeline'),
-  strip: must('day-strip'),
+  page: must('day-page'),
+  nav: must('day-nav'),
   dropzone: must('dropzone'),
   empty: must('library-empty'),
   progress: must('progress'),
@@ -51,7 +51,7 @@ void start();
 
 async function start(): Promise<void> {
   initLightbox();
-  trackHeaderHeight();
+  initDayView(el.nav, el.page);
 
   wirePicker(
     {
@@ -142,7 +142,7 @@ async function refresh(): Promise<void> {
   });
 
   days = await buildLibrary(list, geocoder);
-  renderTimeline(days, el.timeline, el.strip);
+  setDays(days);
   updateChrome();
 }
 
@@ -195,9 +195,7 @@ async function handleClear(): Promise<void> {
   thumbs.clear();
   days = [];
 
-  el.timeline.innerHTML = '';
-  el.strip.hidden = true;
-  el.strip.innerHTML = '';
+  setDays(days);
   updateChrome();
 }
 
@@ -230,18 +228,6 @@ function setProgress(done: number, total: number, label: string): void {
   el.progress.hidden = false;
   el.progressFill.style.width = `${total > 0 ? (done / total) * 100 : 0}%`;
   el.progressLabel.textContent = `${label} — ${done} of ${total}`;
-}
-
-/** Keeps the sticky day strip parked directly under the header at any width. */
-function trackHeaderHeight(): void {
-  const header = document.querySelector<HTMLElement>('.app-header');
-  if (!header) return;
-
-  const apply = () =>
-    document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
-
-  apply();
-  new ResizeObserver(apply).observe(header);
 }
 
 function formatBytes(bytes: number): string {

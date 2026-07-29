@@ -18,13 +18,9 @@
 
 <header class="app-header">
   <div class="app-header-inner">
-    <div class="app-brand">
-      <img class="app-brand-mark" src="/mark.webp" alt="" width="192" height="192" decoding="async">
-      <div>
-        <h1><span class="wm-a">picture</span><span class="wm-b">picture</span></h1>
-        <p class="app-tagline">Your photos, sorted by when &amp; where</p>
-      </div>
-    </div>
+    <h1 class="app-logo">
+      <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
+    </h1>
     <div class="app-actions">
       <button type="button" class="btn btn-primary" id="btn-add">Add photos</button>
       <button type="button" class="btn" id="btn-add-folder">Add folder</button>
@@ -34,6 +30,12 @@
   </div>
   <div class="app-privacy" id="library-summary">Photos are read in your browser and never uploaded.</div>
 </header>
+
+<!--
+  Sits outside the header so it can stick to the top on its own. The header
+  carries the full logo and is too tall to pin there while browsing.
+-->
+<nav class="day-nav" id="day-nav" aria-label="Choose a day" hidden></nav>
 
 <main class="app-main">
 
@@ -51,13 +53,10 @@
     <div class="progress-label" id="progress-label">Reading photos…</div>
   </div>
 
-  <nav class="day-strip" id="day-strip" aria-label="Jump to day" hidden></nav>
-
-  <div id="timeline" class="timeline"></div>
+  <div id="day-page" class="day-page"></div>
 
   <div class="library-empty" id="library-empty">
-    <img class="library-empty-logo" src="/logo.webp" alt="PicturePicture"
-         width="760" height="456" decoding="async">
+    <img class="library-empty-mark" src="/mark.webp" alt="" width="192" height="192" decoding="async">
     <h2>Nothing imported yet</h2>
     <p>
       Add some photos and PicturePicture reads each file's metadata to group them

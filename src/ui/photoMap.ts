@@ -25,7 +25,55 @@ const MAP_SUB =
 
 let resizeObserver: ResizeObserver | null = null;
 
-export function mapRegionHtml(region: MapRegion, index: number, total: number): string {
+const COLLAPSE_KEY = 'pp:maps-collapsed';
+
+/**
+ * Whether day maps start collapsed.
+ *
+ * Stored as one preference rather than per day: someone who collapses the map
+ * is saying they want to browse photos, not that they dislike that particular
+ * day's map, so the choice should carry across days and visits.
+ */
+export function mapsCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setMapsCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+  } catch {
+    // Private browsing with storage disabled — the toggle still works for
+    // this page, it just won't be remembered.
+  }
+}
+
+/**
+ * Expands or collapses one map. Returns the new state.
+ *
+ * A collapsed canvas has no measured size, so its pins can't be placed. They
+ * are therefore repositioned on the way back out rather than while hidden.
+ */
+export function toggleMapRegion(mapElement: HTMLElement): boolean {
+  const collapsed = mapElement.classList.toggle('is-collapsed');
+
+  const head = mapElement.querySelector<HTMLElement>('[data-map-toggle]');
+  head?.setAttribute('aria-expanded', String(!collapsed));
+
+  if (!collapsed) refreshMapPins(mapElement);
+
+  return collapsed;
+}
+
+export function mapRegionHtml(
+  region: MapRegion,
+  index: number,
+  total: number,
+  options: { collapsed?: boolean; idPrefix?: string } = {},
+): string {
   const title = total > 1 ? `🗺️ Photo trail · map ${index + 1} of ${total}` : '🗺️ Photo trail';
 
   const sub =
@@ -63,14 +111,23 @@ export function mapRegionHtml(region: MapRegion, index: number, total: number): 
     })
     .join('');
 
+  const collapsed = options.collapsed ?? false;
+  const bodyId = `map-body-${options.idPrefix ?? 'x'}-${region.id}`;
+
   return (
-    `<div class="photo-day-map" data-region="${escapeAttr(region.id)}">` +
-    '<div class="photo-day-map-head"><div>' +
-    `<div class="photo-day-map-title">${escapeAttr(title)}</div>` +
-    `<div class="photo-day-map-sub">${escapeAttr(sub)}</div>` +
-    '</div>' +
-    `<div class="photo-day-map-count">${region.taggedCount} tagged</div>` +
-    '</div>' +
+    `<div class="photo-day-map${collapsed ? ' is-collapsed' : ''}" data-region="${escapeAttr(region.id)}">` +
+    // A button, not a div: collapsing is a real control, so it should be
+    // focusable and operable from the keyboard for free.
+    `<button class="photo-day-map-head" type="button" data-map-toggle` +
+    ` aria-expanded="${!collapsed}" aria-controls="${escapeAttr(bodyId)}">` +
+    '<span class="photo-day-map-headings">' +
+    `<span class="photo-day-map-title">${escapeAttr(title)}</span>` +
+    `<span class="photo-day-map-sub">${escapeAttr(sub)}</span>` +
+    '</span>' +
+    `<span class="photo-day-map-count">${region.taggedCount} tagged</span>` +
+    '<span class="photo-day-map-chevron" aria-hidden="true">▾</span>' +
+    '</button>' +
+    `<div class="photo-day-map-body" id="${escapeAttr(bodyId)}">` +
     `<div class="photo-day-map-canvas" data-map-lat="${region.centerLat}"` +
     ` data-map-lon="${region.centerLon}" data-map-zoom="${region.zoom}"` +
     ` data-map-base-zoom="${region.zoom}">` +
@@ -80,6 +137,7 @@ export function mapRegionHtml(region: MapRegion, index: number, total: number): 
     '<a class="photo-map-open" target="_blank" rel="noopener">View interactive map ↗</a>' +
     '</div>' +
     `<div class="photo-day-map-legend">${legend}</div>` +
+    '</div>' +
     '</div>'
   );
 }

@@ -19,7 +19,15 @@ Everything runs in the browser. Photos are never uploaded.
    of 200 photos becomes a handful of places.
 5. **Name those places** — one reverse-geocode lookup per cluster, cached locally.
 6. **Caption** — from place, time of day, and cluster context.
-7. **Export** — a self-contained static site you can publish anywhere.
+7. **Browse** — one day per page, chosen from a date strip that runs oldest on
+   the left to newest on the right. The selected day lives in the URL hash, so
+   the back button steps through days and a link to one survives a reload.
+8. **Export** — a self-contained static site you can publish anywhere.
+
+Each day renders on its own rather than as one long timeline: a few hundred
+photos meant every day's maps and thumbnails were live at once. The day map
+collapses too — click its header — and that preference is remembered across
+days and visits, for when you want the grid and not the map.
 
 ## Running it
 
@@ -198,7 +206,7 @@ src/
   meta/     EXIF parsing, capture-time handling, caption generation
   geo/      Mercator projection, distance clustering, reverse geocoding
   store/    IndexedDB
-  ui/       timeline, day sections, maps, cards, lightbox
+  ui/       day pager, day sections, maps, cards, lightbox
   export/   static-site generator
 ```
 

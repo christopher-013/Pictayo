@@ -65,10 +65,12 @@ button, a, input { font: inherit; }
 
 /* ── App shell ─────────────────────────────────────────────────────────── */
 
+/*
+ * The header is not sticky. It carries the full logo, which is far too tall to
+ * pin to the top of a scrolling page — the day strip below it sticks instead,
+ * since that's what you actually need while browsing a day.
+ */
 .app-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
   background: linear-gradient(135deg, #fffdf4, #e9f8f9);
   border-bottom: 1px solid rgba(10, 124, 130, 0.18);
   box-shadow: 0 2px 14px rgba(17, 56, 68, 0.07);
@@ -85,37 +87,18 @@ button, a, input { font: inherit; }
   padding: 12px 18px 10px;
 }
 
-.app-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
-
 /*
- * The mascot, circle-cropped. The source art sits on white with a sliver of
- * map in one corner; the circle clips that away, and the ring stops a white
- * subject dissolving into the pale header behind it.
+ * The full logo, artwork and wordmark together. It needs real width for the
+ * wordmark to be readable, which is why the header isn't sticky.
  */
-.app-brand-mark {
-  flex: 0 0 46px;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(1, 154, 160, 0.35), 0 3px 10px rgba(10, 124, 130, 0.22);
+.app-logo { margin: 0; line-height: 0; }
+
+.app-logo img {
+  display: block;
+  width: 232px;
+  max-width: 100%;
+  height: auto;
 }
-
-/* Wordmark, set to match the logo: lowercase, two-tone, tight tracking. */
-.app-brand h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.4px;
-  text-transform: lowercase;
-}
-
-.app-brand h1 .wm-a { color: var(--brand-teal); }
-.app-brand h1 .wm-b { color: var(--brand-purple); }
-
-.app-tagline { margin: 2px 0 0; font-size: 12px; color: #4f7076; }
 
 .app-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -220,12 +203,15 @@ button, a, input { font: inherit; }
   color: var(--ink3);
 }
 
-/* The full logo gets one prominent outing, on the empty state. */
-.library-empty-logo {
+/* Just the mascot here — the header already carries the full logo. */
+.library-empty-mark {
   display: block;
-  width: min(430px, 82%);
-  height: auto;
-  margin: 0 auto 6px;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(1, 154, 160, 0.3);
 }
 
 .library-empty h2 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
@@ -234,38 +220,79 @@ button, a, input { font: inherit; }
 
 /* ── Day navigation ────────────────────────────────────────────────────── */
 
-.day-strip {
+/*
+ * Date strip: one card per day, oldest on the left. Sticks to the top so you
+ * can move between days without scrolling back up.
+ */
+.day-nav {
   position: sticky;
-  top: var(--header-h);
+  top: 0;
   z-index: 40;
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 9px 2px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(8px);
-  scrollbar-width: thin;
+  background: linear-gradient(180deg, var(--teal-deep), #0a4449);
+  box-shadow: 0 3px 14px rgba(12, 81, 87, 0.28);
 }
+
+.day-nav-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 10px 18px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-nav-scroll::-webkit-scrollbar { display: none; }
 
 .day-chip {
+  position: relative;
   flex: 0 0 auto;
-  padding: 6px 11px;
-  border: 1px solid #b9e3e6;
-  border-radius: 999px;
-  background: #fff;
-  color: #0a6c72;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 62px;
+  padding: 7px 10px 6px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
   cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 100ms ease;
 }
 
-.day-chip:hover { background: #e6f6f7; border-color: var(--teal); }
-.day-chip b { color: var(--ink3); font-weight: 700; margin-left: 5px; }
+.day-chip:hover { background: rgba(255, 255, 255, 0.2); }
+.day-chip:active { transform: scale(0.95); }
+
+.day-chip.is-active {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+.day-chip-mon { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: rgba(255, 255, 255, 0.66); }
+.day-chip-num { font-size: 19px; font-weight: 800; line-height: 1; color: #fff; }
+.day-chip-dow { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: rgba(255, 255, 255, 0.6); }
+
+.day-chip-count {
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.day-chip.is-active .day-chip-mon { color: rgba(12, 81, 87, 0.7); }
+.day-chip.is-active .day-chip-num { color: var(--teal-deep); }
+.day-chip.is-active .day-chip-dow { color: rgba(12, 81, 87, 0.65); }
+.day-chip.is-active .day-chip-count { background: var(--teal); color: #fff; }
 
 /* ── Day section ───────────────────────────────────────────────────────── */
 
-.day-section { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 170px; }
+.day-section { display: flex; flex-direction: column; gap: 12px; }
 
 .sec-label {
   font-size: 15px;
@@ -287,18 +314,41 @@ button, a, input { font: inherit; }
   box-shadow: 0 5px 18px rgba(17, 56, 68, 0.12);
 }
 
+/* Doubles as the collapse toggle — hence a button, and the pointer cursor. */
 .photo-day-map-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
   padding: 12px 13px 9px;
+  border: 0;
   background: linear-gradient(135deg, #fffdf4, #e9f8f9);
   border-bottom: 1px solid rgba(10, 124, 130, 0.15);
+  text-align: left;
+  cursor: pointer;
 }
 
-.photo-day-map-title { font-size: 17px; font-weight: 800; color: var(--teal-deep); line-height: 1.2; }
-.photo-day-map-sub { font-size: 11px; color: #4f7076; line-height: 1.35; margin-top: 3px; }
+.photo-day-map-head:hover { background: linear-gradient(135deg, #fffbe8, #dff4f6); }
+.photo-day-map-head:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+.photo-day-map-headings { min-width: 0; flex: 1; }
+
+.photo-day-map-title { display: block; font-size: 17px; font-weight: 800; color: var(--teal-deep); line-height: 1.2; }
+.photo-day-map-sub { display: block; font-size: 11px; color: #4f7076; line-height: 1.35; margin-top: 3px; }
+
+.photo-day-map-chevron {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--teal);
+  font-size: 15px;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.photo-day-map.is-collapsed .photo-day-map-body { display: none; }
+.photo-day-map.is-collapsed .photo-day-map-head { border-bottom: 0; }
+.photo-day-map.is-collapsed .photo-day-map-chevron { transform: rotate(-90deg); }
 
 .photo-day-map-count {
   flex-shrink: 0;
@@ -721,13 +771,15 @@ body.photo-lightbox-open { overflow: hidden; }
 /* ── Small screens ─────────────────────────────────────────────────────── */
 
 @media (max-width: 560px) {
-  :root { --header-h: 132px; }
-
   .app-header-inner { padding: 10px 12px 8px; }
   .app-privacy { padding: 0 12px 8px; }
   .app-main { padding: 12px 12px 48px; }
   .app-actions { width: 100%; }
   .app-actions .btn { flex: 1 1 auto; }
+
+  .app-logo img { width: 176px; }
+  .day-nav-scroll { padding: 8px 12px; }
+  .day-chip { min-width: 56px; padding: 6px 8px 5px; }
 
   .photo-day-map-canvas { aspect-ratio: 4 / 3; min-height: 210px; }
   .photo-day-map-title { font-size: 15px; }

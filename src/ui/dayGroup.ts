@@ -1,7 +1,7 @@
 import type { DayGroup, Photo } from '../types';
 import { escapeAttr } from '../util/escape';
 import { photoCardHtml } from './photoCard';
-import { mapRegionHtml } from './photoMap';
+import { mapRegionHtml, mapsCollapsed } from './photoMap';
 
 /**
  * One day's section: heading, map(s), filter bar, and the photo grid.
@@ -22,8 +22,11 @@ export function dayGroupHtml(day: DayGroup, collector: LightboxCollector): strin
     .map((photo) => photoCardHtml({ photo, lightboxIndex: collector.add(photo) }))
     .join('');
 
+  const collapsed = mapsCollapsed();
   const maps = day.regions
-    .map((region, index) => mapRegionHtml(region, index, day.regions.length))
+    .map((region, index) =>
+      mapRegionHtml(region, index, day.regions.length, { collapsed, idPrefix: day.dayKey }),
+    )
     .join('');
 
   const untagged = day.photos.length - day.taggedCount;
