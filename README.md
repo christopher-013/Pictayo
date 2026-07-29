@@ -114,9 +114,12 @@ boundaries entirely since reverse geocoding already covers those.
 
 Three things make this safe to depend on:
 
-- **It never blocks the timeline.** Overpass has to be queried gently, so a
-  trip's worth of places takes a minute. The library renders immediately with
-  district names and sharpens up afterwards.
+- **One request for the whole library.** Overpass accepts many `is_in` lookups
+  in a single query, with `out count` between them marking where each result
+  set ends — so a trip resolves in one round trip of a second or two rather
+  than one throttled request per place. The library still renders first with
+  district names and sharpens up a moment later, so nothing waits on the
+  network.
 - **Results are cached in IndexedDB**, misses included, so a place is only ever
   asked about once no matter how many times you re-import.
 - **Failure is invisible.** If the service is down, names stay as districts.

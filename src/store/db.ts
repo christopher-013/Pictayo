@@ -34,8 +34,21 @@ interface PicturePictureDB extends DBSchema {
 
 let dbPromise: Promise<IDBPDatabase<PicturePictureDB>> | null = null;
 
+/**
+ * A version upgrade blocked by another connection never resolves *and never
+ * errors* — IndexedDB simply waits. Every read and write in the app funnels
+ * through here, so without a deadline the whole page appears to freeze with no
+ * clue why. This turns that into a normal failure.
+ */
+const OPEN_TIMEOUT_MS = 10_000;
+
 function getDB(): Promise<IDBPDatabase<PicturePictureDB>> {
-  dbPromise ??= openDB<PicturePictureDB>(DB_NAME, DB_VERSION, {
+  dbPromise ??= openWithDeadline();
+  return dbPromise;
+}
+
+function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
+  const open = openDB<PicturePictureDB>(DB_NAME, DB_VERSION, {
     // Guarded per version so an existing v1 library upgrades in place rather
     // than failing on stores that already exist.
     upgrade(db, oldVersion) {
@@ -49,8 +62,52 @@ function getDB(): Promise<IDBPDatabase<PicturePictureDB>> {
         db.createObjectStore('landmarks', { keyPath: 'key' });
       }
     },
+
+    /**
+     * Another tab is holding the old version open, so this upgrade can't run.
+     * Nothing to do but say so — the deadline below turns it into an error.
+     */
+    blocked(currentVersion, blockedVersion) {
+      console.warn(
+        `PicturePicture: upgrade from v${currentVersion} to v${blockedVersion} is blocked ` +
+          'by another tab. Close other PicturePicture tabs and reload.',
+      );
+    },
+
+    /**
+     * The mirror image: *this* connection is holding the old version open while
+     * another tab tries to upgrade. Step aside so that tab isn't stuck the way
+     * this one would have been.
+     */
+    blocking(_currentVersion, _blockedVersion, event) {
+      (event.target as IDBPDatabase<PicturePictureDB>).close();
+      dbPromise = null;
+    },
+
+    terminated() {
+      dbPromise = null;
+    },
   });
-  return dbPromise;
+
+  return Promise.race([
+    open,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              'Timed out opening the local database. Another PicturePicture tab may be ' +
+                'holding an older version open — close it and reload.',
+            ),
+          ),
+        OPEN_TIMEOUT_MS,
+      ),
+    ),
+  ]).catch((error: unknown) => {
+    // Let the next call try again rather than caching the failure forever.
+    dbPromise = null;
+    throw error;
+  });
 }
 
 export interface PhotoRecord {

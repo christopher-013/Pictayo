@@ -109,15 +109,16 @@ export async function enrichLandmarks(
   days: DayGroup[],
   finder: LandmarkFinder,
 ): Promise<boolean> {
-  const clusters = days.flatMap((day) => day.regions.flatMap((region) => region.clusters));
-  let found = false;
+  const pending = days
+    .flatMap((day) => day.regions.flatMap((region) => region.clusters))
+    .filter((cluster) => !cluster.landmark);
 
-  for (const cluster of clusters) {
-    if (cluster.landmark) continue;
-    if (await finder.find(cluster.lat, cluster.lon)) found = true;
-  }
+  if (pending.length === 0) return false;
 
-  return found;
+  // One batched round trip for the whole library, rather than one per place.
+  const found = await finder.findMany(pending.map(({ lat, lon }) => ({ lat, lon })));
+
+  return [...found.values()].some(Boolean);
 }
 
 function toMapRegion(clusters: PlaceCluster[], index: number): MapRegion {

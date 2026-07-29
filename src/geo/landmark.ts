@@ -39,10 +39,18 @@ const REQUEST_TIMEOUT_MS = 25_000;
 const RETRY_BACKOFF_MS = 1500;
 
 /**
- * Overpass rate-limits hard — two requests a second apart already earned a 429
- * while testing. Lookups are per place cluster, so even a long trip is a few
- * dozen, and a generous gap costs nothing that matters.
+ * How many places go into one request.
+ *
+ * Overpass accepts many `is_in` lookups in a single query, and `out count`
+ * between them delimits the results — so a whole trip usually needs one round
+ * trip instead of one per place. Measured at ~1.9s for three places, which is
+ * why this batches rather than throttling a queue of individual calls.
+ *
+ * Capped so a very large library still sends bounded queries.
  */
+const BATCH_SIZE = 20;
+
+/** Courtesy gap between batches, which most imports never reach. */
 const MIN_REQUEST_SPACING_MS = 2000;
 
 /**
@@ -57,8 +65,14 @@ export interface Landmark {
   kind: string;
 }
 
+export interface GeoPoint {
+  lat: number;
+  lon: number;
+}
+
 export interface LandmarkFinder {
-  find(lat: number, lon: number): Promise<Landmark | null>;
+  /** Resolves many points at once, keyed by {@link landmarkCacheKey}. */
+  findMany(points: GeoPoint[]): Promise<Map<string, Landmark | null>>;
 }
 
 /**
@@ -84,7 +98,23 @@ const LANDMARK_RULES: ReadonlyArray<{ key: string; values: ReadonlySet<string> }
 ];
 
 interface OverpassElement {
+  type?: string;
   tags?: Record<string, string>;
+}
+
+/**
+ * Splits a batched response back into one group per requested point, using the
+ * `count` elements emitted between them as separators.
+ */
+export function splitOnCountMarkers(elements: OverpassElement[]): OverpassElement[][] {
+  const groups: OverpassElement[][] = [[]];
+
+  for (const element of elements) {
+    if (element.type === 'count') groups.push([]);
+    else groups[groups.length - 1]!.push(element);
+  }
+
+  return groups;
 }
 
 /** ~110m, matching the reverse-geocode cache so the two stay in step. */
@@ -105,59 +135,81 @@ export async function cachedLandmarkName(lat: number, lon: number): Promise<stri
 }
 
 export class OverpassLandmarkFinder implements LandmarkFinder {
-  private queue: Promise<unknown> = Promise.resolve();
   private consecutiveFailures = 0;
   private endpointIndex = 0;
 
-  async find(lat: number, lon: number): Promise<Landmark | null> {
-    const key = landmarkCacheKey(lat, lon);
+  async findMany(points: GeoPoint[]): Promise<Map<string, Landmark | null>> {
+    const resolved = new Map<string, Landmark | null>();
 
-    // A cached miss is stored as an empty name, so a place with no landmark is
-    // only ever asked about once.
-    const cached = await getCachedLandmark(key).catch(() => undefined);
-    if (cached) return cached.name ? { name: cached.name, kind: cached.kind } : null;
+    // Collapse duplicates first: several clusters can round to the same key.
+    const wanted = new Map<string, GeoPoint>();
+    for (const point of points) {
+      wanted.set(landmarkCacheKey(point.lat, point.lon), point);
+    }
 
-    if (this.consecutiveFailures >= FAILURE_LIMIT) return null;
+    const misses: Array<{ key: string; point: GeoPoint }> = [];
 
-    return this.enqueue(() => this.query(key, lat, lon));
+    for (const [key, point] of wanted) {
+      // A cached miss is stored as an empty name, so a place with no landmark
+      // is only ever asked about once.
+      const cached = await getCachedLandmark(key).catch(() => undefined);
+      if (cached) resolved.set(key, cached.name ? { name: cached.name, kind: cached.kind } : null);
+      else misses.push({ key, point });
+    }
+
+    for (let start = 0; start < misses.length; start += BATCH_SIZE) {
+      if (this.consecutiveFailures >= FAILURE_LIMIT) break;
+
+      if (start > 0) await new Promise((r) => setTimeout(r, MIN_REQUEST_SPACING_MS));
+
+      const batch = misses.slice(start, start + BATCH_SIZE);
+      for (const [key, landmark] of await this.queryBatch(batch)) resolved.set(key, landmark);
+    }
+
+    return resolved;
   }
 
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const result = this.queue.then(task);
-    this.queue = result
-      .catch(() => undefined)
-      .then(() => new Promise((r) => setTimeout(r, MIN_REQUEST_SPACING_MS)));
-    return result;
-  }
+  private async queryBatch(
+    batch: Array<{ key: string; point: GeoPoint }>,
+  ): Promise<Map<string, Landmark | null>> {
+    const results = new Map<string, Landmark | null>();
 
-  private async query(key: string, lat: number, lon: number): Promise<Landmark | null> {
     // `pivot` turns each enclosing area back into the way or relation it came
-    // from, so the original tags come back with it.
+    // from, so the original tags come back with it. `out count` after each
+    // lookup emits a marker element, which is what makes the groups separable.
     const overpassQl =
-      `[out:json][timeout:20];is_in(${lat},${lon})->.a;` +
-      'way(pivot.a);out tags;relation(pivot.a);out tags;';
+      '[out:json][timeout:60];' +
+      batch
+        .map(
+          ({ point }) =>
+            `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;`,
+        )
+        .join('');
 
     const elements = await this.fetchWithFallback(overpassQl);
 
     if (!elements) {
       this.consecutiveFailures += 1;
-      // Nothing cached on failure: this place is worth asking about again.
-      return null;
+      // Nothing cached on failure: these places are worth asking about again.
+      return results;
     }
 
     this.consecutiveFailures = 0;
 
-    const landmark = pickLandmark(elements);
+    const groups = splitOnCountMarkers(elements);
 
-    // A miss is cached too, as an empty name, so a place with genuinely no
-    // landmark is only ever asked about once.
-    await putCachedLandmark({
-      key,
-      name: landmark?.name ?? '',
-      kind: landmark?.kind ?? '',
-    }).catch(() => undefined);
+    for (const [index, { key }] of batch.entries()) {
+      const landmark = pickLandmark(groups[index] ?? []);
+      results.set(key, landmark);
 
-    return landmark;
+      await putCachedLandmark({
+        key,
+        name: landmark?.name ?? '',
+        kind: landmark?.kind ?? '',
+      }).catch(() => undefined);
+    }
+
+    return results;
   }
 
   /** Walks the mirrors until one answers, starting from the last that worked. */
