@@ -31,32 +31,49 @@ export function dayGroupHtml(day: DayGroup, collector: LightboxCollector): strin
 
   const untagged = day.photos.length - day.taggedCount;
 
-  // Photos first, map after.
-  //
-  // The map is context for the photos rather than the point of the page, and
-  // leading with it pushed the first row of thumbnails below the fold. The
-  // filter bar stays above the grid, where it belongs — it explains why the
-  // grid is showing fewer photos than the day holds.
+  // The map sits above the photos but starts collapsed, so it is one click away
+  // without pushing the first row of thumbnails below the fold. Collapsed is
+  // only the *default* — see mapsCollapsed(); once someone opens or closes it,
+  // their choice is what carries across days and visits.
   return (
     `<section class="day-section" id="day-${escapeAttr(day.dayKey)}" data-day="${escapeAttr(day.dayKey)}">` +
-    `<div class="sec-label">${escapeAttr(day.label)} · Photos</div>` +
-    '<div class="photo-filter-bar" data-filter-bar>' +
-    '<span data-filter-label></span>' +
-    '<button class="photo-filter-clear" type="button" data-filter-clear>Show all photos</button>' +
-    '</div>' +
-    `<div class="photo-grid">${cards}</div>` +
-    '<div class="photo-empty" data-empty hidden>No photos match this filter.</div>' +
+    `<div class="sec-label">${escapeAttr(day.label)} · ${sectionLabel(day)}</div>` +
     (maps || noMapNoticeHtml(day)) +
     (untagged > 0 && maps ? untaggedNoticeHtml(untagged) : '') +
+    '<div class="photo-filter-bar" data-filter-bar>' +
+    '<span data-filter-label></span>' +
+    '<button class="photo-filter-clear" type="button" data-filter-clear>Show all</button>' +
+    '</div>' +
+    `<div class="photo-grid">${cards}</div>` +
+    '<div class="photo-empty" data-empty hidden>Nothing matches this filter.</div>' +
     '</section>'
   );
 }
 
+/** "Photos", or "Photos & videos" on a day that has both. */
+function sectionLabel(day: DayGroup): string {
+  const videos = day.photos.filter((p) => p.kind === 'video').length;
+  if (videos === 0) return 'Photos';
+  if (videos === day.photos.length) return videos === 1 ? 'Video' : 'Videos';
+  return 'Photos & videos';
+}
+
+/** "12 photos", "3 videos", or "12 photos and 3 videos". */
+function mediaCount(day: DayGroup): string {
+  const videos = day.photos.filter((p) => p.kind === 'video').length;
+  const photos = day.photos.length - videos;
+
+  const parts = [];
+  if (photos > 0) parts.push(`${photos} photo${photos === 1 ? '' : 's'}`);
+  if (videos > 0) parts.push(`${videos} video${videos === 1 ? '' : 's'}`);
+
+  return parts.join(' and ');
+}
+
 function noMapNoticeHtml(day: DayGroup): string {
-  const count = day.photos.length;
   return (
     '<div class="photo-empty">' +
-    `None of the ${count} photo${count === 1 ? '' : 's'} from this day carry location data, ` +
+    `None of the ${mediaCount(day)} from this day carry location data, ` +
     'so there’s nothing to plot.' +
     '</div>'
   );
@@ -65,7 +82,7 @@ function noMapNoticeHtml(day: DayGroup): string {
 function untaggedNoticeHtml(count: number): string {
   return (
     '<div class="photo-map-note">' +
-    `📍 ${count} photo${count === 1 ? '' : 's'} from this day ` +
+    `📍 ${count} item${count === 1 ? '' : 's'} from this day ` +
     `${count === 1 ? 'has' : 'have'} no location data, so ${count === 1 ? 'it isn’t' : 'they aren’t'} on the map.` +
     '</div>'
   );
@@ -93,7 +110,7 @@ export function filterDayByCluster(section: HTMLElement, clusterId: string, plac
 
   const bar = section.querySelector<HTMLElement>('[data-filter-bar]');
   const label = section.querySelector<HTMLElement>('[data-filter-label]');
-  if (label) label.textContent = `📍 ${place} · ${shown} photo${shown === 1 ? '' : 's'}`;
+  if (label) label.textContent = `📍 ${place} · ${shown} item${shown === 1 ? '' : 's'}`;
   bar?.classList.add('active');
 
   updateEmptyState(section, shown);

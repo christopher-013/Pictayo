@@ -6,8 +6,14 @@ import { UNDATED_KEY } from '../meta/datetime';
  * album so both strips read identically.
  */
 
-/** How many place names a chip shows before falling back to a count. */
-const MAX_CHIP_PLACES = 2;
+/**
+ * How many place names a chip shows.
+ *
+ * One. A day often has several, and listing two made the chips wide and hard to
+ * scan for the thing they are actually for — picking a date. The busiest place
+ * is the useful one; the rest are in the chip's tooltip.
+ */
+const MAX_CHIP_PLACES = 1;
 
 export interface ChipParts {
   month: string;
@@ -68,8 +74,6 @@ export function placesFor(day: DayGroup): DayPlaces {
     return { label: `${count} photo${count === 1 ? '' : 's'}`, all: [] };
   }
 
-  const shown = names.slice(0, MAX_CHIP_PLACES);
-  const extra = names.length - shown.length;
-
-  return { label: extra > 0 ? `${shown.join(' · ')} +${extra}` : shown.join(' · '), all: names };
+  // No "+N" suffix: it added width for information the tooltip already carries.
+  return { label: names.slice(0, MAX_CHIP_PLACES).join(' · '), all: names };
 }

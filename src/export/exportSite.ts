@@ -228,7 +228,7 @@ function buildDayPage(context: PageContext): string {
 <header class="site-header">
 ${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="" width="760" height="456">' : ''}
 <h1>${escapeAttr(title)}</h1>
-<p>${days.length} day${days.length === 1 ? '' : 's'} · ${totalPhotos} photo${totalPhotos === 1 ? '' : 's'}</p>
+<p>${days.length} day${days.length === 1 ? '' : 's'} · ${totalPhotos} item${totalPhotos === 1 ? '' : 's'}</p>
 </header>
 
 <nav class="day-nav" aria-label="Choose a day">
@@ -239,11 +239,11 @@ ${days.map((d, i) => navChipHtml(d, i, i === index)).join('\n')}
 
 <main>
 <section class="day-section">
-<div class="sec-label">${escapeAttr(day.label)} · Photos</div>
+<div class="sec-label">${escapeAttr(day.label)} · ${escapeAttr(sectionLabel(day))}</div>
 ${maps || noMapNoticeHtml(day)}
 ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 <div class="photo-filter-bar" data-filter-bar><span data-filter-label></span>
-<button class="photo-filter-clear" type="button" data-filter-clear>Show all photos</button></div>
+<button class="photo-filter-clear" type="button" data-filter-clear>Show all</button></div>
 <div class="photo-grid">${cards}</div>
 </section>
 </main>
@@ -289,11 +289,25 @@ function navChipHtml(day: DayGroup, index: number, active: boolean): string {
   );
 }
 
+/** "Photos", or "Photos & videos" on a day that has both. */
+function sectionLabel(day: DayGroup): string {
+  const videos = day.photos.filter((p) => p.kind === 'video').length;
+  if (videos === 0) return 'Photos';
+  if (videos === day.photos.length) return videos === 1 ? 'Video' : 'Videos';
+  return 'Photos & videos';
+}
+
 function noMapNoticeHtml(day: DayGroup): string {
-  const count = day.photos.length;
+  const videos = day.photos.filter((p) => p.kind === 'video').length;
+  const photos = day.photos.length - videos;
+
+  const parts = [];
+  if (photos > 0) parts.push(`${photos} photo${photos === 1 ? '' : 's'}`);
+  if (videos > 0) parts.push(`${videos} video${videos === 1 ? '' : 's'}`);
+
   return (
     '<div class="photo-empty">' +
-    `None of the ${count} photo${count === 1 ? '' : 's'} from this day carry location data, ` +
+    `None of the ${parts.join(' and ')} from this day carry location data, ` +
     'so there’s nothing to plot.' +
     '</div>'
   );
@@ -302,7 +316,7 @@ function noMapNoticeHtml(day: DayGroup): string {
 function untaggedNoticeHtml(count: number): string {
   return (
     '<div class="photo-map-note">' +
-    `📍 ${count} photo${count === 1 ? '' : 's'} from this day ` +
+    `📍 ${count} item${count === 1 ? '' : 's'} from this day ` +
     `${count === 1 ? 'has' : 'have'} no location data, so ${count === 1 ? 'it isn’t' : 'they aren’t'} on the map.` +
     '</div>'
   );
@@ -552,7 +566,7 @@ stage.addEventListener('touchend',function(e){var t=e.changedTouches[0],dx=t.cli
 if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1)},{passive:true});
 
 var KEY='pp:maps-collapsed';
-function collapsed(){try{return localStorage.getItem(KEY)==='1'}catch(e){return false}}
+function collapsed(){try{var v=localStorage.getItem(KEY);return v===null?true:v==='1'}catch(e){return true}}
 function store(v){try{localStorage.setItem(KEY,v?'1':'0')}catch(e){}}
 if(collapsed()){Array.prototype.forEach.call(document.querySelectorAll('.photo-day-map'),function(m){
 m.classList.add('is-collapsed');var h=m.querySelector('[data-map-toggle]');if(h)h.setAttribute('aria-expanded','false')})}
@@ -576,7 +590,7 @@ var n=0;Array.prototype.forEach.call(s.querySelectorAll('.photo-card'),function(
 var m=c.getAttribute('data-cluster')===id;c.classList.toggle('hidden',!m);if(m)n++});
 Array.prototype.forEach.call(s.querySelectorAll('.photo-map-pin-html'),function(x){
 x.classList.toggle('is-active',x.getAttribute('data-cluster')===id)});
-s.querySelector('[data-filter-label]').textContent='\\u{1F4CD} '+p.getAttribute('data-place')+' \\u00B7 '+n+' photo'+(n===1?'':'s');
+s.querySelector('[data-filter-label]').textContent='\\u{1F4CD} '+p.getAttribute('data-place')+' \\u00B7 '+n+' item'+(n===1?'':'s');
 s.querySelector('[data-filter-bar]').classList.add('active')});
 })();
 `;

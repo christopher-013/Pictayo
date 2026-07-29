@@ -201,30 +201,37 @@ button, a, input { font: inherit; }
   border-bottom: 1px solid rgba(10, 124, 130, 0.14);
 }
 
-/* A single compact row: logo on the left, controls beside it. Keeping the bar
- * short matters because the date strip sticks below it and the photos are what
- * the page is for. */
+/* Centred, and kept short — the date strip sticks below it and the photos are
+ * what the page is for. */
 .app-header-inner {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 8px;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 8px 18px 6px;
+  padding: 10px 18px 8px;
 }
 
-/* The artwork's transparency lets the gradient carry straight through, so it
- * reads as part of the bar rather than a pasted-on box. */
-.app-logo { margin: 0; line-height: 0; flex: 0 0 auto; }
+/*
+ * Line art rather than the full-colour logo.
+ *
+ * This sits directly above the date strip and the first row of thumbnails, and
+ * the colour version — dog, photo, folded map, two-tone wordmark — is a lot of
+ * competing detail in that position. The outlines keep it recognisable while
+ * letting the photos hold the attention. Its transparency also lets the header
+ * gradient run straight through.
+ */
+.app-logo { margin: 0; line-height: 0; }
 
 .app-logo img {
   display: block;
-  width: 132px;
+  width: 150px;
   max-width: 100%;
   height: auto;
 }
+
+.app-privacy { text-align: center; }
 
 .app-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -944,9 +951,9 @@ body.photo-lightbox-open { overflow: hidden; }
   .app-actions { width: 100%; }
   .app-actions .btn { flex: 1 1 auto; }
 
-  .app-logo img { width: 116px; }
-  .app-header-inner { gap: 10px; padding: 8px 12px 6px; }
-  .app-actions { width: auto; }
+  .app-logo img { width: 124px; }
+  .app-header-inner { gap: 8px; padding: 8px 12px 6px; }
+  .app-actions { width: auto; justify-content: center; }
   .app-actions .btn { flex: 0 1 auto; padding: 8px 11px; font-size: 12px; }
   .day-nav-scroll { padding: 8px 12px; }
   .day-chip { min-width: 78px; max-width: 132px; padding: 6px 9px; }

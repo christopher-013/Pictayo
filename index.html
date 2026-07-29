@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PicturePicture — your photos, by when and where</title>
-<meta name="description" content="Import your photos and PicturePicture organizes them by date and plots where each one was taken. Everything happens in your browser — no photo is ever uploaded.">
+<title>PicturePicture — your photos &amp; videos, by when and where</title>
+<meta name="description" content="Import your photos and videos and PicturePicture organizes them by date and plots where each one was taken. Everything happens in your browser — nothing is ever uploaded.">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="theme-color" content="#019aa0">
@@ -22,20 +22,20 @@
     <img class="landing-logo" src="/logo.webp" alt="PicturePicture" width="760" height="456" fetchpriority="high">
 
     <p class="landing-tagline">
-      Sort your photos by the day they were taken and the place they were shot —
+      Sort your photos and videos by when they were taken and where they were shot —
       free, in your browser
     </p>
 
     <div class="landing-menu">
       <button type="button" class="landing-cta" id="btn-add">
         <span class="landing-cta-icon" aria-hidden="true">📷</span>
-        Add photos
+        Add photos &amp; videos
       </button>
       <button type="button" class="landing-alt" id="btn-add-folder">Add a folder instead</button>
     </div>
 
     <p class="landing-note" id="landing-note">
-      Nothing is uploaded. Your photos are read on this device and stay here.
+      Nothing is uploaded. Your photos and videos are read on this device and stay here.
     </p>
   </div>
 
@@ -48,16 +48,16 @@
 <header class="app-header" id="app-header" hidden>
   <div class="app-header-inner">
     <h1 class="app-logo">
-      <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
+      <img src="/logo-wire.webp" alt="PicturePicture" width="760" height="456" decoding="async">
     </h1>
     <div class="app-actions">
-      <button type="button" class="btn btn-primary" id="btn-add-more">Add photos</button>
+      <button type="button" class="btn btn-primary" id="btn-add-more">Add photos &amp; videos</button>
       <button type="button" class="btn" id="btn-add-folder-more">Add folder</button>
       <button type="button" class="btn" id="btn-export" disabled>Export site</button>
       <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
     </div>
   </div>
-  <div class="app-privacy" id="library-summary">Photos are read in your browser and never uploaded.</div>
+  <div class="app-privacy" id="library-summary">Photos and videos are read in your browser and never uploaded.</div>
 </header>
 
 <!--
@@ -81,12 +81,16 @@
 <div class="drop-overlay" id="drop-overlay" aria-hidden="true">
   <div class="drop-overlay-card">
     <span aria-hidden="true">📥</span>
-    Drop to add these photos
+    Drop to add these photos &amp; videos
   </div>
 </div>
 
-<input type="file" id="file-input" accept="image/*" multiple hidden>
-<input type="file" id="folder-input" accept="image/*" multiple webkitdirectory hidden>
+<!--
+  Both photos and videos. Without video/* here the OS picker greys out every
+  clip, so the button could never add what the rest of the app supports.
+-->
+<input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
+<input type="file" id="folder-input" accept="image/*,video/*" multiple webkitdirectory hidden>
 
 <div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Full-size photo">
   <div class="photo-lightbox-dialog">

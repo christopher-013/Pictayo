@@ -133,6 +133,69 @@ async function makeTransparent(pipeline) {
   return sharp(data, { raw: { width, height, channels } });
 }
 
+/**
+ * Ink colour for the wireframe mark, as [r, g, b] — the deep brand teal.
+ */
+const WIRE_INK = [12, 81, 87];
+
+/** Multiplies the edge signal; thin pencil lines are faint without it. */
+const WIRE_GAIN = 2.6;
+
+/** Edges below this are noise from the artwork's soft shading. */
+const WIRE_FLOOR = 18;
+
+/**
+ * Renders the artwork as line art.
+ *
+ * The header sits directly above the date strip and the photos, and the full
+ * colour logo — a dog, a photo, a folded map, a two-tone wordmark — is a lot of
+ * competing detail in that position. Reducing it to outlines keeps the shape
+ * recognisable while letting the page below it hold the attention.
+ *
+ * Done with a Sobel gradient rather than a threshold, because the artwork is
+ * only *partly* outlined: the mascot and the map have black linework, but the
+ * wordmark is solid colour with no outline at all, and a brightness threshold
+ * would either drop the letters or fill them in solid. A gradient responds to
+ * any edge, so the letters come back as outlines like everything else.
+ */
+async function makeWireframe(pipeline) {
+  // Flattened to white first, so gradients come from the drawing rather than
+  // from the alpha channel's own hard edge.
+  const { data, info } = await pipeline
+    .clone()
+    .flatten({ background: '#ffffff' })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width, height } = info;
+  const at = (x, y) => data[Math.min(height - 1, Math.max(0, y)) * width + Math.min(width - 1, Math.max(0, x))];
+
+  const out = Buffer.alloc(width * height * 4);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const gx =
+        -at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1) +
+        at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1);
+      const gy =
+        -at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1) +
+        at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1);
+
+      const magnitude = Math.hypot(gx, gy) / 4;
+      const alpha = magnitude < WIRE_FLOOR ? 0 : Math.min(255, Math.round(magnitude * WIRE_GAIN));
+
+      const i = (y * width + x) * 4;
+      out[i] = WIRE_INK[0];
+      out[i + 1] = WIRE_INK[1];
+      out[i + 2] = WIRE_INK[2];
+      out[i + 3] = alpha;
+    }
+  }
+
+  return sharp(out, { raw: { width, height, channels: 4 } });
+}
+
 await mkdir(OUT, { recursive: true });
 
 const mascotAt = (size) =>
@@ -158,6 +221,11 @@ await (await makeTransparent(sharp(SRC).extract(FULL).resize(760)))
   .webp({ quality: 82, alphaQuality: 100 })
   .toFile(`${OUT}/logo.webp`);
 
+// Line-art version for the app header, where the full-colour logo is too busy.
+await (await makeWireframe(sharp(SRC).extract(FULL).resize(760)))
+  .webp({ quality: 88, alphaQuality: 100 })
+  .toFile(`${OUT}/logo-wire.webp`);
+
 // Open Graph / link previews want a wide, opaque, absolutely-sized image.
 await (
   await snapWhite(
@@ -170,6 +238,6 @@ await (
   .png({ compressionLevel: 9, palette: true })
   .toFile(`${OUT}/og-image.png`);
 
-for (const f of ['mark.webp', 'favicon.png', 'apple-touch-icon.png', 'logo.webp', 'og-image.png']) {
+for (const f of ['mark.webp', 'favicon.png', 'apple-touch-icon.png', 'logo.webp', 'logo-wire.webp', 'og-image.png']) {
   console.log(`${f.padEnd(22)} ${(statSync(`${OUT}/${f}`).size / 1024).toFixed(1)} KB`);
 }
