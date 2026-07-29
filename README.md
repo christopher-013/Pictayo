@@ -124,6 +124,38 @@ hand-authored — an 89KB literal table of capture times, hardcoded coordinates,
 manually verified place names, fixed Tokyo map bounds. PicturePicture derives
 every one of those from the files themselves, and works anywhere on Earth.
 
+## Videos
+
+Videos are imported alongside photos and sit in the same grid, in time order —
+a clip shot between two stills appears between them. They play **in place** when
+clicked rather than opening the lightbox, which is how the Tokyo2026 gallery did
+it: the lightbox is built for stepping between stills, and a clip you have to
+dismiss to keep scrolling is worse than one that just plays where it is.
+
+They carry the same date grouping, map pins and captions as photos, because the
+metadata is read the same way — from a different place:
+
+- **EXIF doesn't apply.** MP4 and MOV keep their metadata in QuickTime atoms, so
+  `src/meta/videoMeta.ts` walks the container directly. It prefers Apple's
+  `com.apple.quicktime.creationdate`, the only source that records the *offset*
+  the camera was in, and falls back to `moov/mvhd` (always UTC) then the file
+  timestamp. Location comes from the ISO 6709 string iPhones write.
+- **Poster frames are extracted on the main thread.** Photos are decoded in a
+  worker, but the only way to get a still out of a video is to load it into a
+  `<video>` element and paint a frame, and there is no DOM in a worker.
+- **Videos are stored whole.** Photos keep a 1600px derivative; a video has no
+  cheap equivalent, and without the bytes it cannot play after a reload. Expect
+  a library with video to be much larger — the storage figure in the header
+  counts it.
+- **Sources attach after render**, per day, so only the clips actually on screen
+  hold a blob URL. Resolving a library's worth up front would mean gigabytes
+  alive at once.
+
+**Codec caveat.** Playback depends on what the browser can decode. HEVC clips
+from an iPhone generally play in Safari and not in Chrome; when that happens the
+video keeps its date, place and caption and the card says the clip is
+unavailable rather than showing an empty player.
+
 ## Landmarks
 
 Getting from a coordinate to "Tokyo Dome" needs a different question than

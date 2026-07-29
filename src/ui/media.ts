@@ -51,8 +51,22 @@ export async function attachVideoSources(root: ParentNode): Promise<void> {
       if (!id || element.src) return;
 
       const url = await videoUrlFor(id);
-      if (url) element.src = url;
-      else element.closest('.photo-video-wrap')?.classList.add('is-missing');
+
+      if (!url) {
+        element.closest('.photo-video-wrap')?.classList.add('is-missing');
+        return;
+      }
+
+      // A source that attaches but will not decode — HEVC from an iPhone
+      // outside Safari is the usual culprit — otherwise leaves an empty player
+      // with controls that do nothing. Say so instead.
+      element.addEventListener(
+        'error',
+        () => element.closest('.photo-video-wrap')?.classList.add('is-missing'),
+        { once: true },
+      );
+
+      element.src = url;
     }),
   );
 }

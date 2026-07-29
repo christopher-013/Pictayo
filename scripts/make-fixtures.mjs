@@ -316,6 +316,65 @@ function buildApp1(spec) {
   return [0xff, 0xe1, ...be16(payload.length + 2), ...payload];
 }
 
+// ── QuickTime video fixture ──────────────────────────────────────────────────
+
+/**
+ * A small MOV carrying the metadata the app reads from real videos: an mvhd
+ * creation time and duration, an ISO 6709 location, and Apple's creationdate
+ * with its UTC offset.
+ *
+ * It has no encoded frames, so a browser cannot produce a poster from it — that
+ * is deliberate. It exercises the metadata path and the graceful-degradation
+ * path (a video that keeps its date, place and caption but shows a placeholder),
+ * which is the same thing that happens with an HEVC clip outside Safari.
+ */
+function buildQuickTimeVideo({ date, time, tz, place, durationSeconds = 12 }) {
+  const box = (type, payload) => {
+    const bytes = new Uint8Array(8 + payload.length);
+    new DataView(bytes.buffer).setUint32(0, bytes.length);
+    bytes.set([...type].map((c) => c.charCodeAt(0)), 4);
+    bytes.set(payload, 8);
+    return bytes;
+  };
+
+  const [y, mo, d] = date.split(':').map(Number);
+  const [h, mi, s] = time.split(':').map(Number);
+  // mvhd stores UTC seconds since 1904; back the local wall clock out by the offset.
+  const offsetMinutes = (Number(tz.slice(1, 3)) * 60 + Number(tz.slice(4, 6))) * (tz[0] === '-' ? -1 : 1);
+  const utcMs = Date.UTC(y, mo - 1, d, h, mi, s) - offsetMinutes * 60_000;
+  const created1904 = 2_082_844_800 + Math.floor(utcMs / 1000);
+
+  const mvhdPayload = new Uint8Array(24);
+  const view = new DataView(mvhdPayload.buffer);
+  view.setUint32(0, 0); // version 0 + flags
+  view.setUint32(4, created1904);
+  view.setUint32(8, created1904);
+  view.setUint32(12, 1000); // timescale: ticks per second
+  view.setUint32(16, durationSeconds * 1000);
+  const mvhd = box('mvhd', mvhdPayload);
+
+  const { lat, lon } = PLACES[place];
+  const sign = (n, pad) => (n < 0 ? '-' : '+') + Math.abs(n).toFixed(4).padStart(pad, '0');
+  const iso6709 = `${sign(lat, 7)}${sign(lon, 8)}/`;
+
+  const isoDate =
+    `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}T` +
+    `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:${String(s).padStart(2, '0')}${tz.replace(':', '')}`;
+
+  const udta = box(
+    'udta',
+    Buffer.concat([
+      Buffer.from(`©xyz${iso6709}`, 'latin1'),
+      Buffer.from(`com.apple.quicktime.creationdate${isoDate}`, 'latin1'),
+    ]),
+  );
+
+  const moov = box('moov', Buffer.concat([Buffer.from(mvhd), Buffer.from(udta)]));
+  const ftyp = box('ftyp', Buffer.from('qt  \0\0\0\0qt  ', 'latin1'));
+
+  return Buffer.concat([Buffer.from(ftyp), Buffer.from(moov)]);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 await rm(OUT_DIR, { recursive: true, force: true });
@@ -335,8 +394,16 @@ for (const spec of FIXTURES) {
   }
 }
 
+const VIDEO_FIXTURES = [
+  { name: 'jun08-03-teamlab-clip', date: '2026:06:08', time: '16:52:00', tz: '+09:00', place: 'teamLab' },
+];
+
+for (const spec of VIDEO_FIXTURES) {
+  await writeFile(join(OUT_DIR, `${spec.name}.mov`), buildQuickTimeVideo(spec));
+}
+
 const located = FIXTURES.filter((f) => f.place).length;
 console.log(
-  `Wrote ${FIXTURES.length} fixtures to ./${OUT_DIR} ` +
-    `(${located} geotagged, ${FIXTURES.length - located} without GPS)`,
+  `Wrote ${FIXTURES.length} photo fixtures and ${VIDEO_FIXTURES.length} video fixture(s) ` +
+    `to ./${OUT_DIR} (${located} geotagged, ${FIXTURES.length - located} without GPS)`,
 );
