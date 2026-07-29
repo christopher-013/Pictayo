@@ -2,7 +2,7 @@ import type { DayGroup, MapRegion, Photo, PlaceCluster } from './types';
 import { clusterPhotos, splitIntoRegions } from './geo/cluster';
 import { centerOf, fitZoom } from './geo/mercator';
 import { formatCoords, googleMapsUrl, type Geocoder } from './geo/geocode';
-import { cachedLandmarkName, type LandmarkFinder } from './geo/landmark';
+import { cachedLandmark, type LandmarkFinder } from './geo/landmark';
 import { UNDATED_KEY, formatDayLabel } from './meta/datetime';
 import { MetadataDescriber, type DescriptionProvider } from './meta/describe';
 
@@ -83,14 +83,15 @@ async function nameCluster(cluster: PlaceCluster, geocoder: Geocoder): Promise<v
   const [place, landmark] = await Promise.all([
     geocoder.lookup(cluster.lat, cluster.lon),
     // Cache-only: assembling the library must not wait on the landmark service.
-    cachedLandmarkName(cluster.lat, cluster.lon),
+    cachedLandmark(cluster.lat, cluster.lon),
   ]);
 
   // Coordinates are a poor label but an honest one — better than a blank pin
   // when the lookup fails or the device is offline.
   cluster.area = place?.name ?? formatCoords(cluster.lat, cluster.lon);
-  cluster.landmark = landmark;
-  cluster.place = landmark ?? cluster.area;
+  cluster.landmark = landmark?.name ?? null;
+  cluster.landmarkNearby = landmark?.near ?? false;
+  cluster.place = landmark?.name ?? cluster.area;
   cluster.mapsUrl = googleMapsUrl(cluster.lat, cluster.lon);
 }
 

@@ -30,7 +30,14 @@ export interface DescriptionProvider {
 
 export class MetadataDescriber implements DescriptionProvider {
   describe({ photo, cluster }: DescriptionContext): Caption {
-    const location = cluster?.place ?? '';
+    // "Near" only on the location line and in the sentence — pins and date
+    // chips show the bare name, where there is no room for the qualifier.
+    const location = cluster
+      ? cluster.landmarkNearby
+        ? `Near ${cluster.place}`
+        : cluster.place
+      : '';
+
     const mapsUrl = cluster ? googleMapsUrl(cluster.lat, cluster.lon) : '';
 
     return { location, desc: this.compose(photo, cluster), mapsUrl };
@@ -50,7 +57,14 @@ export class MetadataDescriber implements DescriptionProvider {
         ? `${cluster.place}, ${cluster.area}`
         : cluster.place;
 
-    const parts = [when ? `${capitalize(when)} at ${where}.` : `At ${where}.`];
+    // "close to" when the landmark was only the nearest one. Claiming you were
+    // inside somewhere the app merely guessed at would be worse than saying
+    // nothing at all.
+    const preposition = cluster.landmarkNearby ? 'close to' : 'at';
+
+    const parts = [
+      when ? `${capitalize(when)} ${preposition} ${where}.` : `${capitalize(preposition)} ${where}.`,
+    ];
 
     // The time is only as trustworthy as its source. Say so rather than let a
     // copied or re-encoded file present its modification date as a capture time.

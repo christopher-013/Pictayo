@@ -58,6 +58,34 @@ with no EXIF date at all.
 
 Other scripts: `npm run build` (typecheck + production build), `npm run typecheck`.
 
+## Releasing
+
+```bash
+npm run release              # validate, and report what a push would do
+npm run release -- --push    # validate, then push
+```
+
+The pipeline regenerates fixtures, type checks, builds, and runs the smoke
+suite, refusing to go further the moment anything fails. Pushing is opt-in
+rather than automatic — a release script that publishes as a side effect of
+being run is one mistyped command away from shipping the working tree.
+
+Before pushing it also refuses a dirty tree, fetches, and stops if the remote
+has commits you don't (`--allow-dirty` validates without publishing).
+
+`npm run smoke` runs the checks on their own. They import the real modules —
+Node 24 runs the TypeScript directly — and concentrate on what has actually
+broken here: the map projection, day grouping across timezones, caption
+wording, landmark ranking, HTML escaping, and whether the built output still
+uses relative paths so a GitHub Pages sub-path works.
+
+The suite has been mutation-tested: changing the tile size, the cluster radius,
+the region-split threshold, the landmark ranking, or the HTML escaping each
+makes it fail. A suite that cannot fail is worse than none.
+
+Anything needing a DOM or IndexedDB is out of scope; the release output ends
+with the short manual browser pass that covers it.
+
 ## Branding
 
 `brand/logo-source.png` is the master artwork. Nothing references it directly —
@@ -106,11 +134,25 @@ confidently so. Asked about the middle of Tokyo Dome it returns an unnamed
 restaurant; asked about a street in Takadanobaba it returns a pharmacy. It finds
 whatever tiny thing is closest, not the thing you are standing inside.
 
-So instead this asks Overpass which mapped areas **contain** the point
-(`is_in`), and picks the most specific interesting one. A point inside Tokyo
-Dome is also inside "Tokyo Dome City" and inside Bunkyō ward; the ranking in
+So the first question asked is which mapped areas **contain** the point
+(`is_in`), picking the most specific interesting one. A point inside Tokyo Dome
+is also inside "Tokyo Dome City" and inside Bunkyō ward; the ranking in
 `src/geo/landmark.ts` prefers the stadium, and ignores administrative
 boundaries entirely since reverse geocoding already covers those.
+
+That alone misses a whole category, though. `is_in` can only find *areas*, and
+plenty of landmarks are mapped as a single point with no footprint — teamLab
+Planets is `tourism=museum` on a bare node, so nothing encloses a photo taken
+inside it and no amount of tuning would ever surface it. A second lookup finds
+the nearest notable feature within 220m, and anything found that way is
+described as a guess: **"close to teamLab Planets"**, never "at".
+
+Nearby candidates are ranked by category first and distance only as a
+tie-break. Ranking by distance alone picks the wrong answer in exactly the case
+this exists for: at teamLab Planets the closest qualifying feature is a station
+entrance 40m away while the museum is 117m off, so "close to Shin-toyosu" beat
+the answer anyone would want. Station entrances and memorials are everywhere;
+what someone photographed is rarely the nearest mapped thing.
 
 Three things make this safe to depend on:
 
@@ -127,9 +169,19 @@ Three things make this safe to depend on:
   minutes while identical queries succeeded either side of them — so requests
   rotate through community mirrors rather than giving up on the first refusal.
 
+**Reliability caveat, and it is a real one.** The public Overpass instances ask
+callers to send an identifying `User-Agent`, and browsers are not allowed to set
+that header at all — the app can only send a `Referer`. In practice the free
+instances throttle browser traffic hard: the same query answered in ~2s from a
+Node script with a User-Agent, and returned 504 from the browser minutes later.
+Landmarks are therefore best-effort. When the lookup fails nothing breaks — the
+district name stays, and the next import retries — but do not expect every place
+to be named on the first attempt.
+
 If you publish this app somewhere busy, consider that Overpass is a free service
 run for the OpenStreetMap community. The usage here is modest and cached, but a
-high-traffic deployment should point at its own instance.
+high-traffic deployment should point at its own instance — which would also fix
+the throttling above.
 
 ## Storage
 

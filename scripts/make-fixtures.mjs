@@ -24,6 +24,9 @@ const PLACES = {
   takadanobaba:  { lat:  35.71350, lon:  139.70300, tone: -25, label: 'Takadanobaba' },
   shinjuku:      { lat:  35.69370, lon:  139.70050, tone: -55, label: 'Shinjuku' },
   tokyoDome:     { lat:  35.70560, lon:  139.75190, tone:  55, label: 'Tokyo Dome' },
+  // Mapped in OpenStreetMap as a bare node with no footprint, so nothing
+  // encloses this point — the case that only the proximity lookup can name.
+  teamLab:       { lat:  35.64860, lon:  139.79060, tone: -70, label: 'teamLab Planets' },
 };
 
 const FIXTURES = [
@@ -44,6 +47,10 @@ const FIXTURES = [
   { name: 'jun07-01-tokyodome', date: '2026:06:07', time: '13:15:00', tz: '+09:00', place: 'tokyoDome' },
   { name: 'jun07-02-tokyodome', date: '2026:06:07', time: '14:48:00', tz: '+09:00', place: 'tokyoDome' },
   { name: 'jun07-03-nogps',     date: '2026:06:07', time: '21:12:00', tz: '+09:00', place: null, tone: 90 },
+
+  // A landmark that exists only as a point in OpenStreetMap.
+  { name: 'jun08-01-teamlab', date: '2026:06:08', time: '16:43:00', tz: '+09:00', place: 'teamLab' },
+  { name: 'jun08-02-teamlab', date: '2026:06:08', time: '16:44:00', tz: '+09:00', place: 'teamLab' },
 
   // No EXIF date at all: exercises the file-timestamp fallback and the
   // "by file date" caption. A truly undated photo needs lastModified === 0,

@@ -69,8 +69,14 @@ export interface PlaceCluster {
   place: string;
   /** The reverse-geocoded area, always — "Bunkyo-ku, Tokyo". */
   area: string;
-  /** The enclosing landmark, once one has been looked up. */
+  /** The landmark, once one has been looked up. */
   landmark: string | null;
+  /**
+   * True when the landmark was the nearest one rather than one containing the
+   * photo — the difference between "at Tokyo Dome" and "close to teamLab
+   * Planets".
+   */
+  landmarkNearby: boolean;
   mapsUrl: string;
   /** Earliest and latest capture instants in this cluster, for caption context. */
   firstAt: number | null;

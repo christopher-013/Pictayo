@@ -63,7 +63,33 @@ export interface Landmark {
   name: string;
   /** The OSM tag that matched, e.g. "leisure=stadium". Useful for debugging. */
   kind: string;
+  /**
+   * False when the point sits inside the landmark's mapped outline, true when
+   * it was merely the nearest one. Drives "at Tokyo Dome" versus "close to
+   * teamLab Planets" — the app should never claim you were inside somewhere it
+   * only guessed at.
+   */
+  near: boolean;
 }
+
+/**
+ * How far away a point of interest can be and still be worth naming.
+ *
+ * Small enough that the guess stays credible in a dense city, generous enough
+ * to absorb the GPS drift you get indoors — which is exactly the situation
+ * where this fallback matters.
+ */
+const NEARBY_RADIUS_M = 220;
+
+/**
+ * Tags searched for nearby landmarks.
+ *
+ * Narrower than the enclosing-area rules on purpose. A 220m circle in central
+ * Tokyo contains hundreds of shops and restaurants, and pulling them all back
+ * for every place would be slow and pointless — none of them would survive the
+ * filter anyway.
+ */
+const NEARBY_KEYS = ['tourism', 'leisure', 'historic', 'aeroway', 'man_made', 'railway'];
 
 export interface GeoPoint {
   lat: number;
@@ -83,7 +109,12 @@ export interface LandmarkFinder {
  * boundaries are deliberately absent — country, prefecture, ward and the rest
  * all contain the point too, and reverse geocoding already covers them.
  */
-const LANDMARK_RULES: ReadonlyArray<{ key: string; values: ReadonlySet<string> }> = [
+interface LandmarkRule {
+  key: string;
+  values: ReadonlySet<string>;
+}
+
+const LANDMARK_RULES: readonly LandmarkRule[] = [
   { key: 'aeroway', values: new Set(['aerodrome', 'terminal']) },
   { key: 'tourism', values: new Set(['attraction', 'theme_park', 'zoo', 'aquarium', 'museum', 'gallery', 'viewpoint']) },
   { key: 'historic', values: new Set(['castle', 'monument', 'memorial', 'ruins', 'archaeological_site', 'fort']) },
@@ -100,6 +131,11 @@ const LANDMARK_RULES: ReadonlyArray<{ key: string; values: ReadonlySet<string> }
 interface OverpassElement {
   type?: string;
   tags?: Record<string, string>;
+  /** Nodes carry their position directly… */
+  lat?: number;
+  lon?: number;
+  /** …while `out center` gives ways and relations a representative point. */
+  center?: { lat?: number; lon?: number };
 }
 
 /**
@@ -129,9 +165,10 @@ export function landmarkCacheKey(lat: number, lon: number): string {
  * is already known and nothing more. The background pass fills the cache, then
  * the library is rebuilt and picks the names up from here.
  */
-export async function cachedLandmarkName(lat: number, lon: number): Promise<string | null> {
+export async function cachedLandmark(lat: number, lon: number): Promise<Landmark | null> {
   const cached = await getCachedLandmark(landmarkCacheKey(lat, lon)).catch(() => undefined);
-  return cached?.name ? cached.name : null;
+  if (!cached?.name) return null;
+  return { name: cached.name, kind: cached.kind, near: cached.near === true };
 }
 
 export class OverpassLandmarkFinder implements LandmarkFinder {
@@ -153,8 +190,14 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
       // A cached miss is stored as an empty name, so a place with no landmark
       // is only ever asked about once.
       const cached = await getCachedLandmark(key).catch(() => undefined);
-      if (cached) resolved.set(key, cached.name ? { name: cached.name, kind: cached.kind } : null);
-      else misses.push({ key, point });
+      if (cached) {
+        resolved.set(
+          key,
+          cached.name ? { name: cached.name, kind: cached.kind, near: cached.near === true } : null,
+        );
+      } else {
+        misses.push({ key, point });
+      }
     }
 
     for (let start = 0; start < misses.length; start += BATCH_SIZE) {
@@ -174,15 +217,37 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
   ): Promise<Map<string, Landmark | null>> {
     const results = new Map<string, Landmark | null>();
 
+    // Two lookups per point, in one request.
+    //
+    // `is_in` finds areas the point sits inside — but it can only ever find
+    // *areas*. Plenty of landmarks are mapped as a single node with no
+    // footprint (teamLab Planets is `tourism=museum` on a node), and those are
+    // structurally invisible to it. The `around` pass catches them, and its
+    // result is marked as a guess rather than a claim.
+    //
     // `pivot` turns each enclosing area back into the way or relation it came
     // from, so the original tags come back with it. `out count` after each
     // lookup emits a marker element, which is what makes the groups separable.
+    // A union of plain `[key][name]` filters, one per tag of interest.
+    //
+    // The compact key-regex form — `[~"^(tourism|leisure|…)$"~"."]` — is valid
+    // Overpass QL but is rejected outright by the main instance with a 406, so
+    // it is not usable in practice. This spells the same thing out longhand
+    // using only syntax the servers actually accept.
+    const nearby = (point: GeoPoint) =>
+      '(' +
+      NEARBY_KEYS.map(
+        (key) => `nwr(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[${key}][name];`,
+      ).join('') +
+      ');';
+
     const overpassQl =
-      '[out:json][timeout:60];' +
+      '[out:json][timeout:90];' +
       batch
         .map(
           ({ point }) =>
-            `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;`,
+            `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;` +
+            `${nearby(point)}out tags center;out count;`,
         )
         .join('');
 
@@ -198,14 +263,20 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     const groups = splitOnCountMarkers(elements);
 
-    for (const [index, { key }] of batch.entries()) {
-      const landmark = pickLandmark(groups[index] ?? []);
+    for (const [index, { key, point }] of batch.entries()) {
+      // Two groups per point, in the order the query emitted them.
+      const enclosing = groups[index * 2] ?? [];
+      const nearby = groups[index * 2 + 1] ?? [];
+
+      // Being inside somewhere always beats being near it.
+      const landmark = pickLandmark(enclosing) ?? pickNearest(nearby, point);
       results.set(key, landmark);
 
       await putCachedLandmark({
         key,
         name: landmark?.name ?? '',
         kind: landmark?.kind ?? '',
+        near: landmark?.near ?? false,
       }).catch(() => undefined);
     }
 
@@ -261,9 +332,72 @@ export function pickLandmark(elements: OverpassElement[]): Landmark | null {
       const name = (tags['name:en'] ?? tags.name ?? '').trim();
       if (!name) continue;
 
-      return { name, kind: `${rule.key}=${value}` };
+      return { name, kind: `${rule.key}=${value}`, near: false };
     }
   }
 
   return null;
+}
+
+/**
+ * Nearest notable place to a point, for when nothing encloses it.
+ *
+ * Ranked by distance rather than by category, unlike {@link pickLandmark}. The
+ * question here is "what is this photo near?", and the nearest thing that
+ * cleared the notability filter is the honest answer — the filter has already
+ * thrown out the shops and restaurants that made naive nearest-POI lookup
+ * useless.
+ */
+export function pickNearest(
+  elements: OverpassElement[],
+  from: GeoPoint,
+  radiusMeters = NEARBY_RADIUS_M,
+): Landmark | null {
+  let best: { landmark: Landmark; rank: number; distance: number } | null = null;
+
+  for (const element of elements) {
+    const tags = element.tags;
+    if (!tags) continue;
+
+    const position = element.center ?? { lat: element.lat, lon: element.lon };
+    if (typeof position.lat !== 'number' || typeof position.lon !== 'number') continue;
+
+    const distance = roughDistanceMeters(from, { lat: position.lat, lon: position.lon });
+    if (distance > radiusMeters) continue;
+
+    const rank = LANDMARK_RULES.findIndex(
+      (candidate) => tags[candidate.key] && candidate.values.has(tags[candidate.key]!),
+    );
+    if (rank < 0) continue;
+
+    const name = (tags['name:en'] ?? tags.name ?? '').trim();
+    if (!name) continue;
+
+    // Category first, distance only as a tie-break.
+    //
+    // Ranking purely by distance gets this wrong in a way that matters: at
+    // teamLab Planets the closest qualifying feature is a station entrance 40m
+    // away, while the museum itself is 117m off — so "close to Shin-toyosu"
+    // beat "close to teamLab Planets". Station entrances, memorials and the
+    // like are everywhere; what someone photographed is almost never the
+    // nearest mapped thing, it is the most notable one nearby.
+    if (best && (rank > best.rank || (rank === best.rank && distance >= best.distance))) continue;
+
+    const rule: LandmarkRule = LANDMARK_RULES[rank]!;
+    best = {
+      landmark: { name, kind: `${rule.key}=${tags[rule.key]}`, near: true },
+      rank,
+      distance,
+    };
+  }
+
+  return best?.landmark ?? null;
+}
+
+/** Equirectangular approximation — ample over a couple of hundred metres. */
+function roughDistanceMeters(a: GeoPoint, b: GeoPoint): number {
+  const meanLat = ((a.lat + b.lat) / 2) * (Math.PI / 180);
+  const dLat = (b.lat - a.lat) * 111_320;
+  const dLon = (b.lon - a.lon) * 111_320 * Math.cos(meanLat);
+  return Math.hypot(dLat, dLon);
 }

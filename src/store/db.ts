@@ -11,14 +11,16 @@ import type { Photo, Place } from '../types';
  */
 
 const DB_NAME = 'picturepicture';
-/** v2 added the landmark cache. */
-const DB_VERSION = 2;
+/** v2 added the landmark cache; v3 discards it so nearby landmarks get found. */
+const DB_VERSION = 3;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
   key: string;
   name: string;
   kind: string;
+  /** True when this was the nearest landmark rather than an enclosing one. */
+  near?: boolean;
 }
 
 /** Runtime-only fields are stripped before persisting. */
@@ -51,7 +53,7 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
   const open = openDB<PicturePictureDB>(DB_NAME, DB_VERSION, {
     // Guarded per version so an existing v1 library upgrades in place rather
     // than failing on stores that already exist.
-    upgrade(db, oldVersion) {
+    upgrade(db, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) {
         db.createObjectStore('photos', { keyPath: 'id' });
         db.createObjectStore('thumbs');
@@ -60,6 +62,12 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
       }
       if (oldVersion < 2) {
         db.createObjectStore('landmarks', { keyPath: 'key' });
+      }
+      if (oldVersion === 2) {
+        // v2 only looked for enclosing areas, so it recorded a miss for every
+        // landmark mapped as a bare point. Those cached misses would block the
+        // proximity lookup forever; drop them and ask again.
+        transaction.objectStore('landmarks').clear();
       }
     },
 
