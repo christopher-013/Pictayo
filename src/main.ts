@@ -31,18 +31,30 @@ let days: DayGroup[] = [];
 let busy = false;
 
 const el = {
+  landing: must('landing'),
+  landingNote: must('landing-note'),
+  landingProgress: must('landing-progress'),
+  landingProgressFill: must('landing-progress-fill'),
+  landingProgressLabel: must('landing-progress-label'),
+
+  header: must('app-header'),
+  main: must('app-main'),
   page: must('day-page'),
   nav: must('day-nav'),
-  dropzone: must('dropzone'),
-  empty: must('library-empty'),
+
   progress: must('progress'),
   progressFill: must('progress-fill'),
   progressLabel: must('progress-label'),
   summary: must('library-summary'),
+
   add: must('btn-add'),
   addFolder: must('btn-add-folder'),
+  addMore: must('btn-add-more'),
+  addFolderMore: must('btn-add-folder-more'),
   export: must<HTMLButtonElement>('btn-export'),
   clear: must<HTMLButtonElement>('btn-clear'),
+
+  dropOverlay: must('drop-overlay'),
   fileInput: must<HTMLInputElement>('file-input'),
   folderInput: must<HTMLInputElement>('folder-input'),
 };
@@ -57,9 +69,9 @@ async function start(): Promise<void> {
     {
       fileInput: el.fileInput,
       folderInput: el.folderInput,
-      dropzone: el.dropzone,
-      addButton: el.add,
-      addFolderButton: el.addFolder,
+      addButtons: [el.add, el.addMore],
+      addFolderButtons: [el.addFolder, el.addFolderMore],
+      dropOverlay: el.dropOverlay,
     },
     (files) => void handleFiles(files),
   );
@@ -127,11 +139,13 @@ async function handleFiles(files: File[]): Promise<void> {
     await refresh();
 
     if (failures > 0) {
-      el.summary.textContent = `${failures} file${failures === 1 ? '' : 's'} could not be read and ${failures === 1 ? 'was' : 'were'} skipped.`;
+      setNotice(
+        `${failures} file${failures === 1 ? '' : 's'} could not be read and ${failures === 1 ? 'was' : 'were'} skipped.`,
+      );
     }
   } finally {
     busy = false;
-    el.progress.hidden = true;
+    hideProgress();
   }
 }
 
@@ -169,10 +183,10 @@ async function handleExport(): Promise<void> {
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   } catch (error) {
     console.error('Export failed', error);
-    el.summary.textContent = 'Export failed — see the browser console for details.';
+    setNotice('Export failed — see the browser console for details.');
   } finally {
     busy = false;
-    el.progress.hidden = true;
+    hideProgress();
     el.export.disabled = false;
     el.export.textContent = label;
   }
@@ -199,14 +213,23 @@ async function handleClear(): Promise<void> {
   updateChrome();
 }
 
+/**
+ * Swaps between the start screen and the library.
+ *
+ * Which one shows is derived from whether anything has been imported, so a
+ * return visit with a saved library lands straight in the library and clearing
+ * it goes back to the start screen.
+ */
 function updateChrome(): void {
   const count = photos.size;
   const hasPhotos = count > 0;
 
-  el.empty.hidden = hasPhotos;
+  el.landing.hidden = hasPhotos;
+  el.header.hidden = !hasPhotos;
+  el.main.hidden = !hasPhotos;
+
   el.export.disabled = !hasPhotos;
   el.clear.disabled = !hasPhotos;
-  el.dropzone.classList.toggle('is-compact', hasPhotos);
 
   if (!hasPhotos) {
     el.summary.textContent = 'Photos are read in your browser and never uploaded.';
@@ -224,10 +247,31 @@ function updateChrome(): void {
   });
 }
 
+/** Writes to whichever view is on screen — the start screen or the library. */
 function setProgress(done: number, total: number, label: string): void {
-  el.progress.hidden = false;
-  el.progressFill.style.width = `${total > 0 ? (done / total) * 100 : 0}%`;
-  el.progressLabel.textContent = `${label} — ${done} of ${total}`;
+  const percent = `${total > 0 ? (done / total) * 100 : 0}%`;
+  const text = `${label} — ${done} of ${total}`;
+
+  if (!el.landing.hidden) {
+    el.landingProgress.hidden = false;
+    el.landingProgressFill.style.width = percent;
+    el.landingProgressLabel.textContent = text;
+  } else {
+    el.progress.hidden = false;
+    el.progressFill.style.width = percent;
+    el.progressLabel.textContent = text;
+  }
+}
+
+function hideProgress(): void {
+  el.progress.hidden = true;
+  el.landingProgress.hidden = true;
+}
+
+/** Puts a message wherever the user is currently looking. */
+function setNotice(text: string): void {
+  if (!el.landing.hidden) el.landingNote.textContent = text;
+  else el.summary.textContent = text;
 }
 
 function formatBytes(bytes: number): string {

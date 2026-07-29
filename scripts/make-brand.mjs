@@ -56,6 +56,83 @@ async function snapWhite(pipeline) {
   });
 }
 
+/**
+ * Makes the artwork's background transparent.
+ *
+ * A flood fill inward from the border, not a "delete every white pixel" pass —
+ * the mascot is itself white, and a colour-keyed removal would punch holes
+ * straight through the dog. The artwork is fully enclosed by dark outlines, so
+ * a fill starting outside it stops at those edges and never gets in.
+ *
+ * The second pass softens the boundary: pixels the fill stopped against are
+ * part of the anti-aliased ramp the art was drawn with against white, so they
+ * get partial alpha instead of staying fully opaque. Without it the logo wears
+ * a pale fringe wherever it sits on something that isn't white.
+ */
+async function makeTransparent(pipeline) {
+  const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+
+  const FILL_THRESHOLD = 242;
+  const RAMP_FLOOR = 205;
+
+  const background = new Uint8Array(width * height);
+  const stack = [];
+
+  for (let x = 0; x < width; x++) {
+    stack.push(x, x + (height - 1) * width);
+  }
+  for (let y = 0; y < height; y++) {
+    stack.push(y * width, width - 1 + y * width);
+  }
+
+  const brightnessAt = (index) => {
+    const i = index * channels;
+    return Math.min(data[i], data[i + 1], data[i + 2]);
+  };
+
+  while (stack.length > 0) {
+    const index = stack.pop();
+    if (background[index]) continue;
+    if (brightnessAt(index) < FILL_THRESHOLD) continue;
+
+    background[index] = 1;
+
+    const x = index % width;
+    const y = (index / width) | 0;
+    if (x > 0) stack.push(index - 1);
+    if (x < width - 1) stack.push(index + 1);
+    if (y > 0) stack.push(index - width);
+    if (y < height - 1) stack.push(index + width);
+  }
+
+  for (let index = 0; index < background.length; index++) {
+    if (background[index]) {
+      data[index * channels + 3] = 0;
+      continue;
+    }
+
+    // Only soften pixels the fill actually reached, so interior whites are safe.
+    const x = index % width;
+    const y = (index / width) | 0;
+    const touchesBackground =
+      (x > 0 && background[index - 1]) ||
+      (x < width - 1 && background[index + 1]) ||
+      (y > 0 && background[index - width]) ||
+      (y < height - 1 && background[index + width]);
+
+    if (!touchesBackground) continue;
+
+    const brightness = brightnessAt(index);
+    if (brightness <= RAMP_FLOOR) continue;
+
+    const ramp = (FILL_THRESHOLD - brightness) / (FILL_THRESHOLD - RAMP_FLOOR);
+    data[index * channels + 3] = Math.round(255 * Math.max(0, Math.min(1, ramp)));
+  }
+
+  return sharp(data, { raw: { width, height, channels } });
+}
+
 await mkdir(OUT, { recursive: true });
 
 const mascotAt = (size) =>
@@ -70,9 +147,15 @@ await (await mascotAt(192)).webp({ quality: 90 }).toFile(`${OUT}/mark.webp`);
 await (await mascotAt(48)).png({ compressionLevel: 9 }).toFile(`${OUT}/favicon.png`);
 await (await mascotAt(180)).png({ compressionLevel: 9 }).toFile(`${OUT}/apple-touch-icon.png`);
 
-// The full logo, shown large on the empty state.
-await (await snapWhite(sharp(SRC).extract(FULL).flatten({ background: '#ffffff' }).resize(760)))
-  .webp({ quality: 88 })
+// The full logo, on a transparent background so it can sit on the landing
+// gradient and the app header without carrying a white rectangle around.
+//
+// Lossy colour with a lossless alpha channel: WebP stores the two separately,
+// so `alphaQuality: 100` keeps the soft edge ramp exact while the artwork
+// itself compresses normally. Fully lossless would be 219KB for no visible
+// gain over 50KB.
+await (await makeTransparent(sharp(SRC).extract(FULL).resize(760)))
+  .webp({ quality: 82, alphaQuality: 100 })
   .toFile(`${OUT}/logo.webp`);
 
 // Open Graph / link previews want a wide, opaque, absolutely-sized image.

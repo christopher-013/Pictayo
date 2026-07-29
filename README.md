@@ -9,8 +9,11 @@ Everything runs in the browser. Photos are never uploaded.
 
 ## What it does
 
-1. **Import** — drag photos in, pick files, or pick a whole folder. On a phone,
-   the same button opens the camera roll.
+1. **Import** — a start screen with the logo and a single "Add photos" button.
+   Drop files anywhere on the window, pick files, or pick a whole folder; on a
+   phone the same button opens the camera roll. Once anything is imported the
+   start screen gives way to the library, and a saved library skips it entirely
+   on the next visit.
 2. **Read metadata** — EXIF capture time, timezone offset, GPS, camera model,
    parsed in a Web Worker pool so a thousand-photo drop doesn't freeze the page.
 3. **Group by day** — using the date the *camera* recorded, so a 1am Tokyo photo
@@ -20,8 +23,11 @@ Everything runs in the browser. Photos are never uploaded.
 5. **Name those places** — one reverse-geocode lookup per cluster, cached locally.
 6. **Caption** — from place, time of day, and cluster context.
 7. **Browse** — one day per page, chosen from a date strip that runs oldest on
-   the left to newest on the right. The selected day lives in the URL hash, so
-   the back button steps through days and a link to one survives a reload.
+   the left to newest on the right. Each card names the places that day's photos
+   were taken, busiest first, shortened to their most specific part — "Shinjuku,
+   Tokyo" becomes "Shinjuku", since the broader half repeats across every day of
+   a trip. The selected day lives in the URL hash, so the back button steps
+   through days and a link to one survives a reload.
 8. **Export** — a self-contained static site you can publish anywhere.
 
 Each day renders on its own rather than as one long timeline: a few hundred

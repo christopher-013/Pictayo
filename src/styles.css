@@ -45,10 +45,26 @@
   --r: 14px;
   --r-sm: 8px;
 
-  --header-h: 118px;
+  /*
+   * Shared by the start screen and the app header so the two read as one
+   * product. A warm linear base with cool colour pools dropped over it — the
+   * brand teal and purple from the logo, plus a touch of the pin red.
+   */
+  --brand-gradient:
+    radial-gradient(circle at 84% 16%, rgba(1, 165, 171, 0.30), transparent 34%),
+    radial-gradient(circle at 12% 86%, rgba(101, 89, 233, 0.24), transparent 42%),
+    radial-gradient(circle at 92% 88%, rgba(229, 72, 77, 0.13), transparent 46%),
+    linear-gradient(150deg, #fffdf4 0%, #fdf4e4 26%, #e2f5f3 62%, #e9e6ff 100%);
 }
 
 * { box-sizing: border-box; }
+
+/*
+ * The `hidden` attribute only sets `display: none` from the UA stylesheet, and
+ * any author rule beats that — so `.landing { display: flex }` quietly kept the
+ * start screen on show after the library loaded. Anything hidden stays hidden.
+ */
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -65,37 +81,131 @@ button, a, input { font: inherit; }
 
 /* ── App shell ─────────────────────────────────────────────────────────── */
 
+/* ── Start screen ──────────────────────────────────────────────────────── */
+
+.landing {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 40px 22px 56px;
+  background: var(--brand-gradient);
+  background-attachment: fixed;
+  text-align: center;
+}
+
+.landing-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 640px;
+}
+
+/* Transparent artwork, so the gradient runs behind it rather than round it. */
+.landing-logo {
+  display: block;
+  width: min(430px, 84%);
+  height: auto;
+  filter: drop-shadow(0 10px 26px rgba(12, 81, 87, 0.16));
+}
+
+.landing-tagline {
+  margin: 4px 0 0;
+  max-width: 30ch;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #3c5750;
+}
+
+.landing-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 30px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-teal), #0a7c82);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(10, 124, 130, 0.32);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.landing-cta:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(10, 124, 130, 0.38); }
+.landing-cta:active { transform: translateY(0) scale(0.98); }
+.landing-cta-icon { font-size: 19px; line-height: 1; }
+
+.landing-alt {
+  padding: 9px 16px;
+  border: 1px solid rgba(10, 124, 130, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.landing-alt:hover { background: #fff; border-color: var(--teal); }
+
+.landing-note {
+  margin: 26px 0 0;
+  max-width: 44ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #5b7773;
+}
+
+.landing-progress {
+  width: min(420px, 90%);
+  padding: 11px 13px;
+  border: 1px solid #a8dade;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+/* ── App header ────────────────────────────────────────────────────────── */
+
 /*
- * The header is not sticky. It carries the full logo, which is far too tall to
- * pin to the top of a scrolling page — the day strip below it sticks instead,
- * since that's what you actually need while browsing a day.
+ * Not sticky: the date strip below it is what you need while browsing, and
+ * pinning a logo this size would cost too much of the screen.
  */
 .app-header {
-  background: linear-gradient(135deg, #fffdf4, #e9f8f9);
-  border-bottom: 1px solid rgba(10, 124, 130, 0.18);
-  box-shadow: 0 2px 14px rgba(17, 56, 68, 0.07);
+  background: var(--brand-gradient);
+  border-bottom: 1px solid rgba(10, 124, 130, 0.14);
 }
 
 .app-header-inner {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 12px;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 12px 18px 10px;
+  padding: 16px 18px 12px;
 }
 
-/*
- * The full logo, artwork and wordmark together. It needs real width for the
- * wordmark to be readable, which is why the header isn't sticky.
- */
+/* Smaller and centred here; the artwork's transparency lets the gradient
+ * carry straight through so it reads as part of the bar, not a pasted-on box. */
 .app-logo { margin: 0; line-height: 0; }
 
 .app-logo img {
   display: block;
-  width: 232px;
+  width: 188px;
   max-width: 100%;
   height: auto;
 }
@@ -148,27 +258,37 @@ button, a, input { font: inherit; }
 
 /* ── Import ────────────────────────────────────────────────────────────── */
 
-.dropzone {
-  border: 2px dashed #a8dade;
-  border-radius: var(--r);
-  background: #fbfefd;
-  padding: 26px 18px;
-  text-align: center;
-  cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease;
+/* Whole-window drop target, so photos can be dropped from either view. */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 124, 130, 0.22);
+  backdrop-filter: blur(3px);
 }
 
-.dropzone:hover, .dropzone:focus-visible { background: #e6f6f7; border-color: var(--teal); outline: none; }
-.dropzone.is-dragover { background: var(--teal-bg); border-color: var(--teal); border-style: solid; }
+.drop-overlay.is-active { display: flex; }
 
-.dropzone-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.dropzone-icon { font-size: 30px; line-height: 1; }
-.dropzone-inner strong { font-size: 16px; color: var(--teal-deep); }
-.dropzone-sub { font-size: 12px; color: #71828a; }
+.drop-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 34px 44px;
+  border: 3px dashed var(--teal);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--teal-deep);
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: 0 18px 50px rgba(12, 81, 87, 0.28);
+}
 
-.dropzone.is-compact { padding: 14px; }
-.dropzone.is-compact .dropzone-icon { display: none; }
-.dropzone.is-compact .dropzone-inner { flex-direction: row; gap: 8px; align-items: baseline; }
+.drop-overlay-card span { font-size: 34px; line-height: 1; }
 
 .progress {
   padding: 11px 13px;
@@ -194,42 +314,25 @@ button, a, input { font: inherit; }
 
 .progress-label { margin-top: 7px; font-size: 12px; font-weight: 700; color: #0f5158; }
 
-.library-empty {
-  padding: 30px 22px;
-  border: 1px dashed var(--border);
-  border-radius: var(--r);
-  background: var(--bg3);
-  text-align: center;
-  color: var(--ink3);
-}
-
-/* Just the mascot here — the header already carries the full logo. */
-.library-empty-mark {
-  display: block;
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
-  margin: 0 auto 12px;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(1, 154, 160, 0.3);
-}
-
-.library-empty h2 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
-.library-empty p { margin: 0 auto; max-width: 60ch; font-size: 14px; }
-.library-empty-note { margin-top: 10px !important; font-size: 12px; color: var(--ink4); }
-
 /* ── Day navigation ────────────────────────────────────────────────────── */
 
 /*
  * Date strip: one card per day, oldest on the left. Sticks to the top so you
  * can move between days without scrolling back up.
  */
+/*
+ * Light and translucent rather than a solid dark bar, so it continues the
+ * header gradient above it instead of cutting across it.
+ */
 .day-nav {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: linear-gradient(180deg, var(--teal-deep), #0a4449);
-  box-shadow: 0 3px 14px rgba(12, 81, 87, 0.28);
+  background: rgba(255, 253, 246, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(10, 124, 130, 0.16);
+  box-shadow: 0 3px 14px rgba(12, 81, 87, 0.08);
 }
 
 .day-nav-scroll {
@@ -251,44 +354,50 @@ button, a, input { font: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  min-width: 62px;
-  padding: 7px 10px 6px;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  gap: 1px;
+  /* Wide enough for a place name, capped so one long name can't dominate. */
+  min-width: 86px;
+  max-width: 168px;
+  padding: 7px 12px 7px;
+  border: 1.5px solid #cfe8ea;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: #fff;
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease, transform 100ms ease;
 }
 
-.day-chip:hover { background: rgba(255, 255, 255, 0.2); }
-.day-chip:active { transform: scale(0.95); }
+.day-chip:hover { background: #f0fafa; border-color: var(--teal); }
+.day-chip:active { transform: scale(0.96); }
 
 .day-chip.is-active {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: #fff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(135deg, var(--brand-teal), #0a7c82);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(10, 124, 130, 0.34);
 }
 
-.day-chip-mon { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: rgba(255, 255, 255, 0.66); }
-.day-chip-num { font-size: 19px; font-weight: 800; line-height: 1; color: #fff; }
-.day-chip-dow { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: rgba(255, 255, 255, 0.6); }
+.day-chip-mon { font-size: 10px; font-weight: 800; letter-spacing: 0.7px; color: #6f8f92; }
+.day-chip-num { font-size: 19px; font-weight: 800; line-height: 1.05; color: var(--teal-deep); }
+.day-chip-dow { font-size: 10px; font-weight: 700; letter-spacing: 0.7px; color: #8aa2a4; }
 
-.day-chip-count {
-  margin-top: 3px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+.day-chip-where {
+  max-width: 100%;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(10, 124, 130, 0.14);
   font-size: 10px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.25;
+  color: var(--teal);
+  /* One line with an ellipsis — the full list is in the chip's tooltip. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.day-chip.is-active .day-chip-mon { color: rgba(12, 81, 87, 0.7); }
-.day-chip.is-active .day-chip-num { color: var(--teal-deep); }
-.day-chip.is-active .day-chip-dow { color: rgba(12, 81, 87, 0.65); }
-.day-chip.is-active .day-chip-count { background: var(--teal); color: #fff; }
+.day-chip.is-active .day-chip-mon { color: rgba(255, 255, 255, 0.72); }
+.day-chip.is-active .day-chip-num { color: #fff; }
+.day-chip.is-active .day-chip-dow { color: rgba(255, 255, 255, 0.66); }
+.day-chip.is-active .day-chip-where { color: #fff; border-top-color: rgba(255, 255, 255, 0.3); }
 
 /* ── Day section ───────────────────────────────────────────────────────── */
 
@@ -777,9 +886,13 @@ body.photo-lightbox-open { overflow: hidden; }
   .app-actions { width: 100%; }
   .app-actions .btn { flex: 1 1 auto; }
 
-  .app-logo img { width: 176px; }
+  .app-logo img { width: 158px; }
   .day-nav-scroll { padding: 8px 12px; }
-  .day-chip { min-width: 56px; padding: 6px 8px 5px; }
+  .day-chip { min-width: 78px; max-width: 132px; padding: 6px 9px; }
+
+  .landing { padding: 32px 18px 44px; }
+  .landing-tagline { font-size: 14px; }
+  .landing-cta { padding: 14px 26px; font-size: 16px; }
 
   .photo-day-map-canvas { aspect-ratio: 4 / 3; min-height: 210px; }
   .photo-day-map-title { font-size: 15px; }

@@ -16,14 +16,43 @@
 </head>
 <body>
 
-<header class="app-header">
+<!-- Start screen. Replaced by the library view as soon as photos are imported. -->
+<section class="landing" id="landing">
+  <div class="landing-inner">
+    <img class="landing-logo" src="/logo.webp" alt="PicturePicture" width="760" height="456" fetchpriority="high">
+
+    <p class="landing-tagline">
+      Sort your photos by the day they were taken and the place they were shot —
+      free, in your browser
+    </p>
+
+    <div class="landing-menu">
+      <button type="button" class="landing-cta" id="btn-add">
+        <span class="landing-cta-icon" aria-hidden="true">📷</span>
+        Add photos
+      </button>
+      <button type="button" class="landing-alt" id="btn-add-folder">Add a folder instead</button>
+    </div>
+
+    <p class="landing-note" id="landing-note">
+      Nothing is uploaded. Your photos are read on this device and stay here.
+    </p>
+  </div>
+
+  <div class="landing-progress" id="landing-progress" hidden>
+    <div class="progress-bar"><div class="progress-fill" id="landing-progress-fill"></div></div>
+    <div class="progress-label" id="landing-progress-label">Reading photos…</div>
+  </div>
+</section>
+
+<header class="app-header" id="app-header" hidden>
   <div class="app-header-inner">
     <h1 class="app-logo">
       <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
     </h1>
     <div class="app-actions">
-      <button type="button" class="btn btn-primary" id="btn-add">Add photos</button>
-      <button type="button" class="btn" id="btn-add-folder">Add folder</button>
+      <button type="button" class="btn btn-primary" id="btn-add-more">Add photos</button>
+      <button type="button" class="btn" id="btn-add-folder-more">Add folder</button>
       <button type="button" class="btn" id="btn-export" disabled>Export site</button>
       <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
     </div>
@@ -37,16 +66,7 @@
 -->
 <nav class="day-nav" id="day-nav" aria-label="Choose a day" hidden></nav>
 
-<main class="app-main">
-
-  <section class="dropzone" id="dropzone" tabindex="0" role="button"
-           aria-label="Add photos — click, or drop image files here">
-    <div class="dropzone-inner">
-      <span class="dropzone-icon" aria-hidden="true">📥</span>
-      <strong>Drop photos here</strong>
-      <span class="dropzone-sub">or click to choose files — JPEG, PNG, WebP, HEIC</span>
-    </div>
-  </section>
+<main class="app-main" id="app-main" hidden>
 
   <div class="progress" id="progress" hidden>
     <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
@@ -55,20 +75,15 @@
 
   <div id="day-page" class="day-page"></div>
 
-  <div class="library-empty" id="library-empty">
-    <img class="library-empty-mark" src="/mark.webp" alt="" width="192" height="192" decoding="async">
-    <h2>Nothing imported yet</h2>
-    <p>
-      Add some photos and PicturePicture reads each file's metadata to group them
-      by the day they were taken and pin them to the map where they were shot.
-    </p>
-    <p class="library-empty-note">
-      Photos never leave your device. Only the coordinates of each place cluster are
-      sent out, once per location, to look up its name.
-    </p>
-  </div>
-
 </main>
+
+<!-- Full-window drop target; the landing screen and library view both use it. -->
+<div class="drop-overlay" id="drop-overlay" aria-hidden="true">
+  <div class="drop-overlay-card">
+    <span aria-hidden="true">📥</span>
+    Drop to add these photos
+  </div>
+</div>
 
 <input type="file" id="file-input" accept="image/*" multiple hidden>
 <input type="file" id="folder-input" accept="image/*" multiple webkitdirectory hidden>

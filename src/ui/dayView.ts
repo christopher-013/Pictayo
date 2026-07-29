@@ -123,20 +123,61 @@ function renderNav(): void {
 
 function chipHtml(day: DayGroup): string {
   const active = day.dayKey === activeKey;
+  const parts = chipParts(day);
+  const places = placesFor(day);
   const count = day.photos.length;
 
-  const parts = chipParts(day);
+  const tooltip = places.all.length
+    ? `${day.label} — ${places.all.join(', ')} · ${count} photo${count === 1 ? '' : 's'}`
+    : `${day.label} — ${count} photo${count === 1 ? '' : 's'}`;
 
   return (
     `<button class="day-chip${active ? ' is-active' : ''}" type="button" role="tab"` +
     ` data-day="${escapeAttr(day.dayKey)}" aria-selected="${active}"` +
-    ` title="${escapeAttr(`${day.label} — ${count} photo${count === 1 ? '' : 's'}`)}">` +
+    ` title="${escapeAttr(tooltip)}">` +
     `<span class="day-chip-mon">${escapeAttr(parts.month)}</span>` +
     `<span class="day-chip-num">${escapeAttr(parts.number)}</span>` +
     `<span class="day-chip-dow">${escapeAttr(parts.weekday)}</span>` +
-    `<span class="day-chip-count">${count}</span>` +
+    `<span class="day-chip-where">${escapeAttr(places.label)}</span>` +
     '</button>'
   );
+}
+
+/** How many place names a chip shows before falling back to a count. */
+const MAX_CHIP_PLACES = 2;
+
+/**
+ * The places a day's photos were taken, busiest first.
+ *
+ * Names are shortened to their most specific part — "Shinjuku, Tokyo" becomes
+ * "Shinjuku" — because the chip has room for a landmark, not an address, and
+ * the broader half repeats across every day of a trip anyway.
+ */
+function placesFor(day: DayGroup): { label: string; all: string[] } {
+  const clusters = day.regions
+    .flatMap((region) => region.clusters)
+    .slice()
+    .sort((a, b) => b.photoIds.length - a.photoIds.length);
+
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  for (const cluster of clusters) {
+    const short = cluster.place.split(',')[0]?.trim();
+    if (!short || seen.has(short)) continue;
+    seen.add(short);
+    names.push(short);
+  }
+
+  if (names.length === 0) {
+    const count = day.photos.length;
+    return { label: `${count} photo${count === 1 ? '' : 's'}`, all: [] };
+  }
+
+  const shown = names.slice(0, MAX_CHIP_PLACES);
+  const extra = names.length - shown.length;
+
+  return { label: extra > 0 ? `${shown.join(' · ')} +${extra}` : shown.join(' · '), all: names };
 }
 
 /** "Sat, Jun 6, 2026" → { month: "JUN", number: "6", weekday: "SAT" } */

@@ -44,16 +44,15 @@ export function imageFilesFrom(files: Iterable<File>): File[] {
 export interface PickerHandles {
   fileInput: HTMLInputElement;
   folderInput: HTMLInputElement;
-  dropzone: HTMLElement;
-  addButton: HTMLElement;
-  addFolderButton: HTMLElement;
+  /** Every control that should open the file picker. */
+  addButtons: HTMLElement[];
+  addFolderButtons: HTMLElement[];
+  /** Shown while a drag is over the window. */
+  dropOverlay: HTMLElement;
 }
 
-export function wirePicker(
-  handles: PickerHandles,
-  onFiles: (files: File[]) => void,
-): void {
-  const { fileInput, folderInput, dropzone, addButton, addFolderButton } = handles;
+export function wirePicker(handles: PickerHandles, onFiles: (files: File[]) => void): void {
+  const { fileInput, folderInput, addButtons, addFolderButtons, dropOverlay } = handles;
 
   const emit = (list: FileList | null) => {
     const files = imageFilesFrom(list ?? []);
@@ -71,47 +70,50 @@ export function wirePicker(
     folderInput.value = '';
   });
 
-  addButton.addEventListener('click', () => fileInput.click());
-  addFolderButton.addEventListener('click', () => folderInput.click());
+  for (const button of addButtons) button.addEventListener('click', () => fileInput.click());
+  for (const button of addFolderButtons) button.addEventListener('click', () => folderInput.click());
 
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      fileInput.click();
-    }
-  });
+  // The whole window is the drop target, so photos can be dropped from either
+  // the start screen or the library view without aiming at a particular box.
+  //
+  // dragenter/dragleave fire for every element the cursor crosses, so a plain
+  // toggle flickers constantly. Counting entries against leaves is what keeps
+  // the overlay steady.
+  let dragDepth = 0;
 
-  // Dragover must be cancelled on both the zone and the document, otherwise the
-  // browser navigates away to the dropped file.
-  const stop = (event: DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const showOverlay = (visible: boolean) => {
+    dropOverlay.classList.toggle('is-active', visible);
+    dropOverlay.setAttribute('aria-hidden', String(!visible));
   };
 
-  document.addEventListener('dragover', (event) => event.preventDefault());
-  document.addEventListener('drop', (event) => event.preventDefault());
+  const carriesFiles = (event: DragEvent) =>
+    Array.from(event.dataTransfer?.types ?? []).includes('Files');
 
-  dropzone.addEventListener('dragenter', (event) => {
-    stop(event);
-    dropzone.classList.add('is-dragover');
+  window.addEventListener('dragenter', (event) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    dragDepth += 1;
+    showOverlay(true);
   });
 
-  dropzone.addEventListener('dragover', (event) => {
-    stop(event);
-    dropzone.classList.add('is-dragover');
+  // Without preventDefault on dragover the browser refuses the drop and
+  // navigates to the file instead.
+  window.addEventListener('dragover', (event) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
   });
 
-  dropzone.addEventListener('dragleave', (event) => {
-    stop(event);
-    if (!dropzone.contains(event.relatedTarget as Node | null)) {
-      dropzone.classList.remove('is-dragover');
-    }
+  window.addEventListener('dragleave', (event) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) showOverlay(false);
   });
 
-  dropzone.addEventListener('drop', async (event) => {
-    stop(event);
-    dropzone.classList.remove('is-dragover');
+  window.addEventListener('drop', async (event) => {
+    event.preventDefault();
+    dragDepth = 0;
+    showOverlay(false);
 
     const items = event.dataTransfer?.items;
     const files = items
