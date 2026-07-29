@@ -4,7 +4,7 @@ import { escapeAttr } from '../util/escape';
 import { formatCaptured } from '../meta/datetime';
 import { embedUrl, interactiveUrl } from '../ui/photoMap';
 import { chipParts, placesFor } from '../ui/dayChip';
-import { loadDisplay } from '../store/db';
+import { loadDisplay, loadVideo } from '../store/db';
 import { fitZoom } from '../geo/mercator';
 
 /**
@@ -43,18 +43,40 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
   const title = options.title?.trim() || 'My Photo Map';
   const files: Zippable = {};
   const photoPaths = new Map<string, string>();
+  const posterPaths = new Map<string, string>();
 
-  const photos = days.flatMap((day) => day.photos.filter((p) => !p.previewUnavailable));
+  const media = days.flatMap((day) =>
+    day.photos.filter((p) => p.kind === 'video' || !p.previewUnavailable),
+  );
   let done = 0;
 
-  for (const photo of photos) {
-    const blob = await loadDisplay(photo.id).catch(() => undefined);
-    if (blob) {
-      const path = `assets/photos/${photo.id}.${extensionFor(blob.type)}`;
-      files[path] = [new Uint8Array(await blob.arrayBuffer()), STORE];
-      photoPaths.set(photo.id, path);
+  for (const item of media) {
+    if (item.kind === 'video') {
+      // Videos ship as the original file: there is no small derivative to fall
+      // back on, and an album that cannot play its clips is not much of one.
+      const blob = await loadVideo(item.id).catch(() => undefined);
+      if (blob) {
+        const path = `assets/videos/${item.id}.${videoExtensionFor(blob.type, item.name)}`;
+        files[path] = [new Uint8Array(await blob.arrayBuffer()), STORE];
+        photoPaths.set(item.id, path);
+      }
+      // The poster frame rides along so the grid has something before play.
+      const poster = await loadDisplay(item.id).catch(() => undefined);
+      if (poster) {
+        const path = `assets/photos/${item.id}.${extensionFor(poster.type)}`;
+        files[path] = [new Uint8Array(await poster.arrayBuffer()), STORE];
+        posterPaths.set(item.id, path);
+      }
+    } else {
+      const blob = await loadDisplay(item.id).catch(() => undefined);
+      if (blob) {
+        const path = `assets/photos/${item.id}.${extensionFor(blob.type)}`;
+        files[path] = [new Uint8Array(await blob.arrayBuffer()), STORE];
+        photoPaths.set(item.id, path);
+      }
     }
-    options.onProgress?.((done += 1), photos.length);
+
+    options.onProgress?.((done += 1), media.length);
   }
 
   // Shared across every page, so they download once rather than per day.
@@ -67,7 +89,9 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
 
   days.forEach((day, index) => {
     files[pageFor(index)] = [
-      encode(buildDayPage({ day, days, index, title, photoPaths, hasLogo: Boolean(logo) })),
+      encode(
+        buildDayPage({ day, days, index, title, photoPaths, posterPaths, hasLogo: Boolean(logo) }),
+      ),
       DEFLATE,
     ];
   });
@@ -88,6 +112,16 @@ function pageFor(index: number): string {
 
 function extensionFor(mime: string): string {
   return mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg';
+}
+
+/** Keeps the original container, since that is what the browser has to play. */
+function videoExtensionFor(mime: string, name: string): string {
+  if (mime.includes('mp4')) return 'mp4';
+  if (mime.includes('quicktime')) return 'mov';
+  if (mime.includes('webm')) return 'webm';
+
+  const ext = name.split('.').pop()?.toLowerCase();
+  return ext && /^[a-z0-9]{2,4}$/.test(ext) ? ext : 'mp4';
 }
 
 function encode(text: string): Uint8Array {
@@ -119,11 +153,12 @@ interface PageContext {
   index: number;
   title: string;
   photoPaths: Map<string, string>;
+  posterPaths: Map<string, string>;
   hasLogo: boolean;
 }
 
 function buildDayPage(context: PageContext): string {
-  const { day, days, index, title, photoPaths, hasLogo } = context;
+  const { day, days, index, title, photoPaths, posterPaths, hasLogo } = context;
 
   const lightboxItems: string[] = [];
 
@@ -133,20 +168,28 @@ function buildDayPage(context: PageContext): string {
       const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
       const caption = photo.caption;
 
-      const media = path
-        ? `<button class="photo-full-link" type="button" data-i="${
-            lightboxItems.push(
-              JSON.stringify({
-                src: path,
-                title: photo.name,
-                location: caption?.location ?? '',
-                desc: caption?.desc ?? '',
-                mapsUrl: caption?.mapsUrl ?? '',
-                captured,
-              }),
-            ) - 1
-          }"><img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`
-        : '<div class="photo-nopreview"><span aria-hidden="true">🖼️</span>No preview available</div>';
+      // Videos play in place and stay out of the lightbox, as in the app.
+      const media =
+        photo.kind === 'video'
+          ? path
+            ? `<div class="photo-video-wrap"><video class="photo-video" src="${escapeAttr(path)}"` +
+              `${posterPaths.has(photo.id) ? ` poster="${escapeAttr(posterPaths.get(photo.id)!)}"` : ''}` +
+              ' controls preload="metadata" playsinline></video></div>'
+            : '<div class="photo-nopreview"><span aria-hidden="true">🎬</span>Video unavailable</div>'
+          : path
+            ? `<button class="photo-full-link" type="button" data-i="${
+                lightboxItems.push(
+                  JSON.stringify({
+                    src: path,
+                    title: photo.name,
+                    location: caption?.location ?? '',
+                    desc: caption?.desc ?? '',
+                    mapsUrl: caption?.mapsUrl ?? '',
+                    captured,
+                  }),
+                ) - 1
+              }"><img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`
+            : '<div class="photo-nopreview"><span aria-hidden="true">🖼️</span>No preview available</div>';
 
       const location = caption?.location
         ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
@@ -156,7 +199,7 @@ function buildDayPage(context: PageContext): string {
         `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
         media +
         '<div class="photo-meta">' +
-        `<div class="photo-kind">${photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
+        `<div class="photo-kind">${photo.kind === 'video' ? (photo.meta.gps ? 'Video' : 'Video · no GPS') : photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
         location +
         (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
         (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
@@ -444,6 +487,8 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .photo-card.hidden{display:none}
 .photo-full-link{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in}
 .photo-card img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--bg2)}
+.photo-video-wrap{position:relative}
+.photo-video{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#0b1114}
 .photo-nopreview{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;aspect-ratio:1/1;background:var(--bg2);color:var(--ink3);font-size:11px;text-align:center}
 .photo-meta{padding:7px 7px 8px}
 .photo-kind{display:inline-block;font-size:9px;color:var(--teal);background:#d6f2f4;border:1px solid rgba(10,124,130,.2);border-radius:999px;padding:2px 5px;margin-bottom:4px}

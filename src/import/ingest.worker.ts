@@ -52,6 +52,7 @@ self.onmessage = async (event: MessageEvent<IngestRequest>) => {
       id: contentId,
       name: file.name,
       bytes: file.size,
+      kind: 'photo',
       meta,
       thumb,
       display,
@@ -64,6 +65,7 @@ self.onmessage = async (event: MessageEvent<IngestRequest>) => {
       id,
       name: file.name,
       bytes: file.size,
+      kind: 'photo',
       meta: {
         takenAt: null,
         tzOffsetMinutes: null,

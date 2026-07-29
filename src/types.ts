@@ -35,10 +35,15 @@ export interface Caption {
   mapsUrl: string;
 }
 
+export type MediaKind = 'photo' | 'video';
+
 export interface Photo {
   id: string;
   name: string;
   bytes: number;
+  kind: MediaKind;
+  /** Video length in milliseconds, when known. */
+  durationMs?: number | null;
   meta: PhotoMeta;
   /** True when the browser could not decode the file (typically HEIC on desktop). */
   previewUnavailable: boolean;
@@ -129,9 +134,13 @@ export interface IngestResult {
   id: string;
   name: string;
   bytes: number;
+  kind: MediaKind;
+  durationMs?: number | null;
   meta: PhotoMeta;
   thumb: Blob | null;
   display: Blob | null;
+  /** The playable file itself, for videos — there is no cheap derivative. */
+  video?: Blob | null;
   previewUnavailable: boolean;
   error?: string;
 }

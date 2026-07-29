@@ -11,8 +11,11 @@ import type { Photo, Place } from '../types';
  */
 
 const DB_NAME = 'picturepicture';
-/** v2 added the landmark cache; v3 discards it so nearby landmarks get found. */
-const DB_VERSION = 3;
+/**
+ * v2 added the landmark cache; v3 discards it so nearby landmarks get found;
+ * v4 added video storage.
+ */
+const DB_VERSION = 4;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -24,7 +27,10 @@ export interface CachedLandmark {
 }
 
 /** Runtime-only fields are stripped before persisting. */
-export type PersistedPhoto = Omit<Photo, 'thumbUrl' | 'displayUrl' | 'caption'>;
+export type PersistedPhoto = Omit<
+  Photo,
+  'thumbUrl' | 'displayUrl' | 'videoUrl' | 'caption' | 'clusterId'
+>;
 
 interface PicturePictureDB extends DBSchema {
   photos: { key: string; value: PersistedPhoto };
@@ -32,6 +38,12 @@ interface PicturePictureDB extends DBSchema {
   displays: { key: string; value: Blob };
   places: { key: string; value: Place };
   landmarks: { key: string; value: CachedLandmark };
+  /**
+   * Videos are stored whole. Photos keep a small derivative instead, but a
+   * video has no cheap equivalent — re-encoding one in the browser is out of
+   * scope — and without the bytes it cannot be played back after a reload.
+   */
+  videos: { key: string; value: Blob };
 }
 
 let dbPromise: Promise<IDBPDatabase<PicturePictureDB>> | null = null;
@@ -68,6 +80,9 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
         // landmark mapped as a bare point. Those cached misses would block the
         // proximity lookup forever; drop them and ask again.
         transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 4) {
+        db.createObjectStore('videos');
       }
     },
 
@@ -122,20 +137,27 @@ export interface PhotoRecord {
   photo: PersistedPhoto;
   thumb: Blob | null;
   display: Blob | null;
+  video?: Blob | null;
 }
 
 export async function savePhotos(records: PhotoRecord[]): Promise<void> {
   if (records.length === 0) return;
   const db = await getDB();
-  const tx = db.transaction(['photos', 'thumbs', 'displays'], 'readwrite');
+  const tx = db.transaction(['photos', 'thumbs', 'displays', 'videos'], 'readwrite');
 
-  for (const { photo, thumb, display } of records) {
+  for (const { photo, thumb, display, video } of records) {
     void tx.objectStore('photos').put(photo);
     if (thumb) void tx.objectStore('thumbs').put(thumb, photo.id);
     if (display) void tx.objectStore('displays').put(display, photo.id);
+    if (video) void tx.objectStore('videos').put(video, photo.id);
   }
 
   await tx.done;
+}
+
+export async function loadVideo(id: string): Promise<Blob | undefined> {
+  const db = await getDB();
+  return db.get('videos', id);
 }
 
 export async function loadPhotos(): Promise<PersistedPhoto[]> {
@@ -165,23 +187,25 @@ export async function loadDisplay(id: string): Promise<Blob | undefined> {
 
 export async function deletePhotos(ids: string[]): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['photos', 'thumbs', 'displays'], 'readwrite');
+  const tx = db.transaction(['photos', 'thumbs', 'displays', 'videos'], 'readwrite');
   for (const id of ids) {
     void tx.objectStore('photos').delete(id);
     void tx.objectStore('thumbs').delete(id);
     void tx.objectStore('displays').delete(id);
+    void tx.objectStore('videos').delete(id);
   }
   await tx.done;
 }
 
-/** Clears photos but keeps the geocode cache — place names never go stale. */
+/** Clears media but keeps the geocode cache — place names never go stale. */
 export async function clearLibrary(): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['photos', 'thumbs', 'displays'], 'readwrite');
+  const tx = db.transaction(['photos', 'thumbs', 'displays', 'videos'], 'readwrite');
   await Promise.all([
     tx.objectStore('photos').clear(),
     tx.objectStore('thumbs').clear(),
     tx.objectStore('displays').clear(),
+    tx.objectStore('videos').clear(),
     tx.done,
   ]);
 }

@@ -12,6 +12,16 @@ const IMAGE_EXTENSIONS = new Set([
   'heic', 'heif', 'tif', 'tiff', 'dng',
 ]);
 
+const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'webm', 'avi', '3gp', 'mkv']);
+
+export function isVideoFile(file: File): boolean {
+  if (file.type.startsWith('video/')) return true;
+  if (file.type) return false;
+
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  return ext ? VIDEO_EXTENSIONS.has(ext) : false;
+}
+
 export function isImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true;
   if (file.type) return false;
@@ -20,12 +30,16 @@ export function isImageFile(file: File): boolean {
   return ext ? IMAGE_EXTENSIONS.has(ext) : false;
 }
 
+export function isMediaFile(file: File): boolean {
+  return isImageFile(file) || isVideoFile(file);
+}
+
 export function imageFilesFrom(files: Iterable<File>): File[] {
   const seen = new Set<string>();
   const out: File[] = [];
 
   for (const file of files) {
-    if (!isImageFile(file)) continue;
+    if (!isMediaFile(file)) continue;
     // macOS resource forks and Windows thumbnail caches ride along in folders.
     if (file.name.startsWith('._') || file.name === 'Thumbs.db') continue;
     if (file.size === 0) continue;

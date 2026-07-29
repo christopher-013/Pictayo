@@ -120,6 +120,8 @@ async function handleFiles(files: File[]): Promise<void> {
           id: result.id,
           name: result.name,
           bytes: result.bytes,
+          kind: result.kind,
+          durationMs: result.durationMs ?? null,
           meta: result.meta,
           previewUnavailable: result.previewUnavailable,
         };
@@ -127,7 +129,12 @@ async function handleFiles(files: File[]): Promise<void> {
         photos.set(photo.id, photo);
         if (result.thumb) thumbs.set(photo.id, result.thumb);
 
-        pending.push({ photo, thumb: result.thumb, display: result.display });
+        pending.push({
+          photo,
+          thumb: result.thumb,
+          display: result.display,
+          video: result.video ?? null,
+        });
         if (pending.length >= SAVE_BATCH_SIZE) {
           await savePhotos(pending.splice(0)).catch((e) => console.warn('Save failed', e));
         }
@@ -266,13 +273,21 @@ function updateChrome(): void {
     return;
   }
 
-  const located = [...photos.values()].filter((p) => p.meta.gps).length;
+  const all = [...photos.values()];
+  const located = all.filter((p) => p.meta.gps).length;
+  const videoCount = all.filter((p) => p.kind === 'video').length;
+  const photoCount = count - videoCount;
   const dayCount = days.length;
+
+  const items = [
+    `${photoCount} photo${photoCount === 1 ? '' : 's'}`,
+    ...(videoCount > 0 ? [`${videoCount} video${videoCount === 1 ? '' : 's'}`] : []),
+  ].join(' · ');
 
   void estimateUsageBytes().then((bytes) => {
     const size = bytes ? ` · ${formatBytes(bytes)} stored locally` : '';
     el.summary.textContent =
-      `${count} photo${count === 1 ? '' : 's'} across ${dayCount} day${dayCount === 1 ? '' : 's'} · ` +
+      `${items} across ${dayCount} day${dayCount === 1 ? '' : 's'} · ` +
       `${located} with location${size}`;
   });
 }

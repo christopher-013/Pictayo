@@ -21,9 +21,11 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
   const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
 
   const media =
-    photo.previewUnavailable || !photo.thumbUrl
-      ? nopreviewHtml(photo)
-      : viewableHtml(photo, lightboxIndex);
+    photo.kind === 'video'
+      ? videoHtml(photo)
+      : photo.previewUnavailable || !photo.thumbUrl
+        ? nopreviewHtml(photo)
+        : viewableHtml(photo, lightboxIndex);
 
   const location =
     caption?.location && caption.mapsUrl
@@ -38,13 +40,52 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
     '>' +
     media +
     '<div class="photo-meta">' +
-    `<div class="photo-kind">${photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
+    `<div class="photo-kind">${kindLabel(photo)}</div>` +
     location +
     (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
     (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
     '</div>' +
     '</div>'
   );
+}
+
+function kindLabel(photo: Photo): string {
+  if (photo.kind === 'video') return photo.meta.gps ? 'Video' : 'Video · no GPS';
+  return photo.meta.gps ? 'Photo' : 'No GPS';
+}
+
+/**
+ * Videos play where they sit, exactly as the Tokyo2026 gallery did, rather than
+ * opening in the lightbox. The lightbox is built around stepping between
+ * stills; a clip you have to dismiss to carry on scrolling is worse than one
+ * that just plays in place.
+ *
+ * `preload="metadata"` keeps a page of clips from downloading themselves before
+ * anyone presses play, and the poster frame gives each one something to show in
+ * the grid meanwhile.
+ */
+function videoHtml(photo: Photo): string {
+  const poster = photo.thumbUrl ? ` poster="${escapeAttr(photo.thumbUrl)}"` : '';
+  const duration = photo.durationMs ? formatDuration(photo.durationMs) : '';
+
+  // No `src` here. The file is fetched from storage and attached after the day
+  // renders — see attachVideoSources — so only the videos actually on screen
+  // are held in memory. Eagerly resolving a library's worth of clips would mean
+  // gigabytes of blob URLs alive at once.
+  return (
+    '<div class="photo-video-wrap">' +
+    `<video class="photo-video" data-video-id="${escapeAttr(photo.id)}"${poster}` +
+    ' controls preload="metadata" playsinline></video>' +
+    (duration ? `<span class="photo-video-time">${escapeAttr(duration)}</span>` : '') +
+    '</div>'
+  );
+}
+
+function formatDuration(ms: number): string {
+  const total = Math.round(ms / 1000);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 function viewableHtml(photo: Photo, lightboxIndex: number): string {

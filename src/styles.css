@@ -201,23 +201,27 @@ button, a, input { font: inherit; }
   border-bottom: 1px solid rgba(10, 124, 130, 0.14);
 }
 
+/* A single compact row: logo on the left, controls beside it. Keeping the bar
+ * short matters because the date strip sticks below it and the photos are what
+ * the page is for. */
 .app-header-inner {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 16px 18px 12px;
+  padding: 8px 18px 6px;
 }
 
-/* Smaller and centred here; the artwork's transparency lets the gradient
- * carry straight through so it reads as part of the bar, not a pasted-on box. */
-.app-logo { margin: 0; line-height: 0; }
+/* The artwork's transparency lets the gradient carry straight through, so it
+ * reads as part of the bar rather than a pasted-on box. */
+.app-logo { margin: 0; line-height: 0; flex: 0 0 auto; }
 
 .app-logo img {
   display: block;
-  width: 188px;
+  width: 132px;
   max-width: 100%;
   height: auto;
 }
@@ -254,7 +258,7 @@ button, a, input { font: inherit; }
 .app-privacy {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 18px 10px;
+  padding: 0 18px 8px;
   font-size: 11px;
   color: #71828a;
 }
@@ -704,6 +708,48 @@ button, a, input { font: inherit; }
   background: var(--bg2);
 }
 
+/* Videos sit in the grid at the same size as a photo and play in place. */
+.photo-video-wrap { position: relative; }
+
+.photo-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: #0b1114;
+}
+
+/* Once playing, let a tall clip show itself rather than staying cropped square. */
+.photo-video:not([paused]) { object-fit: contain; }
+
+.photo-video-time {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(9, 13, 18, 0.78);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+
+.photo-video-wrap.is-missing .photo-video { display: none; }
+
+.photo-video-wrap.is-missing::after {
+  content: '🎬 Video unavailable';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  background: var(--bg2);
+  color: var(--ink3);
+  font-size: 11px;
+  text-align: center;
+}
+
 .photo-nopreview {
   display: flex;
   align-items: center;
@@ -898,7 +944,10 @@ body.photo-lightbox-open { overflow: hidden; }
   .app-actions { width: 100%; }
   .app-actions .btn { flex: 1 1 auto; }
 
-  .app-logo img { width: 158px; }
+  .app-logo img { width: 116px; }
+  .app-header-inner { gap: 10px; padding: 8px 12px 6px; }
+  .app-actions { width: auto; }
+  .app-actions .btn { flex: 0 1 auto; padding: 8px 11px; font-size: 12px; }
   .day-nav-scroll { padding: 8px 12px; }
   .day-chip { min-width: 78px; max-width: 132px; padding: 6px 9px; }
 

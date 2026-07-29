@@ -31,17 +31,23 @@ export function dayGroupHtml(day: DayGroup, collector: LightboxCollector): strin
 
   const untagged = day.photos.length - day.taggedCount;
 
+  // Photos first, map after.
+  //
+  // The map is context for the photos rather than the point of the page, and
+  // leading with it pushed the first row of thumbnails below the fold. The
+  // filter bar stays above the grid, where it belongs — it explains why the
+  // grid is showing fewer photos than the day holds.
   return (
     `<section class="day-section" id="day-${escapeAttr(day.dayKey)}" data-day="${escapeAttr(day.dayKey)}">` +
     `<div class="sec-label">${escapeAttr(day.label)} · Photos</div>` +
-    (maps || noMapNoticeHtml(day)) +
-    (untagged > 0 && maps ? untaggedNoticeHtml(untagged) : '') +
     '<div class="photo-filter-bar" data-filter-bar>' +
     '<span data-filter-label></span>' +
     '<button class="photo-filter-clear" type="button" data-filter-clear>Show all photos</button>' +
     '</div>' +
     `<div class="photo-grid">${cards}</div>` +
     '<div class="photo-empty" data-empty hidden>No photos match this filter.</div>' +
+    (maps || noMapNoticeHtml(day)) +
+    (untagged > 0 && maps ? untaggedNoticeHtml(untagged) : '') +
     '</section>'
   );
 }

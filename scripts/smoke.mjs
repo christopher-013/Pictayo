@@ -28,6 +28,7 @@ import {
 import { MetadataDescriber } from '../src/meta/describe.ts';
 import { readMeta } from '../src/meta/exif.ts';
 import { escapeAttr } from '../src/util/escape.ts';
+import { parseIso6709, parseAppleCreationDate, findBox, parseMoov } from '../src/meta/videoMeta.ts';
 
 let passed = 0;
 const failures = [];
@@ -273,6 +274,70 @@ function near(name, actual, expected, tolerance) {
   const noGps = describer.describe({ photo: photo(), cluster: null, clusterSize: 0 });
   check('caption: handles missing GPS', noGps.desc.includes('no location recorded'), noGps.desc);
   check('caption: no location line without GPS', noGps.location === '');
+}
+
+// ── Video metadata ───────────────────────────────────────────────────────────
+// Videos carry none of this in EXIF, so the QuickTime container is walked
+// directly. See src/meta/videoMeta.ts.
+
+{
+  // ISO 6709, as iPhones write it.
+  const gps = parseIso6709('©xyz+35.7056+139.7519+012.345/');
+  check('video: reads ISO 6709 location', gps?.lat === 35.7056 && gps?.lon === 139.7519,
+    JSON.stringify(gps));
+  check('video: reads southern/western signs',
+    parseIso6709('-33.8688+151.2093/')?.lat === -33.8688);
+  check('video: rejects a null-island fix', parseIso6709('+00.0000+000.0000/') === null);
+  check('video: ignores text with no coordinates', parseIso6709('no location here') === null);
+
+  // Apple's creationdate is the only source that knows the local offset.
+  const withZone = parseAppleCreationDate('com.apple.quicktime.creationdate2026-06-08T16:43:00+0900');
+  check('video: reads Apple creation date', withZone !== null);
+  check('video: keeps the local wall clock',
+    new Date(withZone.instant).toISOString().startsWith('2026-06-08T16:43'),
+    new Date(withZone?.instant ?? 0).toISOString());
+  check('video: reads the offset', withZone?.offsetMinutes === 540, String(withZone?.offsetMinutes));
+  check('video: handles a Z suffix',
+    parseAppleCreationDate('2026-06-08T16:43:00Z')?.offsetMinutes === 0);
+  check('video: handles a colon in the offset',
+    parseAppleCreationDate('2026-06-08T16:43:00-07:00')?.offsetMinutes === -420);
+  check('video: rejects implausible years', parseAppleCreationDate('1899-01-01T00:00:00Z') === null);
+
+  // Box walking, against a hand-built container.
+  const box = (type, payload) => {
+    const bytes = new Uint8Array(8 + payload.length);
+    new DataView(bytes.buffer).setUint32(0, bytes.length);
+    bytes.set([...type].map((c) => c.charCodeAt(0)), 4);
+    bytes.set(payload, 8);
+    return bytes;
+  };
+
+  // mvhd v0: version/flags, created, modified, timescale, duration.
+  const mvhdPayload = new Uint8Array(24);
+  const mvhdView = new DataView(mvhdPayload.buffer);
+  const created1904 = 2_082_844_800 + Math.floor(Date.UTC(2026, 5, 8, 7, 43) / 1000);
+  mvhdView.setUint32(0, 0);              // version 0 + flags
+  mvhdView.setUint32(4, created1904);    // creation time
+  mvhdView.setUint32(8, created1904);    // modification time
+  mvhdView.setUint32(12, 1000);          // timescale
+  mvhdView.setUint32(16, 12_000);        // duration → 12s
+  const mvhd = box('mvhd', mvhdPayload);
+
+  const xyz = box('udta', new TextEncoder().encode('©xyz+35.6486+139.7906/'));
+  const moovPayload = new Uint8Array(mvhd.length + xyz.length);
+  moovPayload.set(mvhd, 0);
+  moovPayload.set(xyz, mvhd.length);
+  const container = box('moov', moovPayload);
+
+  const moov = findBox(container, 'moov');
+  check('video: finds a box by type', moov !== null);
+  check('video: ignores a box that is not there', findBox(container, 'ftyp') === null);
+
+  const parsed = parseMoov(moov);
+  check('video: reads duration from mvhd', parsed.durationMs === 12_000, String(parsed.durationMs));
+  check('video: reads mvhd creation time', parsed.mvhdCreatedAt !== null);
+  check('video: finds GPS inside moov',
+    parsed.gps?.lat === 35.6486 && parsed.gps?.lon === 139.7906, JSON.stringify(parsed.gps));
 }
 
 // ── Escaping ─────────────────────────────────────────────────────────────────

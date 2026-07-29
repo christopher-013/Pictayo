@@ -1,4 +1,4 @@
-import { loadDisplay } from '../store/db';
+import { loadDisplay, loadVideo } from '../store/db';
 
 /**
  * Object URL bookkeeping.
@@ -11,6 +11,7 @@ import { loadDisplay } from '../store/db';
 
 const thumbUrls = new Map<string, string>();
 const displayUrls = new Map<string, string>();
+const videoUrls = new Map<string, string>();
 
 export function thumbUrlFor(id: string, blob: Blob): string {
   const existing = thumbUrls.get(id);
@@ -34,9 +35,45 @@ export async function displayUrlFor(id: string): Promise<string | null> {
   return url;
 }
 
+/**
+ * Attaches playable sources to the videos in a freshly rendered day.
+ *
+ * Cards are rendered with a `data-video-id` and no `src`, so only the clips on
+ * the day being viewed are ever pulled out of storage. Resolving every video in
+ * a library up front would mean gigabytes of blob URLs alive at once.
+ */
+export async function attachVideoSources(root: ParentNode): Promise<void> {
+  const elements = [...root.querySelectorAll<HTMLVideoElement>('video[data-video-id]')];
+
+  await Promise.all(
+    elements.map(async (element) => {
+      const id = element.dataset.videoId;
+      if (!id || element.src) return;
+
+      const url = await videoUrlFor(id);
+      if (url) element.src = url;
+      else element.closest('.photo-video-wrap')?.classList.add('is-missing');
+    }),
+  );
+}
+
+async function videoUrlFor(id: string): Promise<string | null> {
+  const existing = videoUrls.get(id);
+  if (existing) return existing;
+
+  const blob = await loadVideo(id).catch(() => undefined);
+  if (!blob) return null;
+
+  const url = URL.createObjectURL(blob);
+  videoUrls.set(id, url);
+  return url;
+}
+
 export function revokeAll(): void {
   for (const url of thumbUrls.values()) URL.revokeObjectURL(url);
   for (const url of displayUrls.values()) URL.revokeObjectURL(url);
+  for (const url of videoUrls.values()) URL.revokeObjectURL(url);
   thumbUrls.clear();
   displayUrls.clear();
+  videoUrls.clear();
 }
