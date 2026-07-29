@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    # This repo was initialised on `master`; GitHub's default is `main`.
+    # Listening to both means the workflow fires either way, including after
+    # a rename.
+    branches: [main, master]
+  workflow_dispatch:
+
+# Least privilege: read the code, and mint the token Pages needs to publish.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race. In-progress runs are cancelled rather than
+# queued, because only the newest build is worth publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json pins, and fails loudly
+      # if the lockfile and package.json have drifted apart.
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run build` is `tsc --noEmit && vite build`, so a type error blocks
+      # the deploy instead of shipping a broken bundle.
+      - name: Build
+        run: npm run build
+
+      # No `actions/configure-pages` step: it exists to inject the repository
+      # sub-path into a framework's base URL, and vite.config.ts already sets
+      # `base: './'`, which resolves correctly at any mount point.
+      - name: Upload build output
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

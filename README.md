@@ -106,6 +106,48 @@ Pin positions are baked into the exported HTML as percentages, so the maps are
 correct even with JavaScript disabled. The small inline script only powers
 filtering and the lightbox.
 
+## Deploying
+
+The build is four static files — no server, no API keys, no environment
+variables. Anything that serves static files will host it.
+
+### GitHub Pages
+
+`.github/workflows/deploy.yml` builds and publishes on every push. One-time
+setup: **Settings → Pages → Source → GitHub Actions**.
+
+The type check runs first, so a type error fails the deploy instead of shipping
+a broken bundle.
+
+Project sites serve from `<user>.github.io/<repo>/`, and a sub-path is where
+static builds usually break. This one doesn't: `vite.config.ts` sets
+`base: './'`, and the ingest worker is loaded via `new URL(…, import.meta.url)`,
+so both resolve against wherever the app is actually mounted. Verified by
+serving a production build from a `/PicturePicture/` prefix and running a full
+import against it.
+
+No `.nojekyll` is needed — nothing in `dist/` is underscore-prefixed.
+
+### Cloudflare Pages
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Node version | from `.nvmrc` |
+
+### Serving requirements
+
+- **Must be served over HTTP(S).** Opening `dist/index.html` from the filesystem
+  won't work: the content-hash dedupe uses `crypto.subtle`, which browsers only
+  expose in a secure context. Use `npm run preview` locally. (This does *not*
+  apply to an exported album — that's plain HTML and opens straight off disk.)
+- **Don't set `Cross-Origin-Embedder-Policy: require-corp`.** No host sets it by
+  default, but it would block the Google Maps iframe. No custom headers needed.
+- **Storage is per-origin.** A library built on one domain doesn't follow you to
+  another — moving means re-importing. Worth settling on the final domain before
+  building up a large library.
+
 ## Known limitations
 
 - **HEIC on desktop.** iPhone originals are HEIC. Metadata reads fine, but most
