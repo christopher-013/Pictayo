@@ -36,42 +36,13 @@ export async function displayUrlFor(id: string): Promise<string | null> {
 }
 
 /**
- * Attaches playable sources to the videos in a freshly rendered day.
+ * The playable file for a video, fetched only when the lightbox needs it.
  *
- * Cards are rendered with a `data-video-id` and no `src`, so only the clips on
- * the day being viewed are ever pulled out of storage. Resolving every video in
- * a library up front would mean gigabytes of blob URLs alive at once.
+ * Grid cards show a poster frame rather than a player, so a library's worth of
+ * clips is never resolved at once — that would mean gigabytes of blob URLs
+ * alive together.
  */
-export async function attachVideoSources(root: ParentNode): Promise<void> {
-  const elements = [...root.querySelectorAll<HTMLVideoElement>('video[data-video-id]')];
-
-  await Promise.all(
-    elements.map(async (element) => {
-      const id = element.dataset.videoId;
-      if (!id || element.src) return;
-
-      const url = await videoUrlFor(id);
-
-      if (!url) {
-        element.closest('.photo-video-wrap')?.classList.add('is-missing');
-        return;
-      }
-
-      // A source that attaches but will not decode — HEVC from an iPhone
-      // outside Safari is the usual culprit — otherwise leaves an empty player
-      // with controls that do nothing. Say so instead.
-      element.addEventListener(
-        'error',
-        () => element.closest('.photo-video-wrap')?.classList.add('is-missing'),
-        { once: true },
-      );
-
-      element.src = url;
-    }),
-  );
-}
-
-async function videoUrlFor(id: string): Promise<string | null> {
+export async function videoUrlFor(id: string): Promise<string | null> {
   const existing = videoUrls.get(id);
   if (existing) return existing;
 

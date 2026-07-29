@@ -168,28 +168,42 @@ function buildDayPage(context: PageContext): string {
       const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
       const caption = photo.caption;
 
-      // Videos play in place and stay out of the lightbox, as in the app.
-      const media =
-        photo.kind === 'video'
-          ? path
-            ? `<div class="photo-video-wrap"><video class="photo-video" src="${escapeAttr(path)}"` +
-              `${posterPaths.has(photo.id) ? ` poster="${escapeAttr(posterPaths.get(photo.id)!)}"` : ''}` +
-              ' controls preload="metadata" playsinline></video></div>'
-            : '<div class="photo-nopreview"><span aria-hidden="true">🎬</span>Video unavailable</div>'
-          : path
-            ? `<button class="photo-full-link" type="button" data-i="${
-                lightboxItems.push(
-                  JSON.stringify({
-                    src: path,
-                    title: photo.name,
-                    location: caption?.location ?? '',
-                    desc: caption?.desc ?? '',
-                    mapsUrl: caption?.mapsUrl ?? '',
-                    captured,
-                  }),
-                ) - 1
-              }"><img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`
-            : '<div class="photo-nopreview"><span aria-hidden="true">🖼️</span>No preview available</div>';
+      // Photos and videos share one lightbox list, so its arrows step through
+      // the day in order rather than skipping the clips.
+      const entry = () =>
+        lightboxItems.push(
+          JSON.stringify({
+            src: path,
+            kind: photo.kind,
+            title: photo.name,
+            location: caption?.location ?? '',
+            desc: caption?.desc ?? '',
+            mapsUrl: caption?.mapsUrl ?? '',
+            captured,
+          }),
+        ) - 1;
+
+      let media: string;
+
+      if (!path) {
+        const icon = photo.kind === 'video' ? '🎬' : '🖼️';
+        media = `<div class="photo-nopreview"><span aria-hidden="true">${icon}</span>No preview available</div>`;
+      } else if (photo.kind === 'video') {
+        // A poster frame with a play badge, as in the app — clicking opens the
+        // lightbox rather than playing here.
+        const poster = posterPaths.get(photo.id);
+        media =
+          `<button class="photo-full-link photo-video-wrap" type="button" data-i="${entry()}" title="Play video">` +
+          (poster
+            ? `<img src="${escapeAttr(poster)}" alt="${escapeAttr(photo.name)}" loading="lazy">`
+            : '<div class="photo-nopreview"><span aria-hidden="true">🎬</span>Video</div>') +
+          '<span class="photo-video-play" aria-hidden="true">▶</span>' +
+          '</button>';
+      } else {
+        media =
+          `<button class="photo-full-link" type="button" data-i="${entry()}">` +
+          `<img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`;
+      }
 
       const location = caption?.location
         ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
@@ -253,6 +267,7 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 <button class="photo-lightbox-close" id="lb-close" aria-label="Close">×</button>
 <button class="photo-lightbox-nav prev" id="lb-prev" aria-label="Previous">‹</button>
 <img class="photo-lightbox-media" id="lb-img" alt="">
+<video class="photo-lightbox-media" id="lb-video" controls playsinline hidden></video>
 <button class="photo-lightbox-nav next" id="lb-next" aria-label="Next">›</button>
 </div>
 <div class="photo-lightbox-info">
@@ -502,7 +517,9 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .photo-full-link{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in}
 .photo-card img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--bg2)}
 .photo-video-wrap{position:relative}
-.photo-video{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#0b1114}
+.photo-video-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;width:46px;height:46px;padding-left:3px;border:2px solid rgba(255,255,255,.9);border-radius:50%;background:rgba(9,13,18,.55);color:#fff;font-size:17px;line-height:1;box-shadow:0 3px 14px rgba(0,0,0,.4);pointer-events:none}
+.photo-video-wrap:hover .photo-video-play{background:rgba(10,124,130,.85)}
+video.photo-lightbox-media{width:100%}
 .photo-nopreview{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;aspect-ratio:1/1;background:var(--bg2);color:var(--ink3);font-size:11px;text-align:center}
 .photo-meta{padding:7px 7px 8px}
 .photo-kind{display:inline-block;font-size:9px;color:var(--teal);background:#d6f2f4;border:1px solid rgba(10,124,130,.2);border-radius:999px;padding:2px 5px;margin-bottom:4px}
@@ -541,10 +558,17 @@ main{padding:12px 12px 48px}
 
 const EXPORT_JS = `
 (function(){
-var i=-1,lb=document.getElementById('lb'),img=document.getElementById('lb-img');
+var i=-1,lb=document.getElementById('lb'),img=document.getElementById('lb-img'),vid=document.getElementById('lb-video');
 function el(id){return document.getElementById(id)}
+function stopVid(){if(!vid.getAttribute('src'))return;vid.pause();vid.removeAttribute('src');vid.load()}
 function show(){var it=LB[i];if(!it)return;
-img.src=it.src;img.alt=it.title;el('lb-title').textContent=it.title;
+// Stop the previous clip before the next item starts, or its audio carries on.
+stopVid();
+var isVid=it.kind==='video';
+img.hidden=isVid;vid.hidden=!isVid;
+if(isVid){vid.src=it.src;var p=vid.play();if(p&&p.catch)p.catch(function(){})}
+else{img.src=it.src;img.alt=it.title}
+el('lb-title').textContent=it.title;
 el('lb-count').textContent=(i+1)+' / '+LB.length;
 el('lb-prev').disabled=i<=0;el('lb-next').disabled=i>=LB.length-1;
 var lo=el('lb-loc');lo.innerHTML='';lo.style.display=it.location?'block':'none';
@@ -554,12 +578,15 @@ else lo.appendChild(document.createTextNode(it.location))}
 var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
 var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
 function open(n){i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open')}
-function close(){lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');img.removeAttribute('src');i=-1}
+function close(){lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');stopVid();img.removeAttribute('src');i=-1}
 function go(d){var n=i+d;if(n<0||n>=LB.length)return;i=n;show()}
 el('lb-close').onclick=close;el('lb-prev').onclick=function(){go(-1)};el('lb-next').onclick=function(){go(1)};
 lb.onclick=function(e){if(e.target===lb)close()};
 document.addEventListener('keydown',function(e){if(!lb.classList.contains('open'))return;
-if(e.key==='Escape')close();else if(e.key==='ArrowLeft')go(-1);else if(e.key==='ArrowRight')go(1)});
+if(e.key==='Escape'){close();return}
+// Claimed before the video's own controls, which would otherwise seek on the
+// same press as well as moving to the next item.
+if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();go(e.key==='ArrowLeft'?-1:1)}});
 var sx=0,sy=0,stage=lb.querySelector('.photo-lightbox-stage');
 stage.addEventListener('touchstart',function(e){var t=e.changedTouches[0];sx=t.clientX;sy=t.clientY},{passive:true});
 stage.addEventListener('touchend',function(e){var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;

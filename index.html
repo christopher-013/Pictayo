@@ -96,9 +96,11 @@
   <div class="photo-lightbox-dialog">
     <div class="photo-lightbox-stage" id="photo-lightbox-stage">
       <button type="button" class="photo-lightbox-close" id="photo-lightbox-close" aria-label="Close">×</button>
-      <button type="button" class="photo-lightbox-nav prev" id="photo-lightbox-prev" aria-label="Previous photo">‹</button>
+      <button type="button" class="photo-lightbox-nav prev" id="photo-lightbox-prev" aria-label="Previous">‹</button>
       <img class="photo-lightbox-media" id="photo-lightbox-image" alt="">
-      <button type="button" class="photo-lightbox-nav next" id="photo-lightbox-next" aria-label="Next photo">›</button>
+      <!-- Both live in the DOM; whichever the current item needs is shown. -->
+      <video class="photo-lightbox-media" id="photo-lightbox-video" controls playsinline hidden></video>
+      <button type="button" class="photo-lightbox-nav next" id="photo-lightbox-next" aria-label="Next">›</button>
     </div>
     <div class="photo-lightbox-info">
       <div class="photo-lightbox-info-top">

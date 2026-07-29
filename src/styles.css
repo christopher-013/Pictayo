@@ -713,19 +713,39 @@ button, a, input { font: inherit; }
   background: var(--bg2);
 }
 
-/* Videos sit in the grid at the same size as a photo and play in place. */
+/*
+ * A video in the grid is a poster frame with a play badge. Clicking opens the
+ * lightbox, where it actually plays — see photoCard.ts for why it isn't a
+ * player here.
+ */
 .photo-video-wrap { position: relative; }
 
-.photo-video {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  background: #0b1114;
+.photo-video-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding-left: 3px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: rgba(9, 13, 18, 0.55);
+  color: #fff;
+  font-size: 17px;
+  line-height: 1;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  transition: background-color 140ms ease, transform 140ms ease;
 }
 
-/* Once playing, let a tall clip show itself rather than staying cropped square. */
-.photo-video:not([paused]) { object-fit: contain; }
+.photo-video-wrap:hover .photo-video-play {
+  background: rgba(10, 124, 130, 0.85);
+  transform: translate(-50%, -50%) scale(1.08);
+}
 
 .photo-video-time {
   position: absolute;
@@ -739,20 +759,6 @@ button, a, input { font: inherit; }
   font-weight: 700;
   letter-spacing: 0.3px;
   pointer-events: none;
-}
-
-.photo-video-wrap.is-missing .photo-video { display: none; }
-
-.photo-video-wrap.is-missing::after {
-  content: '🎬 Video unavailable';
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  aspect-ratio: 1 / 1;
-  background: var(--bg2);
-  color: var(--ink3);
-  font-size: 11px;
-  text-align: center;
 }
 
 .photo-nopreview {
@@ -856,6 +862,8 @@ button, a, input { font: inherit; }
   touch-action: pan-y;
 }
 
+/* Applies to both the still and the player, so switching between them doesn't
+ * change the frame the media sits in. */
 .photo-lightbox-media {
   display: block;
   max-width: 100%;
@@ -866,6 +874,8 @@ button, a, input { font: inherit; }
   border-radius: 8px;
   background: #090d12;
 }
+
+video.photo-lightbox-media { width: 100%; }
 
 .photo-lightbox-close {
   position: absolute;

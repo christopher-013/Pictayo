@@ -22,7 +22,7 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
 
   const media =
     photo.kind === 'video'
-      ? videoHtml(photo)
+      ? videoHtml(photo, lightboxIndex)
       : photo.previewUnavailable || !photo.thumbUrl
         ? nopreviewHtml(photo)
         : viewableHtml(photo, lightboxIndex);
@@ -64,20 +64,35 @@ function kindLabel(photo: Photo): string {
  * anyone presses play, and the poster frame gives each one something to show in
  * the grid meanwhile.
  */
-function videoHtml(photo: Photo): string {
-  const poster = photo.thumbUrl ? ` poster="${escapeAttr(photo.thumbUrl)}"` : '';
+/**
+ * A video in the grid is a still with a play badge, not a player.
+ *
+ * Clicking opens it in the lightbox, where it plays and where the arrows step
+ * on to the next photo or clip. An inline `<video controls>` here would swallow
+ * the click for its own play button, so the grid would never be able to hand
+ * off to the viewer — and a page of live players is far heavier than a page of
+ * poster frames.
+ */
+function videoHtml(photo: Photo, lightboxIndex: number): string {
   const duration = photo.durationMs ? formatDuration(photo.durationMs) : '';
 
-  // No `src` here. The file is fetched from storage and attached after the day
-  // renders — see attachVideoSources — so only the videos actually on screen
-  // are held in memory. Eagerly resolving a library's worth of clips would mean
-  // gigabytes of blob URLs alive at once.
+  const still = photo.thumbUrl
+    ? `<img src="${escapeAttr(photo.thumbUrl)}" alt="${escapeAttr(photo.name)}" loading="lazy" decoding="async">`
+    : '<div class="photo-nopreview"><span aria-hidden="true">🎬</span>No preview available</div>';
+
+  const overlay =
+    '<span class="photo-video-play" aria-hidden="true">▶</span>' +
+    (duration ? `<span class="photo-video-time">${escapeAttr(duration)}</span>` : '');
+
+  // With no lightbox entry there is nothing to open, so it stays a plain tile.
+  if (lightboxIndex < 0) return `<div class="photo-video-wrap">${still}${overlay}</div>`;
+
   return (
-    '<div class="photo-video-wrap">' +
-    `<video class="photo-video" data-video-id="${escapeAttr(photo.id)}"${poster}` +
-    ' controls preload="metadata" playsinline></video>' +
-    (duration ? `<span class="photo-video-time">${escapeAttr(duration)}</span>` : '') +
-    '</div>'
+    `<button class="photo-full-link photo-video-wrap" type="button" data-lightbox-index="${lightboxIndex}"` +
+    ' title="Play video">' +
+    still +
+    overlay +
+    '</button>'
   );
 }
 

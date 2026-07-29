@@ -10,7 +10,6 @@ import {
   toggleMapRegion,
 } from './photoMap';
 import { openLightbox, setLightboxItems, type LightboxItem } from './lightbox';
-import { attachVideoSources } from './media';
 
 /**
  * Shows one day at a time, with a date strip for moving between them.
@@ -30,14 +29,17 @@ class Collector implements LightboxCollector {
   readonly items: LightboxItem[] = [];
 
   add(photo: Photo): number {
-    // Videos play in place rather than in the lightbox, matching Tokyo2026 —
-    // the lightbox is built for stepping between stills.
-    if (photo.kind === 'video') return -1;
-    if (photo.previewUnavailable || !photo.thumbUrl) return -1;
+    // Videos are in the list alongside photos, so the arrows step through the
+    // day in the order it happened rather than skipping the clips.
+    //
+    // A video with no poster still belongs: it was decodable enough to import,
+    // and the lightbox can play it even where the grid has nothing to show.
+    if (photo.kind === 'photo' && (photo.previewUnavailable || !photo.thumbUrl)) return -1;
 
     return (
       this.items.push({
         photoId: photo.id,
+        kind: photo.kind,
         title: photo.name,
         location: photo.caption?.location ?? '',
         desc: photo.caption?.desc ?? '',
@@ -102,8 +104,6 @@ function renderPage(day: DayGroup): void {
   // Lightbox navigation stays within the day being viewed, so its counter
   // reads "3 / 12" for that day rather than a position in the whole library.
   setLightboxItems(collector.items);
-
-  void attachVideoSources(page);
 
   refreshMapPins(page);
   requestAnimationFrame(() => refreshMapPins(page));

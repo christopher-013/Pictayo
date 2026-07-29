@@ -127,10 +127,14 @@ every one of those from the files themselves, and works anywhere on Earth.
 ## Videos
 
 Videos are imported alongside photos and sit in the same grid, in time order —
-a clip shot between two stills appears between them. They play **in place** when
-clicked rather than opening the lightbox, which is how the Tokyo2026 gallery did
-it: the lightbox is built for stepping between stills, and a clip you have to
-dismiss to keep scrolling is worse than one that just plays where it is.
+a clip shot between two stills appears between them.
+
+In the grid a video is a **poster frame with a play badge**, not a player.
+Clicking opens it in the lightbox, where it plays and where the arrows carry on
+through the day across both kinds: photo, clip, photo. An inline `<video
+controls>` in the grid would swallow the click for its own play button, so the
+tile could never hand off to the viewer — and a page of live players is far
+heavier than a page of stills.
 
 They carry the same date grouping, map pins and captions as photos, because the
 metadata is read the same way — from a different place:
@@ -147,9 +151,13 @@ metadata is read the same way — from a different place:
   cheap equivalent, and without the bytes it cannot play after a reload. Expect
   a library with video to be much larger — the storage figure in the header
   counts it.
-- **Sources attach after render**, per day, so only the clips actually on screen
-  hold a blob URL. Resolving a library's worth up front would mean gigabytes
-  alive at once.
+- **The file is only fetched when the lightbox needs it.** Grid tiles show a
+  poster, so a library's worth of clips is never resolved at once — that would
+  mean gigabytes of blob URLs alive together. Leaving a clip stops it and
+  releases the element, so audio never carries on behind the next photo.
+- **Arrow keys are claimed by the viewer, not the clip.** Once a video has
+  focus its own controls seek on left/right, so without intercepting them one
+  press would both scrub the video and move to the next item.
 
 **Codec caveat.** Playback depends on what the browser can decode. HEVC clips
 from an iPhone generally play in Safari and not in Chrome; when that happens the

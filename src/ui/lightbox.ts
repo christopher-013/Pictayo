@@ -1,4 +1,4 @@
-import { displayUrlFor } from './media';
+import { displayUrlFor, videoUrlFor } from './media';
 
 /**
  * Full-size photo viewer, ported from the Tokyo2026 gallery: keyboard nav,
@@ -12,6 +12,7 @@ import { displayUrlFor } from './media';
 
 export interface LightboxItem {
   photoId: string;
+  kind: 'photo' | 'video';
   title: string;
   location: string;
   desc: string;
@@ -28,6 +29,7 @@ let touchStartY = 0;
 
 let root: HTMLElement;
 let image: HTMLImageElement;
+let video: HTMLVideoElement;
 let titleEl: HTMLElement;
 let locationEl: HTMLElement;
 let descEl: HTMLElement;
@@ -39,6 +41,7 @@ let nextButton: HTMLButtonElement;
 export function initLightbox(): void {
   root = must('photo-lightbox');
   image = must<HTMLImageElement>('photo-lightbox-image');
+  video = must<HTMLVideoElement>('photo-lightbox-video');
   titleEl = must('photo-lightbox-title');
   locationEl = must('photo-lightbox-location');
   descEl = must('photo-lightbox-desc');
@@ -58,9 +61,16 @@ export function initLightbox(): void {
 
   document.addEventListener('keydown', (event) => {
     if (!root.classList.contains('open')) return;
-    if (event.key === 'Escape') closeLightbox();
-    else if (event.key === 'ArrowLeft') navigate(-1);
-    else if (event.key === 'ArrowRight') navigate(1);
+
+    if (event.key === 'Escape') {
+      closeLightbox();
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      // Claimed before the native video controls can act on them: once a clip
+      // has focus its own handler seeks on arrow keys, so without this the same
+      // press would both scrub the video and move to the next item.
+      event.preventDefault();
+      navigate(event.key === 'ArrowLeft' ? -1 : 1);
+    }
   });
 
   const stage = must('photo-lightbox-stage');
@@ -104,6 +114,8 @@ export function closeLightbox(): void {
   root.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('photo-lightbox-open');
   index = -1;
+
+  stopVideo();
   image.removeAttribute('src');
   image.alt = '';
 }
@@ -145,18 +157,41 @@ async function render(): Promise<void> {
   capturedEl.textContent = item.captured ? `🕒 ${item.captured}` : '';
   capturedEl.style.display = item.captured ? 'block' : 'none';
 
+  // Whichever element the last item used has to stop before the next one
+  // starts, or a video keeps playing — audible — behind the following photo.
+  stopVideo();
+
+  const isVideo = item.kind === 'video';
+  image.hidden = isVideo;
+  video.hidden = !isVideo;
+
   // Guard against a slow blob read landing after the user has already moved on.
   const requested = item.photoId;
-  const url = await displayUrlFor(requested);
+  const url = isVideo ? await videoUrlFor(requested) : await displayUrlFor(requested);
   if (items[index]?.photoId !== requested) return;
 
-  if (url) {
-    image.src = url;
-    image.alt = item.title;
-  } else {
+  if (!url) {
     image.removeAttribute('src');
     image.alt = '';
+    return;
   }
+
+  if (isVideo) {
+    video.src = url;
+    // Opening the lightbox was itself a click, so autoplay is permitted here.
+    // If the browser refuses anyway, the controls are right there.
+    void video.play().catch(() => undefined);
+  } else {
+    image.src = url;
+    image.alt = item.title;
+  }
+}
+
+function stopVideo(): void {
+  if (!video.src) return;
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
 }
 
 function must<T extends HTMLElement = HTMLElement>(id: string): T {
