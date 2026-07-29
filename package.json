@@ -1,0 +1,23 @@
+{
+  "name": "picturepicture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Import your photos and let their metadata organize them — grouped by date, plotted on a map.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "fixtures": "node scripts/make-fixtures.mjs"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3",
+    "fflate": "^0.8.2",
+    "idb": "^8.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.5"
+  }
+}

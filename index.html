@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PicturePicture — your photos, by when and where</title>
+<meta name="description" content="Import your photos and PicturePicture organizes them by date and plots where each one was taken. Everything happens in your browser — no photo is ever uploaded.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <div class="app-brand">
+      <span class="app-brand-mark" aria-hidden="true">🗺️</span>
+      <div>
+        <h1>PicturePicture</h1>
+        <p class="app-tagline">Your photos, sorted by when &amp; where</p>
+      </div>
+    </div>
+    <div class="app-actions">
+      <button type="button" class="btn btn-primary" id="btn-add">Add photos</button>
+      <button type="button" class="btn" id="btn-add-folder">Add folder</button>
+      <button type="button" class="btn" id="btn-export" disabled>Export site</button>
+      <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
+    </div>
+  </div>
+  <div class="app-privacy" id="library-summary">Photos are read in your browser and never uploaded.</div>
+</header>
+
+<main class="app-main">
+
+  <section class="dropzone" id="dropzone" tabindex="0" role="button"
+           aria-label="Add photos — click, or drop image files here">
+    <div class="dropzone-inner">
+      <span class="dropzone-icon" aria-hidden="true">📥</span>
+      <strong>Drop photos here</strong>
+      <span class="dropzone-sub">or click to choose files — JPEG, PNG, WebP, HEIC</span>
+    </div>
+  </section>
+
+  <div class="progress" id="progress" hidden>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-label" id="progress-label">Reading photos…</div>
+  </div>
+
+  <nav class="day-strip" id="day-strip" aria-label="Jump to day" hidden></nav>
+
+  <div id="timeline" class="timeline"></div>
+
+  <div class="library-empty" id="library-empty">
+    <h2>Nothing imported yet</h2>
+    <p>
+      Add some photos and PicturePicture reads each file's metadata to group them
+      by the day they were taken and pin them to the map where they were shot.
+    </p>
+    <p class="library-empty-note">
+      Photos never leave your device. Only the coordinates of each place cluster are
+      sent out, once per location, to look up its name.
+    </p>
+  </div>
+
+</main>
+
+<input type="file" id="file-input" accept="image/*" multiple hidden>
+<input type="file" id="folder-input" accept="image/*" multiple webkitdirectory hidden>
+
+<div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Full-size photo">
+  <div class="photo-lightbox-dialog">
+    <div class="photo-lightbox-stage" id="photo-lightbox-stage">
+      <button type="button" class="photo-lightbox-close" id="photo-lightbox-close" aria-label="Close">×</button>
+      <button type="button" class="photo-lightbox-nav prev" id="photo-lightbox-prev" aria-label="Previous photo">‹</button>
+      <img class="photo-lightbox-media" id="photo-lightbox-image" alt="">
+      <button type="button" class="photo-lightbox-nav next" id="photo-lightbox-next" aria-label="Next photo">›</button>
+    </div>
+    <div class="photo-lightbox-info">
+      <div class="photo-lightbox-info-top">
+        <div class="photo-lightbox-title" id="photo-lightbox-title"></div>
+        <div class="photo-lightbox-count" id="photo-lightbox-count"></div>
+      </div>
+      <div class="photo-lightbox-location" id="photo-lightbox-location"></div>
+      <div class="photo-lightbox-desc" id="photo-lightbox-desc"></div>
+      <div class="photo-lightbox-captured" id="photo-lightbox-captured"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
