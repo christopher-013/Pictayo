@@ -28,8 +28,8 @@ let resizeObserver: ResizeObserver | null = null;
 const COLLAPSE_KEY = 'pp:maps-collapsed';
 
 /**
- * Whether day maps start collapsed. First visits collapse on small screens and
- * expand on larger ones; an explicit preference always wins.
+ * Whether day maps start collapsed. First visits expand on every screen; an
+ * explicit preference always wins.
  *
  * Stored as one preference rather than per day: someone who opens or collapses
  * the map is saying how they want to browse, not something about that
@@ -39,9 +39,9 @@ export function mapsCollapsed(): boolean {
   try {
     const stored = localStorage.getItem(COLLAPSE_KEY);
     if (stored !== null) return stored === '1';
-    return window.matchMedia?.('(max-width: 560px)').matches ?? false;
+    return false;
   } catch {
-    return window.matchMedia?.('(max-width: 560px)').matches ?? false;
+    return false;
   }
 }
 

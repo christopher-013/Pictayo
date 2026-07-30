@@ -2,6 +2,7 @@ import type { DayGroup, Photo } from '../types';
 import { escapeAttr } from '../util/escape';
 import { photoCardHtml } from './photoCard';
 import { mapRegionHtml, mapsCollapsed } from './photoMap';
+import { dayHeading } from './dayChip';
 
 /**
  * One day's section: heading, map(s), filter bar, and the photo grid.
@@ -31,11 +32,11 @@ export function dayGroupHtml(day: DayGroup, collector: LightboxCollector): strin
 
   const untagged = day.photos.length - day.taggedCount;
 
-  // First visits expand maps on larger screens and collapse them on phones.
-  // Once someone chooses, that preference carries across days and visits.
+  // First visits expand maps on every screen. Once someone chooses, that
+  // preference carries across days and visits.
   return (
     `<section class="day-section" id="day-${escapeAttr(day.dayKey)}" data-day="${escapeAttr(day.dayKey)}">` +
-    `<div class="sec-label">${escapeAttr(day.label)} · ${sectionLabel(day)}</div>` +
+    `<div class="sec-label">${escapeAttr(dayHeading(day))}</div>` +
     (maps || noMapNoticeHtml(day)) +
     (untagged > 0 && maps ? untaggedNoticeHtml(untagged) : '') +
     '<div class="photo-filter-bar" data-filter-bar>' +
@@ -46,14 +47,6 @@ export function dayGroupHtml(day: DayGroup, collector: LightboxCollector): strin
     '<div class="photo-empty" data-empty hidden>Nothing matches this filter.</div>' +
     '</section>'
   );
-}
-
-/** "Photos", or "Photos & videos" on a day that has both. */
-function sectionLabel(day: DayGroup): string {
-  const videos = day.photos.filter((p) => p.kind === 'video').length;
-  if (videos === 0) return 'Photos';
-  if (videos === day.photos.length) return videos === 1 ? 'Video' : 'Videos';
-  return 'Photos & videos';
 }
 
 /** "12 photos", "3 videos", or "12 photos and 3 videos". */

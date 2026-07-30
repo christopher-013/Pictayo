@@ -3,7 +3,7 @@ import type { DayGroup, MapRegion } from '../types';
 import { escapeAttr } from '../util/escape';
 import { formatCaptured } from '../meta/datetime';
 import { embedUrl, interactiveUrl } from '../ui/photoMap';
-import { chipParts, placesFor } from '../ui/dayChip';
+import { chipParts, dayHeading, placesFor } from '../ui/dayChip';
 import { loadDisplay, loadVideo } from '../store/db';
 import { fitZoom } from '../geo/mercator';
 
@@ -253,7 +253,7 @@ ${days.map((d, i) => navChipHtml(d, i, i === index)).join('\n')}
 
 <main>
 <section class="day-section">
-<div class="sec-label">${escapeAttr(day.label)} · ${escapeAttr(sectionLabel(day))}</div>
+<div class="sec-label">${escapeAttr(dayHeading(day))}</div>
 ${maps || noMapNoticeHtml(day)}
 ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 <div class="photo-filter-bar" data-filter-bar><span data-filter-label></span>
@@ -303,14 +303,6 @@ function navChipHtml(day: DayGroup, index: number, active: boolean): string {
     `<span class="day-chip-where">${escapeAttr(places.label)}</span>` +
     '</a>'
   );
-}
-
-/** "Photos", or "Photos & videos" on a day that has both. */
-function sectionLabel(day: DayGroup): string {
-  const videos = day.photos.filter((p) => p.kind === 'video').length;
-  if (videos === 0) return 'Photos';
-  if (videos === day.photos.length) return videos === 1 ? 'Video' : 'Videos';
-  return 'Photos & videos';
 }
 
 function noMapNoticeHtml(day: DayGroup): string {
@@ -481,7 +473,7 @@ button,a{font:inherit}
 .day-chip.is-active .day-chip-where{color:#fff;border-top-color:rgba(255,255,255,.3)}
 main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .day-section{display:flex;flex-direction:column;gap:12px}
-.sec-label{font-size:15px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink3)}
+.sec-label{font-size:15px;font-weight:800;letter-spacing:.4px;color:var(--ink3)}
 .photo-day-map{position:relative;overflow:hidden;border:1px solid #b6d9dc;border-radius:15px;background:#dcf4f5;box-shadow:0 5px 18px rgba(17,56,68,.12)}
 .photo-day-map-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;padding:12px 13px 9px;border:0;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.15);text-align:left;cursor:pointer}
 .photo-day-map-head:hover{background:linear-gradient(135deg,#fffbe8,#dff4f6)}
@@ -603,7 +595,7 @@ stage.addEventListener('touchend',function(e){var t=e.changedTouches[0],dx=t.cli
 if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1)},{passive:true});
 
 var KEY='pp:maps-collapsed';
-function collapsed(){try{var v=localStorage.getItem(KEY);return v===null?matchMedia('(max-width:560px)').matches:v==='1'}catch(e){return matchMedia('(max-width:560px)').matches}}
+function collapsed(){try{var v=localStorage.getItem(KEY);return v===null?false:v==='1'}catch(e){return false}}
 function store(v){try{localStorage.setItem(KEY,v?'1':'0')}catch(e){}}
 if(collapsed()){Array.prototype.forEach.call(document.querySelectorAll('.photo-day-map'),function(m){
 m.classList.add('is-collapsed');var h=m.querySelector('[data-map-toggle]');if(h)h.setAttribute('aria-expanded','false')})}

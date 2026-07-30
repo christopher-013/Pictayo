@@ -46,6 +46,12 @@ export interface DayPlaces {
   all: string[];
 }
 
+/** The day heading: date followed by every distinct reliable location name. */
+export function dayHeading(day: DayGroup): string {
+  const locations = placesFor(day).all.join(' · ');
+  return locations ? `${day.label} · ${locations}` : day.label;
+}
+
 /**
  * The places a day's photos were taken, busiest first.
  *

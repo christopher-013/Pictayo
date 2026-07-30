@@ -38,8 +38,8 @@ coordinates are shared with map and place-name services as described in
 
 Each day renders on its own rather than as one long timeline: a few hundred
 photos meant every day's maps and thumbnails were live at once. Day maps start
-expanded on larger screens and collapsed on phones; click the header to change
-that, and the preference is remembered across days and visits.
+expanded on every screen; click the header to collapse them, and the preference
+is remembered across days and visits.
 
 ## Running it
 

@@ -30,7 +30,7 @@ import { readMeta } from '../src/meta/exif.ts';
 import { escapeAttr } from '../src/util/escape.ts';
 import { parseIso6709, parseAppleCreationDate, findBox, parseMoov } from '../src/meta/videoMeta.ts';
 import { compareDays } from '../src/library.ts';
-import { placesFor } from '../src/ui/dayChip.ts';
+import { dayHeading, placesFor } from '../src/ui/dayChip.ts';
 import { EXPORT_JS } from '../src/export/exportSite.ts';
 
 let passed = 0;
@@ -306,6 +306,10 @@ function near(name, actual, expected, tolerance) {
   };
   check('day nav: nearby landmark keeps reliable area',
     placesFor(nearbyDay).label === 'Toshima-ku', placesFor(nearbyDay).label);
+  nearbyDay.label = 'Sat, Jun 6, 2026';
+  check('day heading: date followed by location without media type',
+    dayHeading(nearbyDay) === 'Sat, Jun 6, 2026 · Toshima-ku',
+    dayHeading(nearbyDay));
 }
 
 // ── Video metadata ───────────────────────────────────────────────────────────
