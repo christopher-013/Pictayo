@@ -952,16 +952,25 @@ body.photo-lightbox-open { overflow: hidden; }
 /* ── Small screens ─────────────────────────────────────────────────────── */
 
 @media (max-width: 560px) {
-  .app-header-inner { padding: 10px 12px 8px; }
   .app-privacy { padding: 0 12px 8px; }
   .app-main { padding: 12px 12px 48px; }
-  .app-actions { width: 100%; }
-  .app-actions .btn { flex: 1 1 auto; }
 
   .app-logo img { width: 102px; }
-  .app-header-inner { gap: 8px; padding: 8px 12px 6px; }
-  .app-actions { width: auto; justify-content: center; }
-  .app-actions .btn { flex: 0 1 auto; padding: 8px 11px; font-size: 12px; }
+  .app-header-inner { gap: 7px; padding: 8px 8px 6px; }
+  .app-actions {
+    width: 100%;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .app-actions .btn {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 7px 6px;
+    font-size: 10px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
   .day-nav-scroll { padding: 8px 12px; }
   .day-chip { min-width: 78px; max-width: 132px; padding: 6px 9px; }
 
