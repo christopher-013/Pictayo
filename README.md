@@ -27,14 +27,18 @@ coordinates are shared with map and place-name services as described in
    which is true but rarely what the photo is *of*. A second pass asks which
    mapped areas *contain* the point, so photos shot in the stands say **Tokyo
    Dome** rather than Bunkyo-ku. See [Landmarks](#landmarks).
-7. **Caption** — from landmark, place, and time of day.
-8. **Browse** — one day per page, chosen from a date strip that runs newest on
+7. **Suggest nearby dining** — the same batched location lookup finds the
+   nearest named restaurant, cafe, fast-food venue, or food court within 120m.
+   It is always labeled as a possibility, not a claim about where the photo was
+   taken.
+8. **Caption** — from landmark, place, nearby dining, and time of day.
+9. **Browse** — one day per page, chosen from a date strip that runs newest on
    the left to oldest on the right. Each card names the places that day's photos
    were taken, busiest first, shortened to their most specific part — "Shinjuku,
    Tokyo" becomes "Shinjuku", since the broader half repeats across every day of
    a trip. The selected day lives in the URL hash, so the back button steps
    through days and a link to one survives a reload.
-9. **Export** — a self-contained static site you can publish anywhere.
+10. **Export** — a self-contained static site you can publish anywhere.
 
 Each day renders on its own rather than as one long timeline: a few hundred
 photos meant every day's maps and thumbnails were live at once. Day maps start
@@ -189,6 +193,12 @@ inside it and no amount of tuning would ever surface it. A second lookup finds
 the nearest notable feature within 220m, and anything found that way is
 described as a guess: **"close to teamLab Planets"**, never "at".
 
+The same Overpass request also checks a tighter 120m radius for a named
+restaurant, cafe, fast-food venue, or food court. The nearest match appears as
+**"Possible place to eat nearby"** with its approximate distance. That wording
+is deliberate: GPS and map data can identify a plausible venue, but cannot
+prove the photographer was inside it.
+
 Nearby candidates are ranked by category first and distance only as a
 tie-break. Ranking by distance alone picks the wrong answer in exactly the case
 this exists for: at teamLab Planets the closest qualifying feature is a station
@@ -244,12 +254,12 @@ leave the device so the app can provide maps and human-readable place names:
 
 - **BigDataCloud** receives one cluster coordinate per reverse-geocode lookup.
 - **OpenStreetMap Overpass** receives batched cluster coordinates for optional
-  landmark enrichment.
+  landmark and nearby-dining enrichment.
 - **Google Maps** receives a map centre when an embedded map is displayed, and
   receives the selected coordinate if someone opens an interactive map link.
 
 No service receives image data, filenames, captions, or capture timestamps.
-Reverse-geocode and landmark results are cached locally. If a lookup fails or
+Reverse-geocode, landmark, and nearby-dining results are cached locally. If a lookup fails or
 the device is offline, the library still works and falls back to less-specific
 area names or coordinates. Exported albums use the same Google Maps embeds and
 therefore require a network connection for their basemaps.

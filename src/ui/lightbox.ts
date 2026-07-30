@@ -17,6 +17,7 @@ export interface LightboxItem {
   location: string;
   desc: string;
   mapsUrl: string;
+  dining: string;
   captured: string;
 }
 
@@ -32,6 +33,7 @@ let image: HTMLImageElement;
 let video: HTMLVideoElement;
 let titleEl: HTMLElement;
 let locationEl: HTMLElement;
+let diningEl: HTMLElement;
 let descEl: HTMLElement;
 let capturedEl: HTMLElement;
 let countEl: HTMLElement;
@@ -47,6 +49,7 @@ export function initLightbox(): void {
   video = must<HTMLVideoElement>('photo-lightbox-video');
   titleEl = must('photo-lightbox-title');
   locationEl = must('photo-lightbox-location');
+  diningEl = must('photo-lightbox-dining');
   descEl = must('photo-lightbox-desc');
   capturedEl = must('photo-lightbox-captured');
   countEl = must('photo-lightbox-count');
@@ -170,6 +173,8 @@ async function render(): Promise<void> {
 
   descEl.textContent = item.desc;
   descEl.style.display = item.desc ? 'block' : 'none';
+  diningEl.textContent = item.dining ? `🍽️ ${item.dining}` : '';
+  diningEl.style.display = item.dining ? 'block' : 'none';
   capturedEl.textContent = item.captured ? `🕒 ${item.captured}` : '';
   capturedEl.style.display = item.captured ? 'block' : 'none';
 

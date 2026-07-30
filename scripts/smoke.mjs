@@ -20,7 +20,7 @@ import { join } from 'node:path';
 
 import { screenPosition, fitZoom, centerOf, mercatorY, latitudeFromMercator } from '../src/geo/mercator.ts';
 import { distanceMeters, clusterPhotos, splitIntoRegions } from '../src/geo/cluster.ts';
-import { pickLandmark, pickNearest, splitOnCountMarkers } from '../src/geo/landmark.ts';
+import { pickLandmark, pickNearest, pickNearbyDining, splitOnCountMarkers } from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
   dayKeyOf, formatCaptured, formatDayLabel, timeOfDayPhrase,
@@ -140,6 +140,23 @@ function near(name, actual, expected, tolerance) {
     pickLandmark([{ tags: { leisure: 'stadium' } }]) === null);
   check('landmark: empty input is a miss', pickLandmark([]) === null);
 
+  // Regression from two photos taken at Sensō-ji. Reverse geocoding only
+  // returned Taito, Tokyo; the enclosing place of worship is the useful label.
+  const sensoJi = pickLandmark([
+    { tags: { boundary: 'administrative', name: 'Taito' } },
+    {
+      tags: {
+        amenity: 'place_of_worship',
+        name: '浅草寺',
+        'name:en': 'Sensō-ji',
+      },
+    },
+  ]);
+  check('landmark: identifies an enclosing temple', sensoJi?.name === 'Sensō-ji',
+    `got ${sensoJi?.name}`);
+  check('landmark: ranks the temple above its district',
+    sensoJi?.kind === 'amenity=place_of_worship');
+
   // Batched responses are split on the count markers Overpass emits.
   const groups = splitOnCountMarkers([
     { type: 'way', tags: { name: 'A' } },
@@ -197,6 +214,40 @@ function near(name, actual, expected, tolerance) {
   check('nearby: empty input is a miss', pickNearest([], at) === null);
 }
 
+// ── Nearby dining ────────────────────────────────────────────────────────────
+
+{
+  const at = { lat: 35.6486, lon: 139.7906 };
+  const restaurant = {
+    type: 'node', lat: 35.64882, lon: 139.7906,
+    tags: { amenity: 'restaurant', name: '寿司大', 'name:en': 'Sushi Dai' },
+  };
+  const cafe = {
+    type: 'node', lat: 35.6486, lon: 139.7912,
+    tags: { amenity: 'cafe', name: 'A Cafe' },
+  };
+  const bar = {
+    type: 'node', lat: 35.64861, lon: 139.7906,
+    tags: { amenity: 'bar', name: 'Nearest Bar' },
+  };
+
+  const dining = pickNearbyDining([cafe, bar, restaurant], at);
+  check('dining: chooses the nearest supported food venue', dining?.name === 'Sushi Dai',
+    `got ${dining?.name}`);
+  check('dining: reports the venue kind', dining?.kind === 'restaurant');
+  check('dining: reports an approximate distance',
+    typeof dining?.distanceMeters === 'number' && dining.distanceMeters > 0);
+  check('dining: ignores unsupported amenities', pickNearbyDining([bar], at) === null);
+  check('dining: requires a name',
+    pickNearbyDining([{ ...restaurant, tags: { amenity: 'restaurant' } }], at) === null);
+
+  const distant = {
+    ...restaurant, lat: 35.651, tags: { amenity: 'restaurant', name: 'Too Far' },
+  };
+  check('dining: rejects venues beyond the tight radius', pickNearbyDining([distant], at) === null);
+  check('dining: empty input is a miss', pickNearbyDining([], at) === null);
+}
+
 // ── Capture times ────────────────────────────────────────────────────────────
 
 {
@@ -242,7 +293,8 @@ function near(name, actual, expected, tolerance) {
   const cluster = {
     id: 'c0', lat: 35.7056, lon: 139.7519, photoIds: ['p', 'q'],
     place: 'Tokyo Dome', area: 'Bunkyo-ku, Tokyo', landmark: 'Tokyo Dome',
-    landmarkNearby: false, mapsUrl: '', firstAt: 1, lastAt: 2,
+    landmarkNearby: false, nearbyDining: null, nearbyDiningDistanceMeters: null,
+    mapsUrl: '', firstAt: 1, lastAt: 2,
   };
 
   const withLandmark = describer.describe({ photo: photo(), cluster, clusterSize: 2 });
@@ -271,6 +323,14 @@ function near(name, actual, expected, tolerance) {
     guessedPlace.location);
   check('caption: enclosing landmark is not hedged', !withLandmark.desc.includes('close to'));
 
+  const diningCluster = {
+    ...cluster, nearbyDining: 'Sushi Dai', nearbyDiningDistanceMeters: 42,
+  };
+  const withDining = describer.describe({ photo: photo(), cluster: diningCluster, clusterSize: 2 });
+  check('caption: nearby dining is explicitly a possibility',
+    withDining.dining === 'Possible place to eat nearby: Sushi Dai (about 42 m away).',
+    withDining.dining);
+
   const guessed = describer.describe({ photo: photo('file'), cluster, clusterSize: 1 });
   check('caption: flags file-date fallback', guessed.desc.includes('file date'), guessed.desc);
 
@@ -298,7 +358,8 @@ function near(name, actual, expected, tolerance) {
       clusters: [{
         id: 'c0', lat: 35.7135, lon: 139.703, photoIds: ['p'],
         place: 'Natsuge Museum', area: 'Toshima-ku, Tokyo',
-        landmark: 'Natsuge Museum', landmarkNearby: true, mapsUrl: '',
+        landmark: 'Natsuge Museum', landmarkNearby: true,
+        nearbyDining: null, nearbyDiningDistanceMeters: null, mapsUrl: '',
         firstAt: 1, lastAt: 1,
       }],
     }],

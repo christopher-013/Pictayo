@@ -33,6 +33,8 @@ export interface Caption {
   location: string;
   desc: string;
   mapsUrl: string;
+  /** Best-effort nearby food venue, always phrased as a possibility. */
+  dining?: string;
 }
 
 export type MediaKind = 'photo' | 'video';
@@ -82,6 +84,10 @@ export interface PlaceCluster {
    * Planets".
    */
   landmarkNearby: boolean;
+  /** Nearest named restaurant/cafe candidate within the dining search radius. */
+  nearbyDining: string | null;
+  /** Approximate distance from the cluster centroid to the dining candidate. */
+  nearbyDiningDistanceMeters: number | null;
   mapsUrl: string;
   /** Earliest and latest capture instants in this cluster, for caption context. */
   firstAt: number | null;

@@ -72,6 +72,19 @@ export interface Landmark {
   near: boolean;
 }
 
+export interface NearbyDining {
+  name: string;
+  /** OSM amenity value, such as "restaurant" or "cafe". */
+  kind: string;
+  /** Approximate distance from the photo cluster centroid. */
+  distanceMeters: number;
+}
+
+export interface LocationEnrichment {
+  landmark: Landmark | null;
+  dining: NearbyDining | null;
+}
+
 /**
  * How far away a point of interest can be and still be worth naming.
  *
@@ -80,6 +93,9 @@ export interface Landmark {
  * where this fallback matters.
  */
 const NEARBY_RADIUS_M = 220;
+/** Kept tighter than landmarks so a food suggestion remains credible. */
+const DINING_RADIUS_M = 120;
+const DINING_AMENITIES = new Set(['restaurant', 'cafe', 'fast_food', 'food_court']);
 
 /**
  * Tags searched for nearby landmarks.
@@ -98,7 +114,7 @@ export interface GeoPoint {
 
 export interface LandmarkFinder {
   /** Resolves many points at once, keyed by {@link landmarkCacheKey}. */
-  findMany(points: GeoPoint[]): Promise<Map<string, Landmark | null>>;
+  findMany(points: GeoPoint[]): Promise<Map<string, LocationEnrichment>>;
 }
 
 /**
@@ -171,12 +187,22 @@ export async function cachedLandmark(lat: number, lon: number): Promise<Landmark
   return { name: cached.name, kind: cached.kind, near: cached.near === true };
 }
 
+export async function cachedDining(lat: number, lon: number): Promise<NearbyDining | null> {
+  const cached = await getCachedLandmark(landmarkCacheKey(lat, lon)).catch(() => undefined);
+  if (!cached?.diningName) return null;
+  return {
+    name: cached.diningName,
+    kind: cached.diningKind ?? '',
+    distanceMeters: cached.diningDistanceMeters ?? 0,
+  };
+}
+
 export class OverpassLandmarkFinder implements LandmarkFinder {
   private consecutiveFailures = 0;
   private endpointIndex = 0;
 
-  async findMany(points: GeoPoint[]): Promise<Map<string, Landmark | null>> {
-    const resolved = new Map<string, Landmark | null>();
+  async findMany(points: GeoPoint[]): Promise<Map<string, LocationEnrichment>> {
+    const resolved = new Map<string, LocationEnrichment>();
 
     // Collapse duplicates first: several clusters can round to the same key.
     const wanted = new Map<string, GeoPoint>();
@@ -191,10 +217,18 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
       // is only ever asked about once.
       const cached = await getCachedLandmark(key).catch(() => undefined);
       if (cached) {
-        resolved.set(
-          key,
-          cached.name ? { name: cached.name, kind: cached.kind, near: cached.near === true } : null,
-        );
+        resolved.set(key, {
+          landmark: cached.name
+            ? { name: cached.name, kind: cached.kind, near: cached.near === true }
+            : null,
+          dining: cached.diningName
+            ? {
+                name: cached.diningName,
+                kind: cached.diningKind ?? '',
+                distanceMeters: cached.diningDistanceMeters ?? 0,
+              }
+            : null,
+        });
       } else {
         misses.push({ key, point });
       }
@@ -214,16 +248,17 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
   private async queryBatch(
     batch: Array<{ key: string; point: GeoPoint }>,
-  ): Promise<Map<string, Landmark | null>> {
-    const results = new Map<string, Landmark | null>();
+  ): Promise<Map<string, LocationEnrichment>> {
+    const results = new Map<string, LocationEnrichment>();
 
-    // Two lookups per point, in one request.
+    // Three lookups per point, in one request.
     //
     // `is_in` finds areas the point sits inside — but it can only ever find
     // *areas*. Plenty of landmarks are mapped as a single node with no
     // footprint (teamLab Planets is `tourism=museum` on a node), and those are
-    // structurally invisible to it. The `around` pass catches them, and its
-    // result is marked as a guess rather than a claim.
+    // structurally invisible to it. The first `around` pass catches them, and
+    // its result is marked as a guess rather than a claim. The final pass finds
+    // the nearest named place to eat within a deliberately tight radius.
     //
     // `pivot` turns each enclosing area back into the way or relation it came
     // from, so the original tags come back with it. `out count` after each
@@ -241,13 +276,18 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
       ).join('') +
       ');';
 
+    const dining = (point: GeoPoint) =>
+      `nwr(around:${DINING_RADIUS_M},${point.lat},${point.lon})` +
+      '["amenity"~"^(restaurant|cafe|fast_food|food_court)$"][name];';
+
     const overpassQl =
       '[out:json][timeout:90];' +
       batch
         .map(
           ({ point }) =>
             `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;` +
-            `${nearby(point)}out tags center;out count;`,
+            `${nearby(point)}out tags center;out count;` +
+            `${dining(point)}out tags center;out count;`,
         )
         .join('');
 
@@ -264,19 +304,24 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
     const groups = splitOnCountMarkers(elements);
 
     for (const [index, { key, point }] of batch.entries()) {
-      // Two groups per point, in the order the query emitted them.
-      const enclosing = groups[index * 2] ?? [];
-      const nearby = groups[index * 2 + 1] ?? [];
+      // Three groups per point, in the order the query emitted them.
+      const enclosing = groups[index * 3] ?? [];
+      const nearby = groups[index * 3 + 1] ?? [];
+      const diningCandidates = groups[index * 3 + 2] ?? [];
 
       // Being inside somewhere always beats being near it.
       const landmark = pickLandmark(enclosing) ?? pickNearest(nearby, point);
-      results.set(key, landmark);
+      const dining = pickNearbyDining(diningCandidates, point);
+      results.set(key, { landmark, dining });
 
       await putCachedLandmark({
         key,
         name: landmark?.name ?? '',
         kind: landmark?.kind ?? '',
         near: landmark?.near ?? false,
+        diningName: dining?.name ?? '',
+        diningKind: dining?.kind ?? '',
+        diningDistanceMeters: dining?.distanceMeters ?? 0,
       }).catch(() => undefined);
     }
 
@@ -315,6 +360,34 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     return null;
   }
+}
+
+/** Picks the nearest named food venue inside the deliberately small radius. */
+export function pickNearbyDining(
+  elements: OverpassElement[],
+  from: GeoPoint,
+  radiusMeters = DINING_RADIUS_M,
+): NearbyDining | null {
+  let best: NearbyDining | null = null;
+
+  for (const element of elements) {
+    const tags = element.tags;
+    const kind = tags?.amenity;
+    if (!tags || !kind || !DINING_AMENITIES.has(kind)) continue;
+
+    const name = (tags['name:en'] ?? tags.name ?? '').trim();
+    if (!name) continue;
+
+    const position = element.center ?? { lat: element.lat, lon: element.lon };
+    if (typeof position.lat !== 'number' || typeof position.lon !== 'number') continue;
+
+    const distance = roughDistanceMeters(from, { lat: position.lat, lon: position.lon });
+    if (distance > radiusMeters || (best && distance >= best.distanceMeters)) continue;
+
+    best = { name, kind, distanceMeters: Math.max(0, Math.round(distance)) };
+  }
+
+  return best;
 }
 
 /** Picks the most specific interesting feature out of everything enclosing a point. */

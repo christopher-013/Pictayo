@@ -206,8 +206,8 @@ async function refresh(): Promise<void> {
 }
 
 /**
- * Names the landmarks in the background, then rebuilds so the captions and pin
- * labels pick them up.
+ * Names landmarks and possible nearby dining in the background, then rebuilds
+ * so captions and pin labels pick them up.
  *
  * Deliberately not awaited by {@link refresh}: Overpass has to be queried a
  * couple of seconds apart, so a trip's worth of places can take a minute. The
@@ -220,8 +220,8 @@ async function enrichInBackground(): Promise<void> {
   try {
     if (await enrichLandmarks(days, landmarkFinder)) await refresh();
   } catch (error) {
-    // A landmark is a nicety; area names are already on screen.
-    console.warn('Landmark lookup failed', error);
+    // Enrichment is a nicety; area names are already on screen.
+    console.warn('Place enrichment lookup failed', error);
   } finally {
     enriching = false;
   }

@@ -2,7 +2,7 @@ import type { DayGroup, MapRegion, Photo, PlaceCluster } from './types';
 import { clusterPhotos, splitIntoRegions } from './geo/cluster';
 import { centerOf, fitZoom } from './geo/mercator';
 import { formatCoords, googleMapsUrl, type Geocoder } from './geo/geocode';
-import { cachedLandmark, type LandmarkFinder } from './geo/landmark';
+import { cachedDining, cachedLandmark, type LandmarkFinder } from './geo/landmark';
 import { UNDATED_KEY, formatDayLabel } from './meta/datetime';
 import { MetadataDescriber, type DescriptionProvider } from './meta/describe';
 
@@ -80,10 +80,11 @@ async function buildDay(
 }
 
 async function nameCluster(cluster: PlaceCluster, geocoder: Geocoder): Promise<void> {
-  const [place, landmark] = await Promise.all([
+  const [place, landmark, dining] = await Promise.all([
     geocoder.lookup(cluster.lat, cluster.lon),
     // Cache-only: assembling the library must not wait on the landmark service.
     cachedLandmark(cluster.lat, cluster.lon),
+    cachedDining(cluster.lat, cluster.lon),
   ]);
 
   // Coordinates are a poor label but an honest one — better than a blank pin
@@ -92,6 +93,8 @@ async function nameCluster(cluster: PlaceCluster, geocoder: Geocoder): Promise<v
   cluster.landmark = landmark?.name ?? null;
   cluster.landmarkNearby = landmark?.near ?? false;
   cluster.place = landmark?.name ?? cluster.area;
+  cluster.nearbyDining = dining?.name ?? null;
+  cluster.nearbyDiningDistanceMeters = dining?.distanceMeters ?? null;
   cluster.mapsUrl = googleMapsUrl(cluster.lat, cluster.lon);
 }
 
@@ -112,14 +115,14 @@ export async function enrichLandmarks(
 ): Promise<boolean> {
   const pending = days
     .flatMap((day) => day.regions.flatMap((region) => region.clusters))
-    .filter((cluster) => !cluster.landmark);
+    .filter((cluster) => !cluster.landmark && !cluster.nearbyDining);
 
   if (pending.length === 0) return false;
 
   // One batched round trip for the whole library, rather than one per place.
   const found = await finder.findMany(pending.map(({ lat, lon }) => ({ lat, lon })));
 
-  return [...found.values()].some(Boolean);
+  return [...found.values()].some(({ landmark, dining }) => Boolean(landmark || dining));
 }
 
 function toMapRegion(clusters: PlaceCluster[], index: number): MapRegion {

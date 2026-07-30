@@ -70,6 +70,8 @@ export function clusterPhotos(photos: Photo[], radiusMeters = 250): PlaceCluster
         area: '',
         landmark: null,
         landmarkNearby: false,
+        nearbyDining: null,
+        nearbyDiningDistanceMeters: null,
         mapsUrl: '',
         firstAt: photo.meta.takenAt,
         lastAt: photo.meta.takenAt,

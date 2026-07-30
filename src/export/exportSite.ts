@@ -177,6 +177,7 @@ function buildDayPage(context: PageContext): string {
             kind: photo.kind,
             title: photo.name,
             location: caption?.location ?? '',
+            dining: caption?.dining ?? '',
             desc: caption?.desc ?? '',
             mapsUrl: caption?.mapsUrl ?? '',
             captured,
@@ -208,6 +209,9 @@ function buildDayPage(context: PageContext): string {
       const location = caption?.location
         ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
         : '';
+      const dining = caption?.dining
+        ? `<div class="photo-dining">🍽️ ${escapeAttr(caption.dining)}</div>`
+        : '';
 
       return (
         `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
@@ -215,6 +219,7 @@ function buildDayPage(context: PageContext): string {
         '<div class="photo-meta">' +
         `<div class="photo-kind">${photo.kind === 'video' ? (photo.meta.gps ? 'Video' : 'Video · no GPS') : photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
         location +
+        dining +
         (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
         (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
         '</div></div>'
@@ -263,7 +268,7 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 </main>
 
 <div class="photo-lightbox" id="lb" aria-hidden="true" role="dialog" aria-modal="true"
- aria-labelledby="lb-title" aria-describedby="lb-desc"><div class="photo-lightbox-dialog">
+ aria-labelledby="lb-title" aria-describedby="lb-dining lb-desc"><div class="photo-lightbox-dialog">
 <div class="photo-lightbox-stage">
 <button class="photo-lightbox-close" id="lb-close" aria-label="Close">×</button>
 <button class="photo-lightbox-nav prev" id="lb-prev" aria-label="Previous">‹</button>
@@ -275,6 +280,7 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 <div class="photo-lightbox-info-top"><div class="photo-lightbox-title" id="lb-title"></div>
 <div class="photo-lightbox-count" id="lb-count"></div></div>
 <div class="photo-lightbox-location" id="lb-loc"></div>
+<div class="photo-lightbox-dining" id="lb-dining"></div>
 <div class="photo-lightbox-desc" id="lb-desc"></div>
 <div class="photo-lightbox-captured" id="lb-cap"></div>
 </div></div></div>
@@ -518,6 +524,7 @@ video.photo-lightbox-media{width:100%}
 .photo-kind{display:inline-block;font-size:9px;color:var(--teal);background:#d6f2f4;border:1px solid rgba(10,124,130,.2);border-radius:999px;padding:2px 5px;margin-bottom:4px}
 .photo-location{font-size:12px;color:var(--teal);margin-bottom:4px}
 .photo-location a{color:var(--teal);text-underline-offset:2px}
+.photo-dining{font-size:11px;color:#8a4f08;line-height:1.3;margin-bottom:4px}
 .photo-desc{font-size:11px;color:var(--ink3);line-height:1.3}
 .photo-captured{font-size:10px;color:var(--ink2);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
 .photo-empty{background:var(--bg3);border:1px dashed var(--border);border-radius:14px;padding:18px;color:var(--ink3);font-size:13px;text-align:center}
@@ -536,6 +543,7 @@ video.photo-lightbox-media{width:100%}
 .photo-lightbox-count{font-size:13px;color:rgba(255,255,255,.62);white-space:nowrap}
 .photo-lightbox-location{font-size:14px;color:#5fe3e8;margin-top:5px}
 .photo-lightbox-location a{color:#5fe3e8}
+.photo-lightbox-dining{font-size:14px;color:#ffd27a;line-height:1.35;margin-top:5px}
 .photo-lightbox-desc{font-size:14px;color:rgba(255,255,255,.82);margin-top:5px}
 .photo-lightbox-captured{font-size:13px;color:rgba(255,255,255,.65);margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)}
 body.lb-open{overflow:hidden}
@@ -576,6 +584,7 @@ var lo=el('lb-loc');lo.innerHTML='';lo.style.display=it.location?'block':'none';
 if(it.location){lo.appendChild(document.createTextNode('\\u{1F4CD} '));
 if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_blank';a.rel='noopener';a.textContent=it.location;lo.appendChild(a)}
 else lo.appendChild(document.createTextNode(it.location))}
+var eat=el('lb-dining');eat.textContent=it.dining?'\\u{1F37D}\\u{FE0F} '+it.dining:'';eat.style.display=it.dining?'block':'none';
 var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
 var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
 function open(n){ret=document.activeElement;i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open');inert(true);requestAnimationFrame(function(){closeBtn.focus()})}

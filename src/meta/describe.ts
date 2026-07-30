@@ -39,8 +39,15 @@ export class MetadataDescriber implements DescriptionProvider {
       : '';
 
     const mapsUrl = cluster ? googleMapsUrl(cluster.lat, cluster.lon) : '';
+    const dining = cluster?.nearbyDining
+      ? `Possible place to eat nearby: ${cluster.nearbyDining}${
+          cluster.nearbyDiningDistanceMeters && cluster.nearbyDiningDistanceMeters > 0
+            ? ` (about ${cluster.nearbyDiningDistanceMeters} m away)`
+            : ''
+        }.`
+      : undefined;
 
-    return { location, desc: this.compose(photo, cluster), mapsUrl };
+    return { location, desc: this.compose(photo, cluster), mapsUrl, dining };
   }
 
   private compose(photo: Photo, cluster: PlaceCluster | null): string {

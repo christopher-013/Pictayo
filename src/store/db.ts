@@ -13,9 +13,9 @@ import type { Photo, Place } from '../types';
 const DB_NAME = 'picturepicture';
 /**
  * v2 added the landmark cache; v3 discards it so nearby landmarks get found;
- * v4 added video storage.
+ * v4 added video storage; v5 adds nearby dining suggestions to the place cache.
  */
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -24,6 +24,9 @@ export interface CachedLandmark {
   kind: string;
   /** True when this was the nearest landmark rather than an enclosing one. */
   near?: boolean;
+  diningName?: string;
+  diningKind?: string;
+  diningDistanceMeters?: number;
 }
 
 /** Runtime-only fields are stripped before persisting. */
@@ -83,6 +86,11 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
       }
       if (oldVersion < 4) {
         db.createObjectStore('videos');
+      }
+      if (oldVersion < 5 && oldVersion >= 2) {
+        // Older records cannot distinguish "no dining result" from "dining was
+        // never queried". This store contains only disposable lookup cache data.
+        transaction.objectStore('landmarks').clear();
       }
     },
 

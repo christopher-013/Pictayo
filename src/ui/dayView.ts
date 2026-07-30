@@ -44,6 +44,7 @@ class Collector implements LightboxCollector {
         location: photo.caption?.location ?? '',
         desc: photo.caption?.desc ?? '',
         mapsUrl: photo.caption?.mapsUrl ?? '',
+        dining: photo.caption?.dining ?? '',
         captured: formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes),
       }) - 1
     );

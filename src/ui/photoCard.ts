@@ -33,6 +33,9 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
       : caption?.location
         ? `<div class="photo-location">📍 ${escapeAttr(caption.location)}</div>`
         : '';
+  const dining = caption?.dining
+    ? `<div class="photo-dining">🍽️ ${escapeAttr(caption.dining)}</div>`
+    : '';
 
   return (
     `<div class="photo-card" data-photo-id="${escapeAttr(photo.id)}"` +
@@ -42,6 +45,7 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
     '<div class="photo-meta">' +
     `<div class="photo-kind">${kindLabel(photo)}</div>` +
     location +
+    dining +
     (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
     (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
     '</div>' +
