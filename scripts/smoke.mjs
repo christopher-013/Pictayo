@@ -29,6 +29,9 @@ import { MetadataDescriber } from '../src/meta/describe.ts';
 import { readMeta } from '../src/meta/exif.ts';
 import { escapeAttr } from '../src/util/escape.ts';
 import { parseIso6709, parseAppleCreationDate, findBox, parseMoov } from '../src/meta/videoMeta.ts';
+import { compareDays } from '../src/library.ts';
+import { placesFor } from '../src/ui/dayChip.ts';
+import { EXPORT_JS } from '../src/export/exportSite.ts';
 
 let passed = 0;
 const failures = [];
@@ -276,6 +279,35 @@ function near(name, actual, expected, tolerance) {
   check('caption: no location line without GPS', noGps.location === '');
 }
 
+// ── Day navigation ───────────────────────────────────────────────────────────
+// Day-navigation regressions.
+{
+  const day = (dayKey) => ({
+    dayKey, label: dayKey, photos: [], regions: [], taggedCount: 0,
+  });
+  const ordered = [day('2026-06-06'), day('undated'), day('2026-06-08')].sort(compareDays);
+  check('day nav: newest day first',
+    ordered.map((item) => item.dayKey).join(',') === '2026-06-08,2026-06-06,undated',
+    ordered.map((item) => item.dayKey).join(','));
+
+  const nearbyDay = {
+    ...day('2026-06-06'),
+    photos: [{ id: 'p' }],
+    regions: [{
+      id: 'r0', centerLat: 0, centerLon: 0, zoom: 1, taggedCount: 1,
+      clusters: [{
+        id: 'c0', lat: 35.7135, lon: 139.703, photoIds: ['p'],
+        place: 'Natsuge Museum', area: 'Toshima-ku, Tokyo',
+        landmark: 'Natsuge Museum', landmarkNearby: true, mapsUrl: '',
+        firstAt: 1, lastAt: 1,
+      }],
+    }],
+    taggedCount: 1,
+  };
+  check('day nav: nearby landmark keeps reliable area',
+    placesFor(nearbyDay).label === 'Toshima-ku', placesFor(nearbyDay).label);
+}
+
 // ── Video metadata ───────────────────────────────────────────────────────────
 // Videos carry none of this in EXIF, so the QuickTime container is walked
 // directly. See src/meta/videoMeta.ts.
@@ -407,6 +439,15 @@ if (!existsSync(dist)) {
 
   check('build: title present', /<title>[^<]+<\/title>/.test(html));
   check('build: charset declared', html.includes('charset="utf-8"'));
+  check('build: Open Graph image is absolute',
+    html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));
+  let exportScriptParses = true;
+  try {
+    new Function(EXPORT_JS);
+  } catch {
+    exportScriptParses = false;
+  }
+  check('export: generated script parses', exportScriptParses);
   // Mojibake check: the em-dash must survive the build as real UTF-8.
   check('build: text encoded correctly', !html.includes('�'));
 }

@@ -63,7 +63,11 @@ export function placesFor(day: DayGroup): DayPlaces {
   const names: string[] = [];
 
   for (const cluster of clusters) {
-    const short = cluster.place.split(',')[0]?.trim();
+    // A nearest landmark is only a guess. Keep the reliable area in the compact
+    // day navigation instead of confidently relabelling the whole day after a
+    // nearby museum, station, or attraction.
+    const displayPlace = cluster.landmarkNearby ? cluster.area : cluster.place;
+    const short = displayPlace.split(',')[0]?.trim();
     if (!short || seen.has(short)) continue;
     seen.add(short);
     names.push(short);

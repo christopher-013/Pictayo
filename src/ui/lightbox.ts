@@ -37,6 +37,9 @@ let capturedEl: HTMLElement;
 let countEl: HTMLElement;
 let prevButton: HTMLButtonElement;
 let nextButton: HTMLButtonElement;
+let closeButton: HTMLButtonElement;
+let returnFocus: HTMLElement | null = null;
+let backgroundState: Array<{ element: HTMLElement; inert: boolean }> = [];
 
 export function initLightbox(): void {
   root = must('photo-lightbox');
@@ -50,7 +53,8 @@ export function initLightbox(): void {
   prevButton = must<HTMLButtonElement>('photo-lightbox-prev');
   nextButton = must<HTMLButtonElement>('photo-lightbox-next');
 
-  must('photo-lightbox-close').addEventListener('click', closeLightbox);
+  closeButton = must<HTMLButtonElement>('photo-lightbox-close');
+  closeButton.addEventListener('click', closeLightbox);
   prevButton.addEventListener('click', () => navigate(-1));
   nextButton.addEventListener('click', () => navigate(1));
 
@@ -64,6 +68,8 @@ export function initLightbox(): void {
 
     if (event.key === 'Escape') {
       closeLightbox();
+    } else if (event.key === 'Tab') {
+      trapFocus(event);
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       // Claimed before the native video controls can act on them: once a clip
       // has focus its own handler seeks on arrow keys, so without this the same
@@ -101,23 +107,33 @@ export function setLightboxItems(next: LightboxItem[]): void {
 export function openLightbox(at: number): void {
   if (items.length === 0) return;
 
+  returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   index = Math.max(0, Math.min(at, items.length - 1));
   void render();
 
   root.classList.add('open');
   root.setAttribute('aria-hidden', 'false');
   document.body.classList.add('photo-lightbox-open');
+  setBackgroundInert(true);
+  requestAnimationFrame(() => closeButton.focus());
 }
 
 export function closeLightbox(): void {
+  if (!root.classList.contains('open')) return;
+
   root.classList.remove('open');
   root.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('photo-lightbox-open');
+  setBackgroundInert(false);
   index = -1;
 
   stopVideo();
   image.removeAttribute('src');
   image.alt = '';
+
+  const target = returnFocus;
+  returnFocus = null;
+  if (target?.isConnected) target.focus();
 }
 
 function navigate(direction: number): void {
@@ -192,6 +208,44 @@ function stopVideo(): void {
   video.pause();
   video.removeAttribute('src');
   video.load();
+}
+
+function trapFocus(event: KeyboardEvent): void {
+  const focusable = [
+    ...root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((element) => !element.hidden && element.getClientRects().length > 0);
+
+  if (focusable.length === 0) {
+    event.preventDefault();
+    closeButton.focus();
+    return;
+  }
+
+  const first = focusable[0]!;
+  const last = focusable[focusable.length - 1]!;
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function setBackgroundInert(inert: boolean): void {
+  if (inert) {
+    backgroundState = [...document.body.children]
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== root)
+      .map((element) => ({ element, inert: element.inert }));
+    for (const { element } of backgroundState) element.inert = true;
+    return;
+  }
+
+  for (const { element, inert: wasInert } of backgroundState) element.inert = wasInert;
+  backgroundState = [];
 }
 
 function must<T extends HTMLElement = HTMLElement>(id: string): T {

@@ -137,13 +137,14 @@ function toMapRegion(clusters: PlaceCluster[], index: number): MapRegion {
 }
 
 /**
- * Oldest day first, undated last.
+ * Newest day first, undated last.
  *
- * Chronological order is what the day strip needs — oldest on the left,
- * newest on the right — and a trip reads naturally from its first day.
+ * The most recent import is the useful default for an ongoing library, and this
+ * matches the original product scope. Photos within each day remain oldest
+ * first so the day itself still reads chronologically.
  */
-function compareDays(a: DayGroup, b: DayGroup): number {
+export function compareDays(a: DayGroup, b: DayGroup): number {
   if (a.dayKey === UNDATED_KEY) return 1;
   if (b.dayKey === UNDATED_KEY) return -1;
-  return a.dayKey.localeCompare(b.dayKey);
+  return b.dayKey.localeCompare(a.dayKey);
 }

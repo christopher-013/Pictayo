@@ -12,13 +12,15 @@ import { getCachedPlace, putCachedPlace } from '../store/db';
  * key, sets permissive CORS headers, and is explicitly intended for calls made
  * directly from the browser — so PicturePicture needs no backend and no secrets.
  *
- * This is the only network request the app makes, and it carries a coordinate
- * and nothing else: no image data, no filenames, no timestamps.
+ * The request carries a coordinate and nothing else: no image data, filenames,
+ * or timestamps. Google Maps embeds and optional Overpass landmark enrichment
+ * also receive coordinates; see the README privacy section.
  */
 
 const ENDPOINT = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
 const REQUEST_TIMEOUT_MS = 8000;
 const MIN_REQUEST_SPACING_MS = 120;
+const NETWORK_RETRY_AFTER_MS = 30_000;
 
 export interface Geocoder {
   lookup(lat: number, lon: number): Promise<Place | null>;
@@ -50,7 +52,7 @@ export class CachedGeocoder implements Geocoder {
   /** De-duplicates concurrent lookups of the same key within one import. */
   private inFlight = new Map<string, Promise<Place | null>>();
   private queue: Promise<unknown> = Promise.resolve();
-  private failed = false;
+  private failedUntil = 0;
 
   async lookup(lat: number, lon: number): Promise<Place | null> {
     const key = cacheKey(lat, lon);
@@ -63,7 +65,7 @@ export class CachedGeocoder implements Geocoder {
 
     // Once the network is clearly unavailable, stop hammering it — every
     // remaining cluster would just wait out the same timeout.
-    if (this.failed) return null;
+    if (Date.now() < this.failedUntil) return null;
 
     const request = this.enqueue(() => this.fetchPlace(key, lat, lon));
     this.inFlight.set(key, request);
@@ -103,7 +105,7 @@ export class CachedGeocoder implements Geocoder {
       if (place) await putCachedPlace(place).catch(() => undefined);
       return place;
     } catch {
-      this.failed = true;
+      this.failedUntil = Date.now() + NETWORK_RETRY_AFTER_MS;
       return null;
     }
   }

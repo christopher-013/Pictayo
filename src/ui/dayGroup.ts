@@ -31,10 +31,8 @@ export function dayGroupHtml(day: DayGroup, collector: LightboxCollector): strin
 
   const untagged = day.photos.length - day.taggedCount;
 
-  // The map sits above the photos but starts collapsed, so it is one click away
-  // without pushing the first row of thumbnails below the fold. Collapsed is
-  // only the *default* — see mapsCollapsed(); once someone opens or closes it,
-  // their choice is what carries across days and visits.
+  // First visits expand maps on larger screens and collapse them on phones.
+  // Once someone chooses, that preference carries across days and visits.
   return (
     `<section class="day-section" id="day-${escapeAttr(day.dayKey)}" data-day="${escapeAttr(day.dayKey)}">` +
     `<div class="sec-label">${escapeAttr(day.label)} · ${sectionLabel(day)}</div>` +

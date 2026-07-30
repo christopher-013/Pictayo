@@ -100,6 +100,7 @@ export function showDay(dayKey: string, replaceHash: boolean): void {
 function renderPage(day: DayGroup): void {
   const collector = new Collector();
 
+  page.setAttribute('aria-labelledby', `day-tab-${day.dayKey}`);
   page.innerHTML = dayGroupHtml(day, collector);
   // Lightbox navigation stays within the day being viewed, so its counter
   // reads "3 / 12" for that day rather than a position in the whole library.
@@ -143,7 +144,8 @@ function chipHtml(day: DayGroup): string {
 
   return (
     `<button class="day-chip${active ? ' is-active' : ''}" type="button" role="tab"` +
-    ` data-day="${escapeAttr(day.dayKey)}" aria-selected="${active}"` +
+    ` id="day-tab-${escapeAttr(day.dayKey)}" data-day="${escapeAttr(day.dayKey)}"` +
+    ` aria-controls="day-page" aria-selected="${active}" tabindex="${active ? '0' : '-1'}"` +
     ` title="${escapeAttr(tooltip)}">` +
     `<span class="day-chip-mon">${escapeAttr(parts.month)}</span>` +
     `<span class="day-chip-num">${escapeAttr(parts.number)}</span>` +
@@ -160,10 +162,33 @@ function wireDelegation(): void {
   nav.addEventListener('click', (event) => {
     const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-day]');
     if (chip?.dataset.day && chip.dataset.day !== activeKey) {
-      showDay(chip.dataset.day, false);
-      // A new page should start at the top, not wherever the last one was.
-      window.scrollTo({ top: 0, behavior: 'auto' });
+      activateDay(chip.dataset.day);
     }
+  });
+
+  nav.addEventListener('keydown', (event) => {
+    const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-day]');
+    if (!chip?.dataset.day) return;
+
+    const chips = [...nav.querySelectorAll<HTMLElement>('[data-day]')];
+    const current = chips.indexOf(chip);
+    if (current < 0) return;
+
+    let next = current;
+    if (event.key === 'ArrowLeft') next = Math.max(0, current - 1);
+    else if (event.key === 'ArrowRight') next = Math.min(chips.length - 1, current + 1);
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = chips.length - 1;
+    else return;
+
+    event.preventDefault();
+    const dayKey = chips[next]?.dataset.day;
+    if (!dayKey) return;
+
+    activateDay(dayKey);
+    [...nav.querySelectorAll<HTMLElement>('[data-day]')]
+      .find((candidate) => candidate.dataset.day === dayKey)
+      ?.focus();
   });
 
   page.addEventListener('click', (event) => {
@@ -200,6 +225,12 @@ function wireDelegation(): void {
     if (alreadyActive) clearDayFilter(section);
     else filterDayByCluster(section, selector.dataset.cluster, selector.dataset.place ?? '');
   });
+}
+
+function activateDay(dayKey: string): void {
+  if (dayKey !== activeKey) showDay(dayKey, false);
+  // A new page should start at the top, not wherever the last one was.
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 function keyFromHash(): string | null {

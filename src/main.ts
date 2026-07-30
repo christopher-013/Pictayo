@@ -23,6 +23,10 @@ import { exportSite } from './export/exportSite';
 
 /** Flush to IndexedDB in batches so a large import survives an early tab close. */
 const SAVE_BATCH_SIZE = 24;
+const LANDING_PRIVACY =
+  'Media stays on this device. Location coordinates are shared with map and place-name services when geotags are available.';
+const LIBRARY_PRIVACY =
+  'Media stays on this device; geotag coordinates are shared with map and place-name services.';
 
 const photos = new Map<string, PersistedPhoto>();
 const thumbs = new Map<string, Blob>();
@@ -32,11 +36,13 @@ const landmarkFinder = new OverpassLandmarkFinder();
 let days: DayGroup[] = [];
 let busy = false;
 let enriching = false;
+let summaryVersion = 0;
 
 const el = {
   landing: must('landing'),
   landingNote: must('landing-note'),
   landingProgress: must('landing-progress'),
+  landingProgressBar: must('landing-progress-bar'),
   landingProgressFill: must('landing-progress-fill'),
   landingProgressLabel: must('landing-progress-label'),
 
@@ -46,6 +52,7 @@ const el = {
   nav: must('day-nav'),
 
   progress: must('progress'),
+  progressBar: must('progress-bar'),
   progressFill: must('progress-fill'),
   progressLabel: must('progress-label'),
   summary: must('library-summary'),
@@ -106,15 +113,36 @@ async function restore(): Promise<void> {
 async function handleFiles(files: File[]): Promise<void> {
   if (busy) return;
   busy = true;
+  el.landingNote.textContent = LANDING_PRIVACY;
   setProgress(0, files.length, 'Reading photos…');
 
   const pending: PhotoRecord[] = [];
   let failures = 0;
+  let storageFailures = 0;
+
+  const persistPending = async (): Promise<void> => {
+    if (pending.length === 0) return;
+    const batch = pending.splice(0);
+
+    try {
+      await savePhotos(batch);
+      for (const record of batch) {
+        photos.set(record.photo.id, record.photo);
+        if (record.thumb) thumbs.set(record.photo.id, record.thumb);
+      }
+    } catch (error) {
+      storageFailures += batch.length;
+      console.warn('Could not save imported media', error);
+    }
+  };
 
   try {
     await ingestFiles(files, {
       onResult: async (result) => {
-        if (result.error) failures += 1;
+        if (result.error) {
+          failures += 1;
+          return;
+        }
 
         const photo: PersistedPhoto = {
           id: result.id,
@@ -126,9 +154,6 @@ async function handleFiles(files: File[]): Promise<void> {
           previewUnavailable: result.previewUnavailable,
         };
 
-        photos.set(photo.id, photo);
-        if (result.thumb) thumbs.set(photo.id, result.thumb);
-
         pending.push({
           photo,
           thumb: result.thumb,
@@ -136,15 +161,13 @@ async function handleFiles(files: File[]): Promise<void> {
           video: result.video ?? null,
         });
         if (pending.length >= SAVE_BATCH_SIZE) {
-          await savePhotos(pending.splice(0)).catch((e) => console.warn('Save failed', e));
+          await persistPending();
         }
       },
       onProgress: ({ done, total, currentName }) => setProgress(done, total, currentName),
     });
 
-    if (pending.length > 0) {
-      await savePhotos(pending).catch((e) => console.warn('Save failed', e));
-    }
+    await persistPending();
 
     // Asked only after a real import, when the browser is most likely to grant it.
     void requestPersistence();
@@ -153,11 +176,18 @@ async function handleFiles(files: File[]): Promise<void> {
     await refresh();
     void enrichInBackground();
 
+    const notices: string[] = [];
     if (failures > 0) {
-      setNotice(
+      notices.push(
         `${failures} file${failures === 1 ? '' : 's'} could not be read and ${failures === 1 ? 'was' : 'were'} skipped.`,
       );
     }
+    if (storageFailures > 0) {
+      notices.push(
+        `${storageFailures} item${storageFailures === 1 ? '' : 's'} could not be saved locally and ${storageFailures === 1 ? 'was' : 'were'} not added. Check available browser storage and try again.`,
+      );
+    }
+    if (notices.length > 0) setNotice(notices.join(' '));
   } finally {
     busy = false;
     hideProgress();
@@ -258,6 +288,7 @@ async function handleClear(): Promise<void> {
  * it goes back to the start screen.
  */
 function updateChrome(): void {
+  const version = ++summaryVersion;
   const count = photos.size;
   const hasPhotos = count > 0;
 
@@ -269,7 +300,7 @@ function updateChrome(): void {
   el.clear.disabled = !hasPhotos;
 
   if (!hasPhotos) {
-    el.summary.textContent = 'Photos are read in your browser and never uploaded.';
+    el.summary.textContent = LIBRARY_PRIVACY;
     return;
   }
 
@@ -285,6 +316,7 @@ function updateChrome(): void {
   ].join(' · ');
 
   void estimateUsageBytes().then((bytes) => {
+    if (version !== summaryVersion) return;
     const size = bytes ? ` · ${formatBytes(bytes)} stored locally` : '';
     el.summary.textContent =
       `${items} across ${dayCount} day${dayCount === 1 ? '' : 's'} · ` +
@@ -294,15 +326,20 @@ function updateChrome(): void {
 
 /** Writes to whichever view is on screen — the start screen or the library. */
 function setProgress(done: number, total: number, label: string): void {
-  const percent = `${total > 0 ? (done / total) * 100 : 0}%`;
+  const value = total > 0 ? Math.round((done / total) * 100) : 0;
+  const percent = `${value}%`;
   const text = `${label} — ${done} of ${total}`;
 
   if (!el.landing.hidden) {
     el.landingProgress.hidden = false;
+    el.landingProgressBar.setAttribute('aria-valuenow', String(value));
+    el.landingProgressBar.setAttribute('aria-valuetext', text);
     el.landingProgressFill.style.width = percent;
     el.landingProgressLabel.textContent = text;
   } else {
     el.progress.hidden = false;
+    el.progressBar.setAttribute('aria-valuenow', String(value));
+    el.progressBar.setAttribute('aria-valuetext', text);
     el.progressFill.style.width = percent;
     el.progressLabel.textContent = text;
   }
@@ -315,6 +352,7 @@ function hideProgress(): void {
 
 /** Puts a message wherever the user is currently looking. */
 function setNotice(text: string): void {
+  summaryVersion += 1;
   if (!el.landing.hidden) el.landingNote.textContent = text;
   else el.summary.textContent = text;
 }

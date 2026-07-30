@@ -41,6 +41,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Smoke tests
+        run: npm run fixtures && npm run smoke
+
       # No `actions/configure-pages` step: it exists to inject the repository
       # sub-path into a framework's base URL, and vite.config.ts already sets
       # `base: './'`, which resolves correctly at any mount point.

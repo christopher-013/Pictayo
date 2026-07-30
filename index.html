@@ -11,7 +11,7 @@
 <meta property="og:title" content="PicturePicture">
 <meta property="og:description" content="Import your photos and see them organized by the day they were taken and pinned to where they were shot.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="/og-image.png">
+<meta property="og:image" content="https://christopher-013.github.io/PicturePicture/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
@@ -35,12 +35,16 @@
     </div>
 
     <p class="landing-note" id="landing-note">
-      Nothing is uploaded. Your photos and videos are read on this device and stay here.
+      Media stays on this device. Location coordinates are shared with map and place-name
+      services when geotags are available.
     </p>
   </div>
 
-  <div class="landing-progress" id="landing-progress" hidden>
-    <div class="progress-bar"><div class="progress-fill" id="landing-progress-fill"></div></div>
+  <div class="landing-progress" id="landing-progress" role="status" aria-live="polite" hidden>
+    <div class="progress-bar" id="landing-progress-bar" role="progressbar"
+      aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-fill" id="landing-progress-fill"></div>
+    </div>
     <div class="progress-label" id="landing-progress-label">Reading photos…</div>
   </div>
 </section>
@@ -57,7 +61,7 @@
       <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
     </div>
   </div>
-  <div class="app-privacy" id="library-summary">Photos and videos are read in your browser and never uploaded.</div>
+  <div class="app-privacy" id="library-summary">Media stays on this device; geotag coordinates are shared with map and place-name services.</div>
 </header>
 
 <!--
@@ -68,12 +72,15 @@
 
 <main class="app-main" id="app-main" hidden>
 
-  <div class="progress" id="progress" hidden>
-    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  <div class="progress" id="progress" role="status" aria-live="polite" hidden>
+    <div class="progress-bar" id="progress-bar" role="progressbar"
+      aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
     <div class="progress-label" id="progress-label">Reading photos…</div>
   </div>
 
-  <div id="day-page" class="day-page"></div>
+  <div id="day-page" class="day-page" role="tabpanel"></div>
 
 </main>
 
@@ -92,7 +99,8 @@
 <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
 <input type="file" id="folder-input" accept="image/*,video/*" multiple webkitdirectory hidden>
 
-<div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Full-size photo">
+<div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" role="dialog" aria-modal="true"
+  aria-labelledby="photo-lightbox-title" aria-describedby="photo-lightbox-desc">
   <div class="photo-lightbox-dialog">
     <div class="photo-lightbox-stage" id="photo-lightbox-stage">
       <button type="button" class="photo-lightbox-close" id="photo-lightbox-close" aria-label="Close">×</button>

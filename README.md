@@ -3,7 +3,9 @@
 Import your photos; the site organizes them by the day they were taken and plots
 where each one was shot on a Google Map overlay.
 
-Everything runs in the browser. Photos are never uploaded.
+Everything runs in the browser and media files are never uploaded. Geotag
+coordinates are shared with map and place-name services as described in
+[Privacy](#privacy).
 
 ![grouped by day, pinned to a map](https://img.shields.io/badge/runs-entirely%20client--side-0f766e)
 
@@ -26,8 +28,8 @@ Everything runs in the browser. Photos are never uploaded.
    mapped areas *contain* the point, so photos shot in the stands say **Tokyo
    Dome** rather than Bunkyo-ku. See [Landmarks](#landmarks).
 7. **Caption** — from landmark, place, and time of day.
-8. **Browse** — one day per page, chosen from a date strip that runs oldest on
-   the left to newest on the right. Each card names the places that day's photos
+8. **Browse** — one day per page, chosen from a date strip that runs newest on
+   the left to oldest on the right. Each card names the places that day's photos
    were taken, busiest first, shortened to their most specific part — "Shinjuku,
    Tokyo" becomes "Shinjuku", since the broader half repeats across every day of
    a trip. The selected day lives in the URL hash, so the back button steps
@@ -35,9 +37,9 @@ Everything runs in the browser. Photos are never uploaded.
 9. **Export** — a self-contained static site you can publish anywhere.
 
 Each day renders on its own rather than as one long timeline: a few hundred
-photos meant every day's maps and thumbnails were live at once. The day map
-collapses too — click its header — and that preference is remembered across
-days and visits, for when you want the grid and not the map.
+photos meant every day's maps and thumbnails were live at once. Day maps start
+expanded on larger screens and collapsed on phones; click the header to change
+that, and the preference is remembered across days and visits.
 
 ## Running it
 
@@ -237,14 +239,20 @@ are never modified or moved.
 
 ## Privacy
 
-Photos are read locally and never uploaded.
+Photos and videos are read locally and never uploaded. Geotag coordinates do
+leave the device so the app can provide maps and human-readable place names:
 
-The app makes exactly one kind of outbound request: a reverse-geocode lookup to
-name a place cluster. It sends a coordinate and nothing else — no image data, no
-filenames, no timestamps — once per cluster, cached afterwards. A 500-photo
-import typically means fewer than twenty lookups. If those requests fail or
-you're offline, clusters fall back to showing their coordinates and everything
-else still works.
+- **BigDataCloud** receives one cluster coordinate per reverse-geocode lookup.
+- **OpenStreetMap Overpass** receives batched cluster coordinates for optional
+  landmark enrichment.
+- **Google Maps** receives a map centre when an embedded map is displayed, and
+  receives the selected coordinate if someone opens an interactive map link.
+
+No service receives image data, filenames, captions, or capture timestamps.
+Reverse-geocode and landmark results are cached locally. If a lookup fails or
+the device is offline, the library still works and falls back to less-specific
+area names or coordinates. Exported albums use the same Google Maps embeds and
+therefore require a network connection for their basemaps.
 
 ## About the captions
 
@@ -298,8 +306,8 @@ variables. Anything that serves static files will host it.
 `.github/workflows/deploy.yml` builds and publishes on every push. One-time
 setup: **Settings → Pages → Source → GitHub Actions**.
 
-The type check runs first, so a type error fails the deploy instead of shipping
-a broken bundle.
+The type check, production build, generated-fixture suite, and smoke checks all
+run before deployment, so a regression blocks publishing.
 
 Project sites serve from `<user>.github.io/<repo>/`, and a sub-path is where
 static builds usually break. This one doesn't: `vite.config.ts` sets
@@ -308,14 +316,10 @@ so both resolve against wherever the app is actually mounted. Verified by
 serving a production build from a `/PicturePicture/` prefix and running a full
 import against it.
 
-No `.nojekyll` is needed — nothing in `dist/` is underscore-prefixed.
-
-**One thing to set once the domain is fixed:** the `og:image` tag in
-`index.html` is a relative path, because the final URL isn't known yet. The Open
-Graph spec wants an absolute one, and most crawlers won't resolve a relative
-path — so link previews will show no image until it reads something like
-`https://christopher-013.github.io/PicturePicture/og-image.png`. Everything else
-is deliberately relative and should stay that way.
+No `.nojekyll` is needed — nothing in `dist/` is underscore-prefixed. The
+`og:image` metadata uses the final absolute GitHub Pages URL so link-preview
+crawlers can resolve it; runtime assets remain relative for project-subpath
+portability.
 
 ### Cloudflare Pages
 

@@ -28,11 +28,8 @@ let resizeObserver: ResizeObserver | null = null;
 const COLLAPSE_KEY = 'pp:maps-collapsed';
 
 /**
- * Whether day maps start collapsed. Collapsed by default.
- *
- * The map sits above the photos, so leaving it open by default would push the
- * first row of thumbnails off the screen — the photos are what someone came
- * for, and the map is a click away.
+ * Whether day maps start collapsed. First visits collapse on small screens and
+ * expand on larger ones; an explicit preference always wins.
  *
  * Stored as one preference rather than per day: someone who opens or collapses
  * the map is saying how they want to browse, not something about that
@@ -41,9 +38,10 @@ const COLLAPSE_KEY = 'pp:maps-collapsed';
 export function mapsCollapsed(): boolean {
   try {
     const stored = localStorage.getItem(COLLAPSE_KEY);
-    return stored === null ? true : stored === '1';
+    if (stored !== null) return stored === '1';
+    return window.matchMedia?.('(max-width: 560px)').matches ?? false;
   } catch {
-    return true;
+    return window.matchMedia?.('(max-width: 560px)').matches ?? false;
   }
 }
 

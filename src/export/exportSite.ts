@@ -262,7 +262,8 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 </section>
 </main>
 
-<div class="photo-lightbox" id="lb" aria-hidden="true"><div class="photo-lightbox-dialog">
+<div class="photo-lightbox" id="lb" aria-hidden="true" role="dialog" aria-modal="true"
+ aria-labelledby="lb-title" aria-describedby="lb-desc"><div class="photo-lightbox-dialog">
 <div class="photo-lightbox-stage">
 <button class="photo-lightbox-close" id="lb-close" aria-label="Close">×</button>
 <button class="photo-lightbox-nav prev" id="lb-prev" aria-label="Previous">‹</button>
@@ -556,11 +557,19 @@ main{padding:12px 12px 48px}
 }
 `;
 
-const EXPORT_JS = `
+export const EXPORT_JS = `
 (function(){
 var i=-1,lb=document.getElementById('lb'),img=document.getElementById('lb-img'),vid=document.getElementById('lb-video');
+var closeBtn=document.getElementById('lb-close'),ret=null,bg=[];
 function el(id){return document.getElementById(id)}
 function stopVid(){if(!vid.getAttribute('src'))return;vid.pause();vid.removeAttribute('src');vid.load()}
+function inert(on){if(on){bg=[];Array.prototype.forEach.call(document.body.children,function(x){
+if(x!==lb&&x instanceof HTMLElement){bg.push([x,x.inert]);x.inert=true}});return}
+bg.forEach(function(x){x[0].inert=x[1]});bg=[]}
+function trap(e){var q=Array.prototype.filter.call(lb.querySelectorAll('a[href],button:not([disabled]),video[controls],[tabindex]:not([tabindex="-1"])'),function(x){
+return !x.hidden&&x.getClientRects().length});if(!q.length){e.preventDefault();closeBtn.focus();return}
+var first=q[0],last=q[q.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
 function show(){var it=LB[i];if(!it)return;
 // Stop the previous clip before the next item starts, or its audio carries on.
 stopVid();
@@ -577,13 +586,14 @@ if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_bl
 else lo.appendChild(document.createTextNode(it.location))}
 var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
 var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
-function open(n){i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open')}
-function close(){lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');stopVid();img.removeAttribute('src');i=-1}
+function open(n){ret=document.activeElement;i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open');inert(true);requestAnimationFrame(function(){closeBtn.focus()})}
+function close(){if(!lb.classList.contains('open'))return;lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');inert(false);stopVid();img.removeAttribute('src');i=-1;if(ret&&ret.isConnected)ret.focus();ret=null}
 function go(d){var n=i+d;if(n<0||n>=LB.length)return;i=n;show()}
 el('lb-close').onclick=close;el('lb-prev').onclick=function(){go(-1)};el('lb-next').onclick=function(){go(1)};
 lb.onclick=function(e){if(e.target===lb)close()};
 document.addEventListener('keydown',function(e){if(!lb.classList.contains('open'))return;
 if(e.key==='Escape'){close();return}
+if(e.key==='Tab'){trap(e);return}
 // Claimed before the video's own controls, which would otherwise seek on the
 // same press as well as moving to the next item.
 if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();go(e.key==='ArrowLeft'?-1:1)}});
@@ -593,7 +603,7 @@ stage.addEventListener('touchend',function(e){var t=e.changedTouches[0],dx=t.cli
 if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1)},{passive:true});
 
 var KEY='pp:maps-collapsed';
-function collapsed(){try{var v=localStorage.getItem(KEY);return v===null?true:v==='1'}catch(e){return true}}
+function collapsed(){try{var v=localStorage.getItem(KEY);return v===null?matchMedia('(max-width:560px)').matches:v==='1'}catch(e){return matchMedia('(max-width:560px)').matches}}
 function store(v){try{localStorage.setItem(KEY,v?'1':'0')}catch(e){}}
 if(collapsed()){Array.prototype.forEach.call(document.querySelectorAll('.photo-day-map'),function(m){
 m.classList.add('is-collapsed');var h=m.querySelector('[data-map-toggle]');if(h)h.setAttribute('aria-expanded','false')})}
