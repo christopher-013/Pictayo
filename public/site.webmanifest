@@ -1,0 +1,24 @@
+{
+  "name": "PicturePicture — Private Photo Map & Travel Timeline",
+  "short_name": "PicturePicture",
+  "description": "Organize photos and videos by when and where they were taken, with interactive maps in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f2ee",
+  "theme_color": "#019aa0",
+  "icons": [
+    {
+      "src": "mark.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

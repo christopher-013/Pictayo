@@ -22,6 +22,7 @@ import { initDayView, setDays } from './ui/dayView';
 import { revokeAll, revokePhoto, thumbUrlFor } from './ui/media';
 import { exportSite } from './export/exportSite';
 import { confirmAction, initConfirmDialog } from './ui/confirmDialog';
+import { initFeedback } from './ui/feedback';
 
 /** Flush to IndexedDB in batches so a large import survives an early tab close. */
 const SAVE_BATCH_SIZE = 24;
@@ -78,6 +79,7 @@ void start();
 
 async function start(): Promise<void> {
   initConfirmDialog();
+  initFeedback();
   initLightbox();
   initDayView(el.nav, el.page, (photoId) => void handleRemovePhoto(photoId));
 

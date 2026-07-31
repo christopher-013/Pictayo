@@ -340,8 +340,24 @@ and collapsing the map.
 
 ## Deploying
 
-The build is four static files — no server, no API keys, no environment
-variables. Anything that serves static files will host it.
+The gallery build is a static browser bundle with no media backend or API key.
+Anything that serves static files will host it. Public-beta feedback is the one
+optional server component and is isolated in the Cloudflare Worker described
+below.
+
+### Public-beta readiness
+
+The main page includes a canonical URL, complete Open Graph and Twitter cards,
+WebApplication/WebSite structured data, a web manifest, `robots.txt`, and a
+sitemap. Keep the canonical and sitemap URLs synchronized if the production
+domain changes.
+
+The **Send feedback** links on both the start screen and library open an in-app
+public-beta form. The form posts to a Cloudflare Worker, which creates the public
+GitHub issue server-side; visitors never see a GitHub dialog and do not need an
+account. The browser never receives the GitHub credential. See
+[`FEEDBACK-WORKER-SETUP.md`](FEEDBACK-WORKER-SETUP.md) for the one-time encrypted
+secret and deployment steps.
 
 ### GitHub Pages
 

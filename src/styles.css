@@ -115,6 +115,16 @@ button, a, input { font: inherit; }
   will-change: transform;
 }
 
+.landing-heading {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--teal-deep);
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
 @keyframes landing-logo-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-13px); }
@@ -180,6 +190,29 @@ button, a, input { font: inherit; }
   color: #5b7773;
   text-wrap: pretty;
 }
+
+.beta-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 7px;
+  white-space: nowrap;
+}
+
+.feedback-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--teal);
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.feedback-link:hover { color: var(--teal-deep); }
+.feedback-link:focus-visible { outline: 3px solid rgba(1, 154, 160, 0.3); outline-offset: 3px; border-radius: 2px; }
 
 .landing-progress {
   width: min(420px, 90%);
@@ -1065,6 +1098,180 @@ button, a, input { font: inherit; }
 .action-dialog-actions button:focus-visible,
 .action-dialog-close:focus-visible { outline: 3px solid rgba(1, 154, 160, 0.4); outline-offset: 2px; }
 
+.feedback-dialog {
+  width: min(650px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 28px);
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  overflow: auto;
+  background: transparent;
+  color: var(--ink);
+}
+
+.feedback-dialog::backdrop {
+  background: rgba(25, 36, 37, 0.68);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.feedback-dialog[open] { animation: action-dialog-in 180ms ease-out; }
+
+.feedback-dialog-card {
+  position: relative;
+  padding: 32px 36px 30px;
+  border: 1px solid rgba(42, 58, 58, 0.08);
+  border-radius: 22px;
+  background: #fffdf8;
+  box-shadow: 0 28px 80px rgba(10, 20, 22, 0.34);
+}
+
+.feedback-dialog-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #66777b;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.feedback-dialog-close:hover { background: #eef3f1; color: #26373a; }
+
+.feedback-dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  background: #23766f;
+  font-size: 25px;
+  box-shadow: 0 5px 14px rgba(35, 118, 111, 0.2);
+}
+
+.feedback-dialog-eyebrow {
+  margin-bottom: 10px;
+  color: #c85443;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+.feedback-dialog h2 {
+  margin: 0;
+  color: #20262b;
+  font-size: clamp(28px, 5vw, 36px);
+  line-height: 1.12;
+  letter-spacing: -0.7px;
+}
+
+#feedback-dialog-intro {
+  margin: 10px 0 0;
+  color: #607077;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.feedback-dialog-privacy {
+  margin: 16px 0;
+  padding: 13px 15px;
+  border: 1px solid #ead487;
+  border-radius: 13px;
+  background: #fff7d9;
+  color: #5f6670;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.feedback-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.feedback-category label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border: 1px solid #d8ddd9;
+  border-radius: 999px;
+  background: #fff;
+  color: #30383b;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.feedback-category label:has(input:checked) {
+  border-color: var(--teal);
+  background: #e7f5f3;
+  color: var(--teal-deep);
+}
+
+.feedback-category input { margin: 0; accent-color: var(--teal); }
+.feedback-field { display: block; margin-bottom: 13px; }
+.feedback-field > span { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 800; }
+
+.feedback-field input,
+.feedback-field textarea {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #d8ddd9;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.feedback-field input:focus,
+.feedback-field textarea:focus { outline: 3px solid rgba(1, 154, 160, 0.22); border-color: var(--teal); }
+
+.feedback-honeypot {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+}
+
+.feedback-status { min-height: 20px; margin: 3px 0 10px; color: #607077; font-size: 13px; font-weight: 700; }
+.feedback-status.is-success { color: #197047; }
+.feedback-status.is-error { color: #9a3636; }
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.feedback-actions button {
+  min-height: 46px;
+  padding: 10px 18px;
+  border-radius: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.feedback-cancel { border: 1px solid #d8ddd9; background: #f8f7f2; color: #30383b; }
+.feedback-submit { border: 1px solid var(--teal-deep); background: var(--teal-deep); color: #fff; }
+.feedback-submit:disabled { opacity: 0.62; cursor: wait; }
+.feedback-actions button:focus-visible,
+.feedback-dialog-close:focus-visible { outline: 3px solid rgba(1, 154, 160, 0.4); outline-offset: 2px; }
+
 .photo-lightbox {
   position: fixed;
   inset: 0;
@@ -1268,8 +1475,10 @@ body.photo-lightbox-open { overflow: hidden; }
   .day-chip { padding: 6px 9px; }
 
   .landing { padding: 32px 18px 44px; }
+  .landing-heading { font-size: 23px; }
   .landing-tagline { font-size: 14px; }
   .landing-cta { padding: 14px 26px; font-size: 16px; }
+  .beta-links { display: flex; justify-content: center; margin: 6px 0 0; }
 
   .photo-day-map-canvas { aspect-ratio: 4 / 3; min-height: 210px; }
   .photo-day-map-title { font-size: 15px; }
@@ -1290,6 +1499,15 @@ body.photo-lightbox-open { overflow: hidden; }
   }
   .action-dialog-confirm { grid-row: 1; }
   .action-dialog-cancel { grid-row: 2; }
+
+  .feedback-dialog { width: min(calc(100% - 20px), 650px); }
+  .feedback-dialog-card { padding: 27px 20px 22px; border-radius: 18px; }
+  .feedback-dialog-icon { width: 50px; height: 50px; margin-bottom: 16px; font-size: 22px; }
+  .feedback-category { gap: 6px; }
+  .feedback-category label { flex: 1 1 calc(50% - 6px); justify-content: center; padding: 8px; }
+  .feedback-actions { display: grid; grid-template-columns: 1fr; }
+  .feedback-submit { grid-row: 1; }
+  .feedback-cancel { grid-row: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {

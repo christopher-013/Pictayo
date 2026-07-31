@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "picturepicture-feedback",
+  "compatibility_date": "2026-07-31",
+  "main": "./feedback-worker.js",
+  "observability": { "enabled": true },
+  "vars": {
+    "GITHUB_REPO": "christopher-013/PicturePicture",
+    "ALLOWED_ORIGINS": "https://christopher-013.github.io,https://picturepicture-feedback.cch13.workers.dev,http://127.0.0.1:5276,http://127.0.0.1:5273,http://localhost:5276,http://localhost:5273"
+  },
+  "ratelimits": [
+    {
+      "name": "FEEDBACK_RATE_LIMITER",
+      "namespace_id": "51012",
+      "simple": { "limit": 5, "period": 60 }
+    }
+  ]
+}

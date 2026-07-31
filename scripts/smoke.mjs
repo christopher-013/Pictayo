@@ -36,6 +36,7 @@ import { compareDays } from '../src/library.ts';
 import { dayHeading, placesFor } from '../src/ui/dayChip.ts';
 import { photoCardHtml } from '../src/ui/photoCard.ts';
 import { exportSite, EXPORT_JS } from '../src/export/exportSite.ts';
+import feedbackWorker from '../feedback-worker.js';
 
 let passed = 0;
 const failures = [];
@@ -546,6 +547,7 @@ if (!existsSync(fixturesDir)) {
 {
   const mainSource = readFileSync(join('src', 'main.ts'), 'utf8');
   const styleSource = readFileSync(join('src', 'styles.css'), 'utf8');
+  const feedbackSource = readFileSync(join('src', 'ui', 'feedback.ts'), 'utf8');
   const provisional = mainSource.indexOf('await refresh(true, localOnlyGeocoder);');
   const status = mainSource.indexOf("showLocationProgress('Locations are processing", provisional);
   const resolve = mainSource.indexOf('await refresh(false);', provisional);
@@ -565,6 +567,30 @@ if (!existsSync(fixturesDir)) {
   check('dialog: destructive action uses a compact bounded column',
     styleSource.includes('grid-template-columns: 126px minmax(210px, 250px)') &&
       styleSource.includes('justify-content: end'));
+  check('feedback: submits to the server-side Worker without a GitHub redirect',
+    feedbackSource.includes('picturepicture-feedback.cch13.workers.dev/api/feedback') &&
+      !feedbackSource.includes('github.com'));
+  check('feedback: does not collect or submit an email address',
+    !feedbackSource.includes('feedback-email') && !feedbackSource.includes('email:'));
+}
+
+{
+  const botRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+    method: 'POST',
+    headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ website: 'filled-by-bot', summary: 'spam' }),
+  });
+  const botResponse = await feedbackWorker.fetch(botRequest, {});
+  check('feedback worker: quietly traps honeypot submissions',
+    botResponse.status === 201 && (await botResponse.json()).ok === true);
+
+  const deniedRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+    method: 'POST',
+    headers: { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ summary: 'not allowed' }),
+  });
+  const deniedResponse = await feedbackWorker.fetch(deniedRequest, {});
+  check('feedback worker: rejects unapproved origins', deniedResponse.status === 403);
 }
 
 const dist = 'dist';
@@ -580,7 +606,8 @@ if (!existsSync(dist)) {
   const absolute = refs.filter((r) => r.startsWith('/'));
   check('build: all asset paths relative', absolute.length === 0, absolute.join(', '));
 
-  for (const required of ['favicon.png', 'apple-touch-icon.png', 'logo.webp', 'mark.webp']) {
+  for (const required of ['favicon.png', 'apple-touch-icon.png', 'logo.webp', 'mark.webp',
+    'robots.txt', 'sitemap.xml', 'site.webmanifest']) {
     check(`build: ships ${required}`, existsSync(join(dist, required)));
   }
 
@@ -595,6 +622,17 @@ if (!existsSync(dist)) {
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
     html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));
+  check('build: canonical URL and crawl directives are present',
+    html.includes('rel="canonical"') && html.includes('name="robots"'));
+  check('build: social preview metadata is complete',
+    html.includes('property="og:url"') && html.includes('name="twitter:image"'));
+  check('build: structured data describes the web application',
+    html.includes('application/ld+json') && html.includes('PhotographyApplication'));
+  check('build: public-beta feedback has two entry points and an in-app dialog',
+    (html.match(/data-open-feedback/g) || []).length >= 2 && html.includes('id="feedback-dialog"'));
+  check('build: feedback bundle never sends the visitor to GitHub',
+    appBundle.includes('picturepicture-feedback.cch13.workers.dev/api/feedback') &&
+      !appBundle.includes('github.com'));
   check('build: lightbox includes zoom controls', html.includes('photo-lightbox-zoom-in'));
   check('build: includes the styled confirmation dialog',
     html.includes('id="action-dialog"') && html.includes('action-dialog-note'));
