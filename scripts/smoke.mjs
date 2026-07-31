@@ -361,13 +361,31 @@ function near(name, actual, expected, tolerance) {
     nearbyDiningLat: 35.64865, nearbyDiningLon: 139.7906,
   };
   const withDining = describer.describe({ photo: photo(), cluster: diningCluster, clusterSize: 2 });
-  check('caption: nearby dining uses a compact distance',
-    withDining.dining === 'Nearby place: Sushi Dai · 42 m.',
+  check('caption: nearby dining omits uncertain GPS distance',
+    withDining.dining === 'Nearby place: Sushi Dai.',
     withDining.dining);
-  check('caption: nearby dining links to a coordinate-scoped Maps search',
+  check('caption: nearby dining links to an area-scoped Maps search',
     withDining.diningUrl?.startsWith('https://www.google.com/maps/search/?api=1&query=') &&
       withDining.diningUrl.includes('Sushi%20Dai') &&
-      withDining.diningUrl.includes('35.648650'));
+      withDining.diningUrl.includes('Bunkyo-ku%2C%20Tokyo') &&
+      !withDining.diningUrl.includes('35.648650'));
+
+  const takenouchi = describer.describe({
+    photo: photo(),
+    cluster: {
+      ...diningCluster,
+      area: 'Shibuya, Tokyo',
+      nearbyDining: 'Teuchi Soba Takenouchi',
+      nearbyDiningDistanceMeters: 8,
+    },
+    clusterSize: 2,
+  });
+  check('caption: Takenouchi regression omits 8 m distance',
+    takenouchi.dining === 'Nearby place: Teuchi Soba Takenouchi.');
+  check('caption: Takenouchi regression searches by venue and Shibuya',
+    takenouchi.diningUrl?.includes(
+      'query=Teuchi%20Soba%20Takenouchi%2C%20Shibuya%2C%20Tokyo',
+    ));
 
   const diningCard = photoCardHtml({
     photo: { ...photo(), kind: 'photo', thumbUrl: 'blob:test', caption: withDining },

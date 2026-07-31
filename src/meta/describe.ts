@@ -40,23 +40,12 @@ export class MetadataDescriber implements DescriptionProvider {
 
     const mapsUrl = cluster ? googleMapsUrl(cluster.lat, cluster.lon) : '';
     const dining = cluster?.nearbyDining
-      ? `Nearby place: ${cluster.nearbyDining}${
-          cluster.nearbyDiningDistanceMeters && cluster.nearbyDiningDistanceMeters > 0
-            ? ` · ${cluster.nearbyDiningDistanceMeters} m`
-            : ''
-        }.`
+      ? `Nearby place: ${cluster.nearbyDining}.`
       : undefined;
 
-    const diningUrl =
-      cluster?.nearbyDining &&
-      typeof cluster.nearbyDiningLat === 'number' &&
-      typeof cluster.nearbyDiningLon === 'number'
-        ? googleMapsVenueUrl(
-            cluster.nearbyDining,
-            cluster.nearbyDiningLat,
-            cluster.nearbyDiningLon,
-          )
-        : undefined;
+    const diningUrl = cluster?.nearbyDining
+      ? googleMapsVenueUrl(cluster.nearbyDining, cluster.area)
+      : undefined;
 
     const info = cluster ? wikipediaLocationInfo(cluster.area) : null;
 

@@ -49,12 +49,12 @@ export function googleMapsUrl(lat: number, lon: number): string {
 }
 
 /**
- * Opens a Google Maps place search scoped by the venue's mapped position.
- * Including both the name and coordinates is more specific than a global name
- * search, especially for chains and repeated Japanese restaurant names.
+ * Opens a Google Maps place search for the venue in its surrounding area.
+ * Google documents `query` as a place name/address *or* a latitude/longitude
+ * pair. Combining a name and raw coordinates can become a nonexistent address.
  */
-export function googleMapsVenueUrl(name: string, lat: number, lon: number): string {
-  const query = `${name}, ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+export function googleMapsVenueUrl(name: string, area?: string): string {
+  const query = [name.trim(), area?.trim()].filter(Boolean).join(', ');
   return (
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` +
     '&utm_source=picturepicture&utm_campaign=nearby_place'
