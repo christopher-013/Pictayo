@@ -42,7 +42,7 @@ export class MetadataDescriber implements DescriptionProvider {
     const dining = cluster?.nearbyDining
       ? `Nearby place: ${cluster.nearbyDining}${
           cluster.nearbyDiningDistanceMeters && cluster.nearbyDiningDistanceMeters > 0
-            ? ` (about ${cluster.nearbyDiningDistanceMeters} m away)`
+            ? ` · ${cluster.nearbyDiningDistanceMeters} m`
             : ''
         }.`
       : undefined;

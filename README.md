@@ -211,7 +211,7 @@ described as a guess: **"close to teamLab Planets"**, never "at".
 
 The same Overpass request also checks a focused 30m radius for a named
 restaurant, cafe, fast-food venue, or food court. The nearest match appears as
-**"Nearby place"** with its approximate distance. That wording
+**"Nearby place"** with a compact distance, such as `· 14 m`. That wording
 is deliberate: GPS and map data can identify a plausible venue, but cannot
 prove the photographer was inside it.
 

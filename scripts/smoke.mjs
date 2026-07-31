@@ -346,8 +346,8 @@ function near(name, actual, expected, tolerance) {
     ...cluster, nearbyDining: 'Sushi Dai', nearbyDiningDistanceMeters: 42,
   };
   const withDining = describer.describe({ photo: photo(), cluster: diningCluster, clusterSize: 2 });
-  check('caption: nearby dining is explicitly a possibility',
-    withDining.dining === 'Nearby place: Sushi Dai (about 42 m away).',
+  check('caption: nearby dining uses a compact distance',
+    withDining.dining === 'Nearby place: Sushi Dai · 42 m.',
     withDining.dining);
 
   const guessed = describer.describe({ photo: photo('file'), cluster, clusterSize: 1 });
@@ -517,6 +517,7 @@ if (!existsSync(fixturesDir)) {
 
 {
   const mainSource = readFileSync(join('src', 'main.ts'), 'utf8');
+  const styleSource = readFileSync(join('src', 'styles.css'), 'utf8');
   const provisional = mainSource.indexOf('await refresh(true, localOnlyGeocoder);');
   const status = mainSource.indexOf("showLocationProgress('Locations are processing", provisional);
   const resolve = mainSource.indexOf('await refresh(false);', provisional);
@@ -528,6 +529,11 @@ if (!existsSync(fixturesDir)) {
     mainSource.includes('LOCATION_STATUS_DELAY_MS') && mainSource.includes('window.setTimeout'));
   check('import: provisional render preserves cached place names without network requests',
     mainSource.includes('new CacheOnlyGeocoder()'));
+  check('navigation: date and Show All chips share one responsive width',
+    styleSource.includes('flex: 0 0 var(--day-chip-width)') &&
+      styleSource.includes('width: var(--day-chip-width)'));
+  check('navigation: long place names truncate with an ellipsis',
+    styleSource.includes('text-overflow: ellipsis'));
 }
 
 const dist = 'dist';
@@ -599,9 +605,12 @@ if (!existsSync(dist)) {
   const archive = unzipSync(new Uint8Array(await (await exportSite([exportDay])).arrayBuffer()));
   const dayPage = strFromU8(archive['index.html']);
   const everywherePage = strFromU8(archive['everywhere.html']);
+  const exportedCss = strFromU8(archive['assets/site.css']);
   check('export: creates everywhere.html', Boolean(archive['everywhere.html']));
   check('export: appends Everywhere after the date links',
     dayPage.indexOf('everywhere.html') > dayPage.indexOf('day-chip-dow'));
+  check('export: date and Show All chips share one responsive width',
+    exportedCss.includes('flex:0 0 var(--day-chip-width);width:var(--day-chip-width)'));
   check('export: Everywhere page contains the world map and a day link',
     everywherePage.includes('World map of all photo locations') && everywherePage.includes('href="index.html"'));
 }

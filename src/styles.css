@@ -379,6 +379,7 @@ button, a, input { font: inherit; }
 }
 
 .day-nav-scroll {
+  --day-chip-width: clamp(112px, 10vw, 152px);
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -397,15 +398,15 @@ button, a, input { font: inherit; }
 
 .day-chip {
   position: relative;
-  flex: 0 0 auto;
+  flex: 0 0 var(--day-chip-width);
+  width: var(--day-chip-width);
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  /* Wide enough for a place name, capped so one long name can't dominate. */
-  min-width: 86px;
-  max-width: 168px;
+  min-width: 0;
+  max-width: none;
   padding: 7px 12px 7px;
   border: 1.5px solid #cfe8ea;
   border-radius: 12px;
@@ -1257,8 +1258,8 @@ body.photo-lightbox-open { overflow: hidden; }
   }
   .app-actions .btn-primary { white-space: normal; }
   .mobile-label-break { display: inline; }
-  .day-nav-scroll { padding: 8px 12px; }
-  .day-chip { min-width: 78px; max-width: 132px; padding: 6px 9px; }
+  .day-nav-scroll { --day-chip-width: 104px; padding: 8px 12px; }
+  .day-chip { padding: 6px 9px; }
 
   .landing { padding: 32px 18px 44px; }
   .landing-tagline { font-size: 14px; }

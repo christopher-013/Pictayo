@@ -583,9 +583,9 @@ button,a{font:inherit}
 .site-header h1{margin:6px 0 0;font-size:22px;color:var(--teal-deep)}
 .site-header p{margin:3px 0 0;font-size:13px;color:#4f7076}
 .day-nav{position:sticky;top:0;z-index:40;background:rgba(255,253,246,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(10,124,130,.16);box-shadow:0 3px 14px rgba(12,81,87,.08)}
-.day-nav-scroll{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:inline proximity;scroll-padding-inline:18px;max-width:1400px;margin:0 auto;padding:10px 18px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x}
+.day-nav-scroll{--day-chip-width:clamp(112px,10vw,152px);display:flex;gap:8px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:inline proximity;scroll-padding-inline:18px;max-width:1400px;margin:0 auto;padding:10px 18px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x}
 .day-nav-scroll::-webkit-scrollbar{display:none}
-.day-chip{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:86px;max-width:168px;padding:7px 12px;border:1.5px solid #cfe8ea;border-radius:12px;background:#fff;text-decoration:none;scroll-snap-align:start;transition:background-color 160ms ease,border-color 160ms ease}
+.day-chip{flex:0 0 var(--day-chip-width);width:var(--day-chip-width);display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;max-width:none;padding:7px 12px;border:1.5px solid #cfe8ea;border-radius:12px;background:#fff;text-decoration:none;scroll-snap-align:start;transition:background-color 160ms ease,border-color 160ms ease}
 .day-chip:hover{background:#f0fafa;border-color:var(--teal)}
 .day-chip.is-active{background:linear-gradient(135deg,var(--brand-teal),#0a7c82);border-color:transparent;box-shadow:0 4px 14px rgba(10,124,130,.34)}
 .day-chip-mon{font-size:10px;font-weight:800;letter-spacing:.7px;color:#6f8f92}
@@ -679,8 +679,8 @@ img.photo-lightbox-media.is-zoomed{cursor:zoom-out}img.photo-lightbox-media.is-p
 body.lb-open{overflow:hidden}
 @media(max-width:560px){
 .site-logo{width:158px}
-.day-nav-scroll{padding:8px 12px}
-.day-chip{min-width:78px;max-width:132px;padding:6px 9px}
+.day-nav-scroll{--day-chip-width:104px;padding:8px 12px}
+.day-chip{padding:6px 9px}
 main{padding:12px 12px 48px}
 .photo-day-map-canvas{aspect-ratio:4/3}
 .photo-lightbox-stage{padding:54px 48px 10px}
