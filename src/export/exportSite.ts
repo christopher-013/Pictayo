@@ -183,6 +183,8 @@ function buildDayPage(context: PageContext): string {
             location: caption?.location ?? '',
             dining: caption?.dining ?? '',
             diningUrl: caption?.diningUrl ?? '',
+            infoLabel: caption?.infoLabel ?? '',
+            infoUrl: caption?.infoUrl ?? '',
             desc: caption?.desc ?? '',
             mapsUrl: caption?.mapsUrl ?? '',
             captured,
@@ -221,6 +223,13 @@ function buildDayPage(context: PageContext): string {
               : escapeAttr(caption.dining)
           }</div>`
         : '';
+      const description = caption?.desc
+        ? `<div class="photo-desc">${escapeAttr(caption.desc)}${
+            caption.infoUrl && caption.infoLabel
+              ? ` <a href="${escapeAttr(caption.infoUrl)}" target="_blank" rel="noopener noreferrer" title="Read about ${escapeAttr(caption.infoLabel)}">Learn about ${escapeAttr(caption.infoLabel)}</a>`
+              : ''
+          }</div>`
+        : '';
 
       return (
         `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
@@ -229,7 +238,7 @@ function buildDayPage(context: PageContext): string {
         `<div class="photo-kind">${photo.kind === 'video' ? (photo.meta.gps ? 'Video' : 'Video · no GPS') : photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
         location +
         dining +
-        (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
+        description +
         (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
         '</div></div>'
       );
@@ -655,7 +664,7 @@ video.photo-lightbox-media{width:100%}
 .photo-location{font-size:12px;color:var(--teal);margin-bottom:4px}
 .photo-location a{color:var(--teal);text-underline-offset:2px}
 .photo-dining{font-size:11px;color:#8a4f08;line-height:1.3;margin-bottom:4px}.photo-dining a{color:inherit;text-underline-offset:2px}
-.photo-desc{font-size:11px;color:var(--ink3);line-height:1.3}
+.photo-desc{font-size:11px;color:var(--ink3);line-height:1.3}.photo-desc a{color:var(--teal);text-underline-offset:2px}
 .photo-captured{font-size:10px;color:var(--ink2);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
 .photo-empty{background:var(--bg3);border:1px dashed var(--border);border-radius:14px;padding:18px;color:var(--ink3);font-size:13px;text-align:center}
 .photo-lightbox{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(4,10,18,.92)}
@@ -679,7 +688,7 @@ img.photo-lightbox-media.is-zoomed{cursor:zoom-out}img.photo-lightbox-media.is-p
 .photo-lightbox-location{font-size:14px;color:#5fe3e8;margin-top:5px}
 .photo-lightbox-location a{color:#5fe3e8}
 .photo-lightbox-dining{font-size:14px;color:#ffd27a;line-height:1.35;margin-top:5px}.photo-lightbox-dining a{color:inherit;text-underline-offset:2px}
-.photo-lightbox-desc{font-size:14px;color:rgba(255,255,255,.82);margin-top:5px}
+.photo-lightbox-desc{font-size:14px;color:rgba(255,255,255,.82);margin-top:5px}.photo-lightbox-desc a{color:#7de9ed;text-underline-offset:2px}
 .photo-lightbox-captured{font-size:13px;color:rgba(255,255,255,.65);margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)}
 body.lb-open{overflow:hidden}
 @media(max-width:560px){
@@ -725,7 +734,7 @@ if(it.location){lo.appendChild(document.createTextNode('\\u{1F4CD} '));
 if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_blank';a.rel='noopener';a.textContent=it.location;lo.appendChild(a)}
 else lo.appendChild(document.createTextNode(it.location))}
 var eat=el('lb-dining');eat.replaceChildren();eat.style.display=it.dining?'block':'none';if(it.dining){eat.append('\\u{1F37D}\\u{FE0F} ');if(it.diningUrl){var ea=document.createElement('a');ea.href=it.diningUrl;ea.target='_blank';ea.rel='noopener noreferrer';ea.title='View restaurant details in Google Maps';ea.textContent=it.dining;eat.append(ea)}else eat.append(it.dining)}
-var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
+var d=el('lb-desc');d.replaceChildren();d.style.display=it.desc?'block':'none';if(it.desc){d.append(it.desc);if(it.infoUrl&&it.infoLabel){d.append(' ');var ia=document.createElement('a');ia.href=it.infoUrl;ia.target='_blank';ia.rel='noopener noreferrer';ia.title='Read about '+it.infoLabel;ia.textContent='Learn about '+it.infoLabel;d.append(ia)}}
 var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
 function open(n){ret=document.activeElement;i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open');inert(true);requestAnimationFrame(function(){closeBtn.focus()})}
 function close(){if(!lb.classList.contains('open'))return;lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');inert(false);stopVid();resetZoom();img.removeAttribute('src');i=-1;if(ret&&ret.isConnected)ret.focus();ret=null}

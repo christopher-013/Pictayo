@@ -37,6 +37,10 @@ export interface Caption {
   dining?: string;
   /** Coordinate-scoped Google Maps search for the nearby venue. */
   diningUrl?: string;
+  /** Human-readable surrounding destination used by the information link. */
+  infoLabel?: string;
+  /** English Wikipedia article for the resolved surrounding destination. */
+  infoUrl?: string;
 }
 
 export type MediaKind = 'photo' | 'video';

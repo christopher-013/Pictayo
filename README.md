@@ -219,6 +219,11 @@ cached matches fall back to the nearby photo coordinates until they are looked
 up again. An available listing can provide its address, food category, hours,
 photos, and reviews.
 
+Resolved descriptions also include a destination-level **"Learn about"** link.
+For example, photos around Hakone link to the English Wikipedia article for
+Hakone, including photos whose nearest named feature is a smaller bridge or
+museum. Coordinate-only fallbacks do not receive an encyclopedia link.
+
 The focused cutoff allows for normal indoor GPS drift without returning to the
 overly broad original 120m search. Dining cache coordinates are kept at roughly metre-level precision,
 so a result found for one doorway is not reused for another location down the

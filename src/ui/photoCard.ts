@@ -40,6 +40,13 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
           : escapeAttr(caption.dining)
       }</div>`
     : '';
+  const description = caption?.desc
+    ? `<div class="photo-desc">${escapeAttr(caption.desc)}${
+        caption.infoUrl && caption.infoLabel
+          ? ` <a href="${escapeAttr(caption.infoUrl)}" target="_blank" rel="noopener noreferrer" title="Read about ${escapeAttr(caption.infoLabel)}">Learn about ${escapeAttr(caption.infoLabel)}</a>`
+          : ''
+      }</div>`
+    : '';
   const remove =
     `<button class="photo-remove" type="button" data-remove-photo="${escapeAttr(photo.id)}"` +
     ` aria-label="Remove ${escapeAttr(photo.name)} from PicturePicture"` +
@@ -57,7 +64,7 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
     `<div class="photo-kind">${kindLabel(photo)}</div>` +
     location +
     dining +
-    (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
+    description +
     '<div class="photo-card-footer">' +
     (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '<span></span>') +
     remove +

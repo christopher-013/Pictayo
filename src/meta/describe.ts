@@ -58,7 +58,17 @@ export class MetadataDescriber implements DescriptionProvider {
           )
         : undefined;
 
-    return { location, desc: this.compose(photo, cluster), mapsUrl, dining, diningUrl };
+    const info = cluster ? wikipediaLocationInfo(cluster.area) : null;
+
+    return {
+      location,
+      desc: this.compose(photo, cluster),
+      mapsUrl,
+      dining,
+      diningUrl,
+      infoLabel: info?.label,
+      infoUrl: info?.url,
+    };
   }
 
   private compose(photo: Photo, cluster: PlaceCluster | null): string {
@@ -112,6 +122,28 @@ export class MetadataDescriber implements DescriptionProvider {
 
     return camera ? `${base} Shot on ${camera}.` : base;
   }
+}
+
+/**
+ * Builds a useful destination-level article link from a resolved area name.
+ * Nearby landmarks deliberately use their surrounding destination: a small
+ * bridge may have no article, while Hakone provides meaningful trip context.
+ */
+export function wikipediaLocationInfo(
+  area: string,
+): { label: string; url: string } | null {
+  if (!area || /°[NS],/.test(area)) return null;
+
+  const [rawPrimary] = area.split(',');
+  const primary = rawPrimary?.trim();
+  if (!primary) return null;
+
+  const ward = primary.match(/^(.+?)(?:-ku|\s+ku|\s+ward)$/i);
+  const label = (ward?.[1] ?? primary).trim();
+  const title = ward ? `${label}, Tokyo` : label;
+  const slug = encodeURIComponent(title.replace(/\s+/g, '_'));
+
+  return { label, url: `https://en.wikipedia.org/wiki/${slug}` };
 }
 
 /** Camera makers often repeat the brand in the model ("Canon Canon EOS R6"). */

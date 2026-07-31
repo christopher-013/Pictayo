@@ -19,6 +19,8 @@ export interface LightboxItem {
   mapsUrl: string;
   dining: string;
   diningUrl: string;
+  infoLabel: string;
+  infoUrl: string;
   captured: string;
 }
 
@@ -227,8 +229,21 @@ async function render(): Promise<void> {
     }
   }
 
-  descEl.textContent = item.desc;
+  descEl.replaceChildren();
   descEl.style.display = item.desc ? 'block' : 'none';
+  if (item.desc) {
+    descEl.append(item.desc);
+    if (item.infoUrl && item.infoLabel) {
+      descEl.append(' ');
+      const link = document.createElement('a');
+      link.href = item.infoUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.title = `Read about ${item.infoLabel}`;
+      link.textContent = `Learn about ${item.infoLabel}`;
+      descEl.append(link);
+    }
+  }
   diningEl.replaceChildren();
   diningEl.style.display = item.dining ? 'block' : 'none';
   if (item.dining) {

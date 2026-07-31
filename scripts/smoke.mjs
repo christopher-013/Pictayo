@@ -28,7 +28,7 @@ import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
   dayKeyOf, formatCaptured, formatDayLabel, timeOfDayPhrase,
 } from '../src/meta/datetime.ts';
-import { MetadataDescriber } from '../src/meta/describe.ts';
+import { MetadataDescriber, wikipediaLocationInfo } from '../src/meta/describe.ts';
 import { readMeta } from '../src/meta/exif.ts';
 import { escapeAttr } from '../src/util/escape.ts';
 import { parseIso6709, parseAppleCreationDate, findBox, parseMoov } from '../src/meta/videoMeta.ts';
@@ -323,6 +323,15 @@ function near(name, actual, expected, tolerance) {
   check('caption: names the landmark and the area',
     withLandmark.desc === 'Midday at Tokyo Dome, Bunkyo-ku, Tokyo.', withLandmark.desc);
   check('caption: location line is the landmark', withLandmark.location === 'Tokyo Dome');
+  check('caption: nearby landmark uses its surrounding destination article',
+    withLandmark.infoLabel === 'Bunkyo' &&
+      withLandmark.infoUrl === 'https://en.wikipedia.org/wiki/Bunkyo%2C_Tokyo');
+
+  const hakoneInfo = wikipediaLocationInfo('Hakone, Kanagawa');
+  check('caption: Hakone links directly to its English Wikipedia article',
+    hakoneInfo?.label === 'Hakone' && hakoneInfo.url === 'https://en.wikipedia.org/wiki/Hakone');
+  check('caption: unresolved coordinates do not get an information link',
+    wikipediaLocationInfo('35.1894°N, 139.0247°E') === null);
 
   // Regression: the photo-count and time-span sentence was removed as
   // redundant with the timestamp shown directly beneath it.
@@ -388,6 +397,8 @@ function near(name, actual, expected, tolerance) {
     card.indexOf('photo-card-footer') < card.indexOf('data-remove-photo'));
   check('photo card: remove control uses a monochrome SVG icon',
     card.includes('<svg aria-hidden="true"'));
+  check('photo card: description links to destination information',
+    card.includes('Learn about Bunkyo') && card.includes('en.wikipedia.org'));
 }
 
 // ── Day navigation ───────────────────────────────────────────────────────────
@@ -594,6 +605,8 @@ if (!existsSync(dist)) {
   check('build: uses the custom modal confirmation flow', appBundle.includes('showModal'));
   check('build: nearby restaurant details are linked',
     appBundle.includes('View restaurant details in Google Maps'));
+  check('build: descriptions link to destination information',
+    appBundle.includes('Learn about'));
   let exportScriptParses = true;
   try {
     new Function(EXPORT_JS);
@@ -606,6 +619,7 @@ if (!existsSync(dist)) {
   check('export: includes coordinated map wheel zoom',
     EXPORT_JS.includes("addEventListener('wheel'") && EXPORT_JS.includes('mapPosition(c)'));
   check('export: lightbox links nearby restaurant details', EXPORT_JS.includes('it.diningUrl'));
+  check('export: lightbox links destination information', EXPORT_JS.includes('it.infoUrl'));
   // Mojibake check: the em-dash must survive the build as real UTF-8.
   check('build: text encoded correctly', !html.includes('�'));
 }
