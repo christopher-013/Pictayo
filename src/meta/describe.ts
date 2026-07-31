@@ -40,7 +40,7 @@ export class MetadataDescriber implements DescriptionProvider {
 
     const mapsUrl = cluster ? googleMapsUrl(cluster.lat, cluster.lon) : '';
     const dining = cluster?.nearbyDining
-      ? `Possible place to eat nearby: ${cluster.nearbyDining}${
+      ? `Nearby place: ${cluster.nearbyDining}${
           cluster.nearbyDiningDistanceMeters && cluster.nearbyDiningDistanceMeters > 0
             ? ` (about ${cluster.nearbyDiningDistanceMeters} m away)`
             : ''

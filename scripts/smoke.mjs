@@ -347,7 +347,7 @@ function near(name, actual, expected, tolerance) {
   };
   const withDining = describer.describe({ photo: photo(), cluster: diningCluster, clusterSize: 2 });
   check('caption: nearby dining is explicitly a possibility',
-    withDining.dining === 'Possible place to eat nearby: Sushi Dai (about 42 m away).',
+    withDining.dining === 'Nearby place: Sushi Dai (about 42 m away).',
     withDining.dining);
 
   const guessed = describer.describe({ photo: photo('file'), cluster, clusterSize: 1 });
