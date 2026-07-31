@@ -335,6 +335,26 @@ button, a, input { font: inherit; }
   transition: width 180ms ease;
 }
 
+.progress.is-indeterminate .progress-bar { overflow: hidden; }
+
+.progress.is-indeterminate .progress-fill {
+  width: 34%;
+  animation: location-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes location-progress {
+  from { transform: translateX(-115%); }
+  to { transform: translateX(295%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress.is-indeterminate .progress-fill {
+    width: 100%;
+    animation: none;
+    opacity: .55;
+  }
+}
+
 .progress-label { margin-top: 7px; font-size: 12px; font-weight: 700; color: #0f5158; }
 
 /* ── Day navigation ────────────────────────────────────────────────────── */

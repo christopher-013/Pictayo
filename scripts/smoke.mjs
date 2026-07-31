@@ -517,11 +517,17 @@ if (!existsSync(fixturesDir)) {
 
 {
   const mainSource = readFileSync(join('src', 'main.ts'), 'utf8');
-  const assemble = mainSource.indexOf('await refresh(false);');
-  const enrich = mainSource.indexOf('await enrichInBackground(false);', assemble);
-  const render = mainSource.indexOf('await refresh();', enrich);
-  check('import: finishes place enrichment before rendering new cards',
-    assemble >= 0 && enrich > assemble && render > enrich);
+  const provisional = mainSource.indexOf('await refresh(true, localOnlyGeocoder);');
+  const status = mainSource.indexOf("showLocationProgress('Locations are processing", provisional);
+  const resolve = mainSource.indexOf('await refresh(false);', provisional);
+  const enrich = mainSource.indexOf('await enrichInBackground(false);', resolve);
+  const finalRender = mainSource.indexOf('await refresh();', enrich);
+  check('import: renders local photos before network-backed place enrichment',
+    provisional >= 0 && status > provisional && resolve > status && enrich > resolve && finalRender > enrich);
+  check('import: delays the location-processing status to avoid a warm-cache flash',
+    mainSource.includes('LOCATION_STATUS_DELAY_MS') && mainSource.includes('window.setTimeout'));
+  check('import: provisional render preserves cached place names without network requests',
+    mainSource.includes('new CacheOnlyGeocoder()'));
 }
 
 const dist = 'dist';

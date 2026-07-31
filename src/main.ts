@@ -4,7 +4,7 @@ import type { DayGroup, Photo } from './types';
 import { wirePicker } from './import/picker';
 import { ingestFiles } from './import/ingest';
 import { buildLibrary, enrichLandmarks } from './library';
-import { CachedGeocoder } from './geo/geocode';
+import { CachedGeocoder, CacheOnlyGeocoder, type Geocoder } from './geo/geocode';
 import { OverpassLandmarkFinder } from './geo/landmark';
 import {
   clearLibrary,
@@ -33,7 +33,10 @@ const LIBRARY_PRIVACY =
 const photos = new Map<string, PersistedPhoto>();
 const thumbs = new Map<string, Blob>();
 const geocoder = new CachedGeocoder();
+/** Builds the first gallery pass without waiting for any network requests. */
+const localOnlyGeocoder = new CacheOnlyGeocoder();
 const landmarkFinder = new OverpassLandmarkFinder();
+const LOCATION_STATUS_DELAY_MS = 450;
 
 let days: DayGroup[] = [];
 let busy = false;
@@ -122,6 +125,7 @@ async function handleFiles(files: File[]): Promise<void> {
   const pending: PhotoRecord[] = [];
   let failures = 0;
   let storageFailures = 0;
+  let locationStatusTimer: number | null = null;
 
   const persistPending = async (): Promise<void> => {
     if (pending.length === 0) return;
@@ -175,14 +179,27 @@ async function handleFiles(files: File[]): Promise<void> {
     // Asked only after a real import, when the browser is most likely to grant it.
     void requestPersistence();
 
-    setProgress(files.length, files.length, 'Looking up places…');
-    // Assemble the clusters without painting them yet, then finish the slower
-    // landmark/dining pass before the new cards become visible. Rendering the
-    // area-only captions first made every card visibly rename itself moments
-    // after import, which looked like incorrect metadata being corrected.
+    setProgress(files.length, files.length, 'Preparing gallery…');
+
+    // Paint photos and dates from local data immediately. Network-backed place
+    // naming continues below, but can no longer leave the upload screen looking
+    // frozen. Cached landmark and dining names still appear in this first pass.
+    await refresh(true, localOnlyGeocoder);
+    hideProgress();
+
+    // Avoid flashing a status card for a warm-cache lookup. If the work takes
+    // long enough to notice, keep the user informed until captions are updated.
+    locationStatusTimer = window.setTimeout(
+      () => showLocationProgress('Locations are processing… Photos and dates are ready.'),
+      LOCATION_STATUS_DELAY_MS,
+    );
+
     await refresh(false);
     await enrichInBackground(false);
     await refresh();
+    window.clearTimeout(locationStatusTimer);
+    locationStatusTimer = null;
+    hideProgress();
 
     const notices: string[] = [];
     if (failures > 0) {
@@ -197,18 +214,19 @@ async function handleFiles(files: File[]): Promise<void> {
     }
     if (notices.length > 0) setNotice(notices.join(' '));
   } finally {
+    if (locationStatusTimer !== null) window.clearTimeout(locationStatusTimer);
     busy = false;
     hideProgress();
   }
 }
 
-async function refresh(render = true): Promise<void> {
+async function refresh(render = true, locationGeocoder: Geocoder = geocoder): Promise<void> {
   const list: Photo[] = [...photos.values()].map((photo) => {
     const blob = thumbs.get(photo.id);
     return blob ? { ...photo, thumbUrl: thumbUrlFor(photo.id, blob) } : { ...photo };
   });
 
-  days = await buildLibrary(list, geocoder);
+  days = await buildLibrary(list, locationGeocoder);
   if (!render) return;
   setDays(days);
   updateChrome();
@@ -218,9 +236,8 @@ async function refresh(render = true): Promise<void> {
  * Names landmarks and possible nearby dining, then optionally rebuilds so
  * captions and pin labels pick them up.
  *
- * Restore uses the background mode so a saved library appears immediately.
- * Fresh imports await this pass before rendering, avoiding a visible relabel
- * from an administrative area to the final landmark and dining description.
+ * Restore and fresh imports use the background mode so photos remain usable
+ * while the slower place-name services update their captions automatically.
  */
 async function enrichInBackground(refreshAfter = true): Promise<void> {
   if (enriching || days.length === 0) return;
@@ -381,6 +398,7 @@ function setProgress(done: number, total: number, label: string): void {
     el.landingProgressFill.style.width = percent;
     el.landingProgressLabel.textContent = text;
   } else {
+    el.progress.classList.remove('is-indeterminate');
     el.progress.hidden = false;
     el.progressBar.setAttribute('aria-valuenow', String(value));
     el.progressBar.setAttribute('aria-valuetext', text);
@@ -389,7 +407,17 @@ function setProgress(done: number, total: number, label: string): void {
   }
 }
 
+function showLocationProgress(label: string): void {
+  el.progress.hidden = false;
+  el.progress.classList.add('is-indeterminate');
+  el.progressBar.removeAttribute('aria-valuenow');
+  el.progressBar.setAttribute('aria-valuetext', label);
+  el.progressFill.style.width = '';
+  el.progressLabel.textContent = label;
+}
+
 function hideProgress(): void {
+  el.progress.classList.remove('is-indeterminate');
   el.progress.hidden = true;
   el.landingProgress.hidden = true;
 }

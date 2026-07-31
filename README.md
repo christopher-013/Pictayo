@@ -45,11 +45,12 @@ coordinates are shared with map and place-name services as described in
 11. **Export** — a self-contained static site you can publish anywhere, including
     the all-locations map as `everywhere.html`.
 
-On a fresh upload, PicturePicture keeps the progress panel visible until place,
-landmark, and nearby-dining recognition finishes. The gallery then appears once
-with its best available captions instead of first showing broad area names and
-visibly replacing them a few moments later. A failed enrichment service never
-blocks the import; the final render falls back to the resolved area name.
+On a fresh upload, PicturePicture renders the photos and dates immediately from
+local data. If place, landmark, and nearby-dining recognition takes longer than
+a moment, the gallery shows a location-processing status and updates captions
+automatically when recognition finishes. This keeps the library usable while
+the network work continues. A failed enrichment service never blocks the
+import; the final render falls back to the resolved area name.
 
 Each day renders on its own rather than as one long timeline: a few hundred
 photos meant every day's maps and thumbnails were live at once. Day maps start

@@ -26,6 +26,13 @@ export interface Geocoder {
   lookup(lat: number, lon: number): Promise<Place | null>;
 }
 
+/** Reads resolved place names without ever starting a network request. */
+export class CacheOnlyGeocoder implements Geocoder {
+  async lookup(lat: number, lon: number): Promise<Place | null> {
+    return (await getCachedPlace(cacheKey(lat, lon)).catch(() => undefined)) ?? null;
+  }
+}
+
 /** ~110m resolution, comfortably finer than the 250m clustering radius. */
 export function cacheKey(lat: number, lon: number): string {
   return `${lat.toFixed(3)},${lon.toFixed(3)}`;
