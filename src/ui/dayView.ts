@@ -223,10 +223,8 @@ function everywhereChipHtml(): string {
     ' id="day-tab-everywhere" data-everywhere aria-controls="day-page"' +
     ` aria-selected="${active}" tabindex="${active ? '0' : '-1'}"` +
     ' title="Show all photo locations">' +
-    '<span class="day-chip-mon" aria-hidden="true">&nbsp;</span>' +
-    '<span class="day-chip-num everywhere-chip-globe" aria-hidden="true">🌍</span>' +
-    '<span class="day-chip-dow">SHOW</span>' +
-    '<span class="day-chip-where">ALL</span>' +
+    '<span class="everywhere-chip-globe" aria-hidden="true">🌍</span>' +
+    '<span class="everywhere-chip-label">Show All</span>' +
     '</button>'
   );
 }
