@@ -427,16 +427,9 @@ button, a, input { font: inherit; }
 .day-chip.is-active .day-chip-dow { color: rgba(255, 255, 255, 0.66); }
 .day-chip.is-active .day-chip-where { color: #fff; border-top-color: rgba(255, 255, 255, 0.3); }
 
-.everywhere-chip { justify-content: center; gap: 7px; }
-.everywhere-chip-globe { font-size: 23px; line-height: 1; }
-.everywhere-chip-label {
-  color: var(--teal);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.everywhere-chip.is-active .everywhere-chip-label { color: #fff; }
+.everywhere-chip { justify-content: flex-start; gap: 0; }
+.everywhere-chip-globe { margin-block: auto; font-size: 23px; line-height: 1; }
+.everywhere-chip-label { width: 100%; white-space: nowrap; }
 
 /* ── Day section ───────────────────────────────────────────────────────── */
 

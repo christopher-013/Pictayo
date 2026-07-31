@@ -224,7 +224,7 @@ function everywhereChipHtml(): string {
     ` aria-selected="${active}" tabindex="${active ? '0' : '-1'}"` +
     ' title="Show all photo locations">' +
     '<span class="everywhere-chip-globe" aria-hidden="true">🌍</span>' +
-    '<span class="everywhere-chip-label">Show All</span>' +
+    '<span class="day-chip-where everywhere-chip-label">Show All</span>' +
     '</button>'
   );
 }

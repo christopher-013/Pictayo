@@ -326,7 +326,7 @@ function everywhereNavChipHtml(active: boolean): string {
     `<a class="day-chip everywhere-chip${active ? ' is-active' : ''}" href="everywhere.html"` +
     `${active ? ' aria-current="page"' : ''} title="Show all photo locations">` +
     '<span class="everywhere-chip-globe" aria-hidden="true">🌍</span>' +
-    '<span class="everywhere-chip-label">Show All</span>' +
+    '<span class="day-chip-where everywhere-chip-label">Show All</span>' +
     '</a>'
   );
 }
@@ -596,10 +596,9 @@ button,a{font:inherit}
 .day-chip.is-active .day-chip-num{color:#fff}
 .day-chip.is-active .day-chip-dow{color:rgba(255,255,255,.66)}
 .day-chip.is-active .day-chip-where{color:#fff;border-top-color:rgba(255,255,255,.3)}
-.everywhere-chip{justify-content:center;gap:7px}
-.everywhere-chip-globe{font-size:23px;line-height:1}
-.everywhere-chip-label{color:var(--teal);font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap}
-.everywhere-chip.is-active .everywhere-chip-label{color:#fff}
+.everywhere-chip{justify-content:flex-start;gap:0}
+.everywhere-chip-globe{margin-block:auto;font-size:23px;line-height:1}
+.everywhere-chip-label{width:100%;white-space:nowrap}
 main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .day-section{display:flex;flex-direction:column;gap:12px}
 .sec-label{font-size:15px;font-weight:800;letter-spacing:.4px;color:var(--ink3)}
