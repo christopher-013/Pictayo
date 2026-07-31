@@ -55,7 +55,7 @@
       <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
     </h1>
     <div class="app-actions">
-      <button type="button" class="btn btn-primary" id="btn-add-more">Add photos &amp; videos</button>
+      <button type="button" class="btn btn-primary" id="btn-add-more">Add photos<span class="mobile-label-break"><br></span> &amp; videos</button>
       <button type="button" class="btn" id="btn-add-folder-more">Add folder</button>
       <button type="button" class="btn" id="btn-export" disabled>Export site</button>
       <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
@@ -99,6 +99,22 @@
 <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
 <input type="file" id="folder-input" accept="image/*,video/*" multiple webkitdirectory hidden>
 
+<dialog class="action-dialog" id="action-dialog" aria-labelledby="action-dialog-title"
+  aria-describedby="action-dialog-message action-dialog-note">
+  <form method="dialog" class="action-dialog-card">
+    <button class="action-dialog-close" type="submit" value="cancel" aria-label="Close dialog">×</button>
+    <div class="action-dialog-icon" id="action-dialog-icon" aria-hidden="true">🗑</div>
+    <div class="action-dialog-eyebrow" id="action-dialog-eyebrow">LOCAL LIBRARY</div>
+    <h2 id="action-dialog-title">Confirm action</h2>
+    <p class="action-dialog-message" id="action-dialog-message"></p>
+    <div class="action-dialog-note" id="action-dialog-note"></div>
+    <div class="action-dialog-actions">
+      <button class="action-dialog-cancel" type="submit" value="cancel">Cancel</button>
+      <button class="action-dialog-confirm" id="action-dialog-confirm" type="submit" value="confirm">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
 <div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" role="dialog" aria-modal="true"
   aria-labelledby="photo-lightbox-title" aria-describedby="photo-lightbox-dining photo-lightbox-desc">
   <div class="photo-lightbox-dialog">
@@ -109,6 +125,11 @@
       <!-- Both live in the DOM; whichever the current item needs is shown. -->
       <video class="photo-lightbox-media" id="photo-lightbox-video" controls playsinline hidden></video>
       <button type="button" class="photo-lightbox-nav next" id="photo-lightbox-next" aria-label="Next">›</button>
+      <div class="photo-lightbox-zoom" id="photo-lightbox-zoom" role="group" aria-label="Image zoom controls">
+        <button type="button" id="photo-lightbox-zoom-out" aria-label="Zoom out">−</button>
+        <button type="button" class="photo-lightbox-zoom-reset" id="photo-lightbox-zoom-reset" aria-label="Reset zoom">100%</button>
+        <button type="button" id="photo-lightbox-zoom-in" aria-label="Zoom in">+</button>
+      </div>
     </div>
     <div class="photo-lightbox-info">
       <div class="photo-lightbox-info-top">

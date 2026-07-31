@@ -17,10 +17,13 @@ import './dom-shims.mjs';
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { strFromU8, unzipSync } from 'fflate';
 
 import { screenPosition, fitZoom, centerOf, mercatorY, latitudeFromMercator } from '../src/geo/mercator.ts';
 import { distanceMeters, clusterPhotos, splitIntoRegions } from '../src/geo/cluster.ts';
-import { pickLandmark, pickNearest, pickNearbyDining, splitOnCountMarkers } from '../src/geo/landmark.ts';
+import {
+  landmarkCacheKey, pickLandmark, pickNearest, pickNearbyDining, splitOnCountMarkers,
+} from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
   dayKeyOf, formatCaptured, formatDayLabel, timeOfDayPhrase,
@@ -31,7 +34,8 @@ import { escapeAttr } from '../src/util/escape.ts';
 import { parseIso6709, parseAppleCreationDate, findBox, parseMoov } from '../src/meta/videoMeta.ts';
 import { compareDays } from '../src/library.ts';
 import { dayHeading, placesFor } from '../src/ui/dayChip.ts';
-import { EXPORT_JS } from '../src/export/exportSite.ts';
+import { photoCardHtml } from '../src/ui/photoCard.ts';
+import { exportSite, EXPORT_JS } from '../src/export/exportSite.ts';
 
 let passed = 0;
 const failures = [];
@@ -219,7 +223,7 @@ function near(name, actual, expected, tolerance) {
 {
   const at = { lat: 35.6486, lon: 139.7906 };
   const restaurant = {
-    type: 'node', lat: 35.64882, lon: 139.7906,
+    type: 'node', lat: 35.64865, lon: 139.7906,
     tags: { amenity: 'restaurant', name: '寿司大', 'name:en': 'Sushi Dai' },
   };
   const cafe = {
@@ -240,6 +244,21 @@ function near(name, actual, expected, tolerance) {
   check('dining: ignores unsupported amenities', pickNearbyDining([bar], at) === null);
   check('dining: requires a name',
     pickNearbyDining([{ ...restaurant, tags: { amenity: 'restaurant' } }], at) === null);
+
+  const indoorDrift = {
+    ...restaurant, lat: 35.6488, tags: { amenity: 'restaurant', name: 'Indoor GPS match' },
+  };
+  check('dining: allows normal indoor GPS drift',
+    pickNearbyDining([indoorDrift], at)?.name === 'Indoor GPS match');
+
+  const outsideRange = {
+    ...restaurant, lat: 35.6489, tags: { amenity: 'restaurant', name: 'Outside focused range' },
+  };
+  check('dining: rejects a venue beyond the focused range',
+    pickNearbyDining([outsideRange], at) === null);
+
+  check('dining cache: distinguishes points about a metre apart',
+    landmarkCacheKey(35.24590, 139.05099) !== landmarkCacheKey(35.24591, 139.05099));
 
   const distant = {
     ...restaurant, lat: 35.651, tags: { amenity: 'restaurant', name: 'Too Far' },
@@ -337,6 +356,22 @@ function near(name, actual, expected, tolerance) {
   const noGps = describer.describe({ photo: photo(), cluster: null, clusterSize: 0 });
   check('caption: handles missing GPS', noGps.desc.includes('no location recorded'), noGps.desc);
   check('caption: no location line without GPS', noGps.location === '');
+
+  const card = photoCardHtml({
+    photo: {
+      ...photo(), kind: 'photo', name: '<temple>.jpg', thumbUrl: 'blob:test',
+      caption: withLandmark,
+    },
+    lightboxIndex: 0,
+  });
+  check('photo card: includes a local-remove control',
+    card.includes('data-remove-photo="p"'));
+  check('photo card: remove control has an escaped accessible name',
+    card.includes('aria-label="Remove &lt;temple&gt;.jpg from PicturePicture"'));
+  check('photo card: remove control sits in the date footer',
+    card.indexOf('photo-card-footer') < card.indexOf('data-remove-photo'));
+  check('photo card: remove control uses a monochrome SVG icon',
+    card.includes('<svg aria-hidden="true"'));
 }
 
 // ── Day navigation ───────────────────────────────────────────────────────────
@@ -346,8 +381,8 @@ function near(name, actual, expected, tolerance) {
     dayKey, label: dayKey, photos: [], regions: [], taggedCount: 0,
   });
   const ordered = [day('2026-06-06'), day('undated'), day('2026-06-08')].sort(compareDays);
-  check('day nav: newest day first',
-    ordered.map((item) => item.dayKey).join(',') === '2026-06-08,2026-06-06,undated',
+  check('day nav: oldest day first',
+    ordered.map((item) => item.dayKey).join(',') === '2026-06-06,2026-06-08,undated',
     ordered.map((item) => item.dayKey).join(','));
 
   const nearbyDay = {
@@ -501,11 +536,21 @@ if (!existsSync(dist)) {
   check('build: emits the ingest worker', assets.some((f) => f.startsWith('ingest.worker')));
   check('build: emits one js bundle', assets.some((f) => f.startsWith('index-') && f.endsWith('.js')));
   check('build: emits css', assets.some((f) => f.endsWith('.css')));
+  const appBundleName = assets.find((f) => f.startsWith('index-') && f.endsWith('.js'));
+  const appBundle = appBundleName ? readFileSync(join(dist, 'assets', appBundleName), 'utf8') : '';
 
   check('build: title present', /<title>[^<]+<\/title>/.test(html));
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
     html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));
+  check('build: lightbox includes zoom controls', html.includes('photo-lightbox-zoom-in'));
+  check('build: includes the styled confirmation dialog',
+    html.includes('id="action-dialog"') && html.includes('action-dialog-note'));
+  check('build: includes the Everywhere navigation page',
+    appBundle.includes('Show all photo locations') && appBundle.includes('#everywhere'));
+  check('build: includes interactive map zoom controls',
+    appBundle.includes('data-map-zoom-in') && appBundle.includes('mapUserZoom'));
+  check('build: uses the custom modal confirmation flow', appBundle.includes('showModal'));
   let exportScriptParses = true;
   try {
     new Function(EXPORT_JS);
@@ -513,8 +558,37 @@ if (!existsSync(dist)) {
     exportScriptParses = false;
   }
   check('export: generated script parses', exportScriptParses);
+  check('export: includes image zoom controls', EXPORT_JS.includes("el('lb-zoom-in')"));
+  check('export: includes mobile pinch handling', EXPORT_JS.includes("addEventListener('touchmove'"));
+  check('export: includes coordinated map wheel zoom',
+    EXPORT_JS.includes("addEventListener('wheel'") && EXPORT_JS.includes('mapPosition(c)'));
   // Mojibake check: the em-dash must survive the build as real UTF-8.
   check('build: text encoded correctly', !html.includes('�'));
+}
+
+// ── Exported Everywhere page ────────────────────────────────────────────────
+
+{
+  const cluster = {
+    id: 'c0', lat: 35.68, lon: 139.76, photoIds: ['p1'], place: 'Tokyo', area: 'Tokyo',
+    landmark: null, landmarkNearby: false, nearbyDining: null,
+    nearbyDiningDistanceMeters: null, mapsUrl: '', firstAt: null, lastAt: null,
+  };
+  const exportDay = {
+    dayKey: '2026-06-10', label: 'Wed, Jun 10, 2026', photos: [], taggedCount: 1,
+    regions: [{
+      id: 'r0', clusters: [cluster], centerLat: cluster.lat, centerLon: cluster.lon,
+      zoom: 8, taggedCount: 1,
+    }],
+  };
+  const archive = unzipSync(new Uint8Array(await (await exportSite([exportDay])).arrayBuffer()));
+  const dayPage = strFromU8(archive['index.html']);
+  const everywherePage = strFromU8(archive['everywhere.html']);
+  check('export: creates everywhere.html', Boolean(archive['everywhere.html']));
+  check('export: appends Everywhere after the date links',
+    dayPage.indexOf('everywhere.html') > dayPage.indexOf('day-chip-dow'));
+  check('export: Everywhere page contains the world map and a day link',
+    everywherePage.includes('World map of all photo locations') && everywherePage.includes('href="index.html"'));
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────

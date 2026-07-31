@@ -5,7 +5,7 @@ import { formatCaptured } from '../meta/datetime';
 import { embedUrl, interactiveUrl } from '../ui/photoMap';
 import { chipParts, dayHeading, placesFor } from '../ui/dayChip';
 import { loadDisplay, loadVideo } from '../store/db';
-import { fitZoom } from '../geo/mercator';
+import { centerOf, fitZoom } from '../geo/mercator';
 
 /**
  * Exports the library as a self-contained static site.
@@ -95,6 +95,10 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
       DEFLATE,
     ];
   });
+  files['everywhere.html'] = [
+    encode(buildEverywherePage(days, title, Boolean(logo))),
+    DEFLATE,
+  ];
 
   files['README.md'] = [encode(buildReadme(title, days)), DEFLATE];
 
@@ -253,6 +257,7 @@ ${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="" width="760" he
 <nav class="day-nav" aria-label="Choose a day">
 <div class="day-nav-scroll">
 ${days.map((d, i) => navChipHtml(d, i, i === index)).join('\n')}
+${everywhereNavChipHtml(false)}
 </div>
 </nav>
 
@@ -275,6 +280,11 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 <img class="photo-lightbox-media" id="lb-img" alt="">
 <video class="photo-lightbox-media" id="lb-video" controls playsinline hidden></video>
 <button class="photo-lightbox-nav next" id="lb-next" aria-label="Next">›</button>
+<div class="photo-lightbox-zoom" id="lb-zoom" role="group" aria-label="Image zoom controls">
+<button id="lb-zoom-out" aria-label="Zoom out">−</button>
+<button class="photo-lightbox-zoom-reset" id="lb-zoom-reset" aria-label="Reset zoom">100%</button>
+<button id="lb-zoom-in" aria-label="Zoom in">+</button>
+</div>
 </div>
 <div class="photo-lightbox-info">
 <div class="photo-lightbox-info-top"><div class="photo-lightbox-title" id="lb-title"></div>
@@ -311,6 +321,98 @@ function navChipHtml(day: DayGroup, index: number, active: boolean): string {
   );
 }
 
+function everywhereNavChipHtml(active: boolean): string {
+  return (
+    `<a class="day-chip everywhere-chip${active ? ' is-active' : ''}" href="everywhere.html"` +
+    `${active ? ' aria-current="page"' : ''} title="Show all photo locations">` +
+    '<span class="day-chip-mon" aria-hidden="true">&nbsp;</span>' +
+    '<span class="day-chip-num everywhere-chip-globe" aria-hidden="true">🌍</span>' +
+    '<span class="day-chip-dow">SHOW</span>' +
+    '<span class="day-chip-where">ALL</span>' +
+    '</a>'
+  );
+}
+
+function buildEverywherePage(days: DayGroup[], title: string, hasLogo: boolean): string {
+  const clusters = days.flatMap((day) =>
+    day.regions.flatMap((region) =>
+      region.clusters.map((cluster) => ({ ...cluster, id: `${day.dayKey}-${cluster.id}` })),
+    ),
+  );
+  const totalItems = days.reduce((sum, day) => sum + day.photos.length, 0);
+  const tagged = clusters.reduce((sum, cluster) => sum + cluster.photoIds.length, 0);
+
+  let content: string;
+  if (clusters.length === 0) {
+    content = '<div class="photo-empty">None of the exported photos carry location data.</div>';
+  } else {
+    const points = clusters.map(({ lat, lon }) => ({ lat, lon }));
+    const center = centerOf(points);
+    const region: MapRegion = {
+      id: 'everywhere',
+      clusters,
+      centerLat: center.lat,
+      centerLon: center.lon,
+      zoom: fitZoom(points, EXPORT_CANVAS_WIDTH, EXPORT_CANVAS_HEIGHT, 8, 1),
+      taggedCount: tagged,
+    };
+    const hrefs = new Map<string, string>();
+    for (const day of days) {
+      for (const cluster of day.regions.flatMap((mapRegion) => mapRegion.clusters)) {
+        hrefs.set(`${day.dayKey}-${cluster.id}`, pageFor(days.indexOf(day)));
+      }
+    }
+    content =
+      staticMapHtml(region, 0, 1, {
+        title: '🌍 All photo locations',
+        subtitle: 'Every geotagged stop in the album, shown together on one map.',
+        iframeTitle: 'World map of all photo locations',
+        maxZoom: 8,
+        clusterHrefs: hrefs,
+        collapsible: false,
+      }) +
+      (totalItems > tagged
+        ? `<div class="photo-map-note">📍 ${totalItems - tagged} item${totalItems - tagged === 1 ? '' : 's'} without location data ${totalItems - tagged === 1 ? 'is' : 'are'} not shown.</div>`
+        : '');
+  }
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeAttr(`${title} — Everywhere I Have Been`)}</title>
+<meta name="theme-color" content="#019aa0">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="site-header">
+${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="" width="760" height="456">' : ''}
+<h1>${escapeAttr(title)}</h1>
+<p>${days.length} day${days.length === 1 ? '' : 's'} · ${totalItems} item${totalItems === 1 ? '' : 's'}</p>
+</header>
+<nav class="day-nav" aria-label="Choose a day or view every location">
+<div class="day-nav-scroll">
+${days.map((day, index) => navChipHtml(day, index, false)).join('\n')}
+${everywhereNavChipHtml(true)}
+</div>
+</nav>
+<main><section class="day-section everywhere-section">
+<div class="sec-label">🌍 Everywhere I Have Been</div>
+${content}
+</section></main>
+<div class="photo-lightbox" id="lb" aria-hidden="true"><div class="photo-lightbox-dialog">
+<div class="photo-lightbox-stage"><button id="lb-close"></button><button id="lb-prev"></button>
+<img id="lb-img" alt=""><video id="lb-video"></video><button id="lb-next"></button>
+<div id="lb-zoom"><button id="lb-zoom-out"></button><button id="lb-zoom-reset"></button><button id="lb-zoom-in"></button></div></div>
+<div><span id="lb-title"></span><span id="lb-count"></span><span id="lb-loc"></span>
+<span id="lb-dining"></span><span id="lb-desc"></span><span id="lb-cap"></span></div></div></div>
+<script>var LB=[];</script><script src="assets/site.js"></script>
+</body>
+</html>`;
+}
+
 function noMapNoticeHtml(day: DayGroup): string {
   const videos = day.photos.filter((p) => p.kind === 'video').length;
   const photos = day.photos.length - videos;
@@ -341,9 +443,21 @@ function untaggedNoticeHtml(count: number): string {
  * the browser, so the exported page renders its maps correctly with JavaScript
  * disabled entirely.
  */
-function staticMapHtml(region: MapRegion, index: number, total: number): string {
+function staticMapHtml(
+  region: MapRegion,
+  index: number,
+  total: number,
+  options: {
+    title?: string;
+    subtitle?: string;
+    iframeTitle?: string;
+    maxZoom?: number;
+    clusterHrefs?: Map<string, string>;
+    collapsible?: boolean;
+  } = {},
+): string {
   const points = region.clusters.map((c) => ({ lat: c.lat, lon: c.lon }));
-  const zoom = fitZoom(points, EXPORT_CANVAS_WIDTH, EXPORT_CANVAS_HEIGHT);
+  const zoom = fitZoom(points, EXPORT_CANVAS_WIDTH, EXPORT_CANVAS_HEIGHT, options.maxZoom ?? 16, 1);
 
   const worldSize = 256 * Math.pow(2, zoom);
   const project = (lat: number, lon: number) => {
@@ -365,45 +479,52 @@ function staticMapHtml(region: MapRegion, index: number, total: number): string 
       const count = cluster.photoIds.length;
       const label = `Show ${count} photo${count === 1 ? '' : 's'} from ${cluster.place}`;
 
+      const href = options.clusterHrefs?.get(cluster.id);
       return (
-        `<button class="photo-map-pin-html" type="button" data-cluster="${escapeAttr(cluster.id)}"` +
-        ` data-place="${escapeAttr(cluster.place)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"` +
+        `<${href ? 'a' : 'button'} class="photo-map-pin-html"${href ? ` href="${escapeAttr(href)}"` : ' type="button"'} data-cluster="${escapeAttr(cluster.id)}"` +
+        ` data-place="${escapeAttr(cluster.place)}" data-lat="${cluster.lat}" data-lon="${cluster.lon}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"` +
         ` style="left:${left.toFixed(3)}%;top:${top.toFixed(3)}%">` +
-        `<span class="photo-map-pin-count">${count > 99 ? '99+' : count}</span></button>`
+        `<span class="photo-map-pin-count">${count > 99 ? '99+' : count}</span></${href ? 'a' : 'button'}>`
       );
     })
     .join('');
 
   const legend = region.clusters
     .map(
-      (cluster) =>
-        `<button class="photo-map-place" type="button" data-cluster="${escapeAttr(cluster.id)}"` +
+      (cluster) => {
+        const href = options.clusterHrefs?.get(cluster.id);
+        return `<${href ? 'a' : 'button'} class="photo-map-place"${href ? ` href="${escapeAttr(href)}"` : ' type="button"'} data-cluster="${escapeAttr(cluster.id)}"` +
         ` data-place="${escapeAttr(cluster.place)}"><b>${cluster.photoIds.length}</b>` +
-        `<span>${escapeAttr(cluster.place)}</span></button>`,
+        `<span>${escapeAttr(cluster.place)}</span></${href ? 'a' : 'button'}>`;
+      },
     )
     .join('');
 
-  const title = total > 1 ? `🗺️ Photo trail · map ${index + 1} of ${total}` : '🗺️ Photo trail';
+  const title = options.title ?? (total > 1 ? `🗺️ Photo trail · map ${index + 1} of ${total}` : '🗺️ Photo trail');
   const sub =
-    total > 1
+    options.subtitle ?? (total > 1
       ? 'This day’s photos span more than one part of the world, so each map covers one of them.'
-      : 'Photo locations plotted from the original geotags.';
+      : 'Photo locations plotted from the original geotags. Scroll or use +/− to zoom; pinch on mobile.');
+  const headTag = options.collapsible === false ? 'div' : 'button';
 
   return (
     `<div class="photo-day-map" data-region="${escapeAttr(region.id)}">` +
-    '<button class="photo-day-map-head" type="button" data-map-toggle aria-expanded="true">' +
+    `<${headTag} class="photo-day-map-head"${headTag === 'button' ? ' type="button" data-map-toggle aria-expanded="true"' : ''}>` +
     '<span class="photo-day-map-headings">' +
     `<span class="photo-day-map-title">${escapeAttr(title)}</span>` +
     `<span class="photo-day-map-sub">${escapeAttr(sub)}</span></span>` +
     `<span class="photo-day-map-count">${region.taggedCount} tagged</span>` +
-    '<span class="photo-day-map-chevron" aria-hidden="true">▾</span>' +
-    '</button>' +
+    (headTag === 'button' ? '<span class="photo-day-map-chevron" aria-hidden="true">▾</span>' : '') +
+    `</${headTag}>` +
     '<div class="photo-day-map-body">' +
-    '<div class="photo-day-map-canvas">' +
+    `<div class="photo-day-map-canvas" data-map-lat="${region.centerLat}" data-map-lon="${region.centerLon}" data-map-zoom="${zoom}">` +
     `<iframe class="photo-google-map" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" src="${escapeAttr(
       embedUrl(region.centerLat, region.centerLon, zoom),
-    )}" title="Map of this day’s photo locations"></iframe>` +
+    )}" title="${escapeAttr(options.iframeTitle ?? 'Map of this day’s photo locations')}"></iframe>` +
     `<div class="photo-map-overlay">${pins}</div>` +
+    '<div class="photo-map-zoom" role="group" aria-label="Map zoom controls">' +
+    '<button type="button" data-map-zoom-in aria-label="Zoom map in">+</button>' +
+    '<button type="button" data-map-zoom-out aria-label="Zoom map out">−</button></div>' +
     `<a class="photo-map-open" href="${escapeAttr(
       interactiveUrl(region.centerLat, region.centerLon, zoom),
     )}" target="_blank" rel="noopener">View interactive map ↗</a>` +
@@ -416,7 +537,7 @@ function staticMapHtml(region: MapRegion, index: number, total: number): string 
 function buildReadme(title: string, days: DayGroup[]): string {
   const pages = days
     .map((day, i) => `- \`${pageFor(i)}\` — ${day.label} (${day.photos.length} photos)`)
-    .join('\n');
+    .join('\n') + '\n- `everywhere.html` — all geotagged locations on one map';
 
   return `# ${title}
 
@@ -464,9 +585,9 @@ button,a{font:inherit}
 .site-header h1{margin:6px 0 0;font-size:22px;color:var(--teal-deep)}
 .site-header p{margin:3px 0 0;font-size:13px;color:#4f7076}
 .day-nav{position:sticky;top:0;z-index:40;background:rgba(255,253,246,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(10,124,130,.16);box-shadow:0 3px 14px rgba(12,81,87,.08)}
-.day-nav-scroll{display:flex;gap:8px;overflow-x:auto;max-width:1400px;margin:0 auto;padding:10px 18px;scrollbar-width:none}
+.day-nav-scroll{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:inline proximity;scroll-padding-inline:18px;max-width:1400px;margin:0 auto;padding:10px 18px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x}
 .day-nav-scroll::-webkit-scrollbar{display:none}
-.day-chip{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:86px;max-width:168px;padding:7px 12px;border:1.5px solid #cfe8ea;border-radius:12px;background:#fff;text-decoration:none;transition:background-color 160ms ease,border-color 160ms ease}
+.day-chip{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:86px;max-width:168px;padding:7px 12px;border:1.5px solid #cfe8ea;border-radius:12px;background:#fff;text-decoration:none;scroll-snap-align:start;transition:background-color 160ms ease,border-color 160ms ease}
 .day-chip:hover{background:#f0fafa;border-color:var(--teal)}
 .day-chip.is-active{background:linear-gradient(135deg,var(--brand-teal),#0a7c82);border-color:transparent;box-shadow:0 4px 14px rgba(10,124,130,.34)}
 .day-chip-mon{font-size:10px;font-weight:800;letter-spacing:.7px;color:#6f8f92}
@@ -477,6 +598,7 @@ button,a{font:inherit}
 .day-chip.is-active .day-chip-num{color:#fff}
 .day-chip.is-active .day-chip-dow{color:rgba(255,255,255,.66)}
 .day-chip.is-active .day-chip-where{color:#fff;border-top-color:rgba(255,255,255,.3)}
+.everywhere-chip-globe{font-size:19px;line-height:1.05}
 main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .day-section{display:flex;flex-direction:column;gap:12px}
 .sec-label{font-size:15px;font-weight:800;letter-spacing:.4px;color:var(--ink3)}
@@ -491,7 +613,7 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .photo-day-map.is-collapsed .photo-day-map-body{display:none}
 .photo-day-map.is-collapsed .photo-day-map-head{border-bottom:0}
 .photo-day-map.is-collapsed .photo-day-map-chevron{transform:rotate(-90deg)}
-.photo-day-map-canvas{position:relative;aspect-ratio:16/9;min-height:185px;max-height:520px;background:#bfe8ef}
+.photo-day-map-canvas{position:relative;aspect-ratio:16/9;min-height:185px;max-height:520px;background:#bfe8ef;touch-action:pan-x pan-y}
 .photo-google-map{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;background:#e5e7eb}
 .photo-map-overlay{position:absolute;inset:0;pointer-events:none}
 .photo-map-pin-html{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;width:46px;height:46px;padding:0 3px 7px;border:3px solid #fff;border-radius:50% 50% 50% 0;background:var(--pin);color:#fff;font-size:12px;font-weight:900;box-shadow:0 4px 10px rgba(15,23,42,.52);transform:translate(-50%,-100%) rotate(-45deg);transform-origin:50% 100%;pointer-events:auto;cursor:pointer}
@@ -499,8 +621,11 @@ main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .photo-map-pin-count{position:relative;z-index:1;display:block;transform:rotate(45deg);text-shadow:0 1px 2px rgba(0,0,0,.4)}
 .photo-map-pin-html:hover,.photo-map-pin-html.is-active{z-index:4;background:var(--teal);transform:translate(-50%,-100%) rotate(-45deg) scale(1.14)}
 .photo-map-open{position:absolute;right:8px;bottom:8px;z-index:3;padding:7px 10px;border-radius:7px;background:#fff;color:#1a73e8;border:1px solid #dadce0;font-size:10px;font-weight:700;text-decoration:none}
+.photo-map-zoom{position:absolute;left:8px;bottom:8px;z-index:3;display:flex;flex-direction:column;overflow:hidden;border:1px solid #dadce0;border-radius:7px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.28)}
+.photo-map-zoom button{display:grid;place-items:center;width:38px;height:36px;padding:0;border:0;background:#fff;color:#334155;font-size:22px;line-height:1;cursor:pointer}
+.photo-map-zoom button+button{border-top:1px solid #e5e7eb}.photo-map-zoom button:hover:not(:disabled){background:#f1f5f9}.photo-map-zoom button:disabled{color:#b6bec9;cursor:default}
 .photo-day-map-legend{display:flex;gap:6px;overflow-x:auto;padding:9px 10px 10px;background:#fffdf8}
-.photo-map-place{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;max-width:240px;padding:5px 8px;border-radius:999px;background:#e6f6f7;border:1px solid #b9e3e6;color:#0a6c72;font-size:11px;white-space:nowrap;cursor:pointer}
+.photo-map-place{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;max-width:240px;padding:5px 8px;border-radius:999px;background:#e6f6f7;border:1px solid #b9e3e6;color:#0a6c72;font-size:11px;white-space:nowrap;cursor:pointer;text-decoration:none}
 .photo-map-place b{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#ef5d55;color:#fff;font-size:9px}
 .photo-map-place span{overflow:hidden;text-overflow:ellipsis}
 .photo-map-note{padding:0 11px 9px;background:#fffdf8;color:#71828a;font-size:10px;line-height:1.3}
@@ -531,12 +656,17 @@ video.photo-lightbox-media{width:100%}
 .photo-lightbox{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(4,10,18,.92)}
 .photo-lightbox.open{display:flex}
 .photo-lightbox-dialog{position:relative;width:min(100%,1000px);height:min(92vh,1000px);display:grid;grid-template-rows:minmax(0,1fr) auto;background:#090d12;border-radius:12px;overflow:hidden}
-.photo-lightbox-stage{position:relative;min-height:0;display:flex;align-items:center;justify-content:center;padding:58px 62px 16px}
+.photo-lightbox-stage{position:relative;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:58px 62px 16px}
 .photo-lightbox-media{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+img.photo-lightbox-media{cursor:zoom-in;touch-action:none;user-select:none;-webkit-user-drag:none;will-change:transform;transition:transform 140ms ease}
+img.photo-lightbox-media.is-zoomed{cursor:zoom-out}img.photo-lightbox-media.is-pinching{transition:none}
 .photo-lightbox-close{position:absolute;top:8px;right:8px;z-index:2;width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.72);color:#fff;font-size:28px;cursor:pointer}
 .photo-lightbox-nav{position:absolute;top:50%;z-index:2;width:50px;height:58px;margin-top:-29px;border:1px solid rgba(255,255,255,.35);border-radius:12px;background:rgba(0,0,0,.68);color:#fff;font-size:36px;cursor:pointer}
 .photo-lightbox-nav.prev{left:8px}.photo-lightbox-nav.next{right:8px}
 .photo-lightbox-nav:disabled{opacity:.22;pointer-events:none}
+.photo-lightbox-zoom{position:absolute;left:50%;bottom:10px;z-index:3;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.28);border-radius:999px;background:rgba(0,0,0,.72);box-shadow:0 3px 14px rgba(0,0,0,.35);transform:translateX(-50%)}
+.photo-lightbox-zoom button{min-width:38px;height:38px;padding:0 9px;border:0;border-radius:999px;background:transparent;color:#fff;font-size:21px;font-weight:800;line-height:1;cursor:pointer}
+.photo-lightbox-zoom button:hover:not(:disabled){background:rgba(255,255,255,.16)}.photo-lightbox-zoom button:disabled{opacity:.35;cursor:default}.photo-lightbox-zoom .photo-lightbox-zoom-reset{min-width:58px;font-size:12px}
 .photo-lightbox-info{padding:13px 18px 16px;background:linear-gradient(135deg,#111827,#0f2430);color:#fff}
 .photo-lightbox-info-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .photo-lightbox-title{font-size:16px;font-weight:700}
@@ -560,8 +690,12 @@ main{padding:12px 12px 48px}
 export const EXPORT_JS = `
 (function(){
 var i=-1,lb=document.getElementById('lb'),img=document.getElementById('lb-img'),vid=document.getElementById('lb-video');
-var closeBtn=document.getElementById('lb-close'),ret=null,bg=[];
+var closeBtn=document.getElementById('lb-close'),ret=null,bg=[],z=1,pinch=false,pd=0,ps=1,suppress=false,pinched=false,swiping=false;
 function el(id){return document.getElementById(id)}
+function setZoom(n){z=Math.min(4,Math.max(1,n));img.style.transform='scale('+z+')';img.classList.toggle('is-zoomed',z>1);el('lb-zoom-out').disabled=z<=1;el('lb-zoom-in').disabled=z>=4;el('lb-zoom-reset').textContent=Math.round(z*100)+'%'}
+function resetZoom(){z=1;pinch=false;pinched=false;img.classList.remove('is-zoomed','is-pinching');img.style.transform='';img.style.transformOrigin='';el('lb-zoom-out').disabled=true;el('lb-zoom-in').disabled=false;el('lb-zoom-reset').textContent='100%'}
+function origin(x,y,r){if(!r.width||!r.height)return;img.style.transformOrigin=Math.max(0,Math.min(100,x/r.width*100))+'% '+Math.max(0,Math.min(100,y/r.height*100))+'%'}
+function distance(a,b){return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY)}
 function stopVid(){if(!vid.getAttribute('src'))return;vid.pause();vid.removeAttribute('src');vid.load()}
 function inert(on){if(on){bg=[];Array.prototype.forEach.call(document.body.children,function(x){
 if(x!==lb&&x instanceof HTMLElement){bg.push([x,x.inert]);x.inert=true}});return}
@@ -572,9 +706,10 @@ var first=q[0],last=q[q.length-1];if(e.shiftKey&&document.activeElement===first)
 else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
 function show(){var it=LB[i];if(!it)return;
 // Stop the previous clip before the next item starts, or its audio carries on.
-stopVid();
+stopVid();resetZoom();
 var isVid=it.kind==='video';
 img.hidden=isVid;vid.hidden=!isVid;
+el('lb-zoom').hidden=isVid;
 if(isVid){vid.src=it.src;var p=vid.play();if(p&&p.catch)p.catch(function(){})}
 else{img.src=it.src;img.alt=it.title}
 el('lb-title').textContent=it.title;
@@ -588,20 +723,43 @@ var eat=el('lb-dining');eat.textContent=it.dining?'\\u{1F37D}\\u{FE0F} '+it.dini
 var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
 var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
 function open(n){ret=document.activeElement;i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open');inert(true);requestAnimationFrame(function(){closeBtn.focus()})}
-function close(){if(!lb.classList.contains('open'))return;lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');inert(false);stopVid();img.removeAttribute('src');i=-1;if(ret&&ret.isConnected)ret.focus();ret=null}
+function close(){if(!lb.classList.contains('open'))return;lb.classList.remove('open');lb.setAttribute('aria-hidden','true');document.body.classList.remove('lb-open');inert(false);stopVid();resetZoom();img.removeAttribute('src');i=-1;if(ret&&ret.isConnected)ret.focus();ret=null}
 function go(d){var n=i+d;if(n<0||n>=LB.length)return;i=n;show()}
 el('lb-close').onclick=close;el('lb-prev').onclick=function(){go(-1)};el('lb-next').onclick=function(){go(1)};
+el('lb-zoom-out').onclick=function(){setZoom(z-.5)};el('lb-zoom-reset').onclick=resetZoom;el('lb-zoom-in').onclick=function(){setZoom(z+.5)};
+img.onclick=function(e){if(suppress)return;if(z>1){resetZoom();return}var r=img.getBoundingClientRect();origin(e.clientX-r.left,e.clientY-r.top,r);setZoom(2)};
+img.addEventListener('touchstart',function(e){if(e.touches.length!==2)return;var a=e.touches[0],b=e.touches[1];e.preventDefault();pinch=true;pinched=true;suppress=true;swiping=false;pd=distance(a,b);ps=z;img.classList.add('is-pinching');var r=img.getBoundingClientRect();origin((a.clientX+b.clientX)/2-r.left,(a.clientY+b.clientY)/2-r.top,r)},{passive:false});
+img.addEventListener('touchmove',function(e){if(!pinch||e.touches.length<2||!pd)return;e.preventDefault();setZoom(ps*distance(e.touches[0],e.touches[1])/pd)},{passive:false});
+function endPinch(e){if(!pinch||e.touches.length>=2)return;e.preventDefault();pinch=false;img.classList.remove('is-pinching');setTimeout(function(){suppress=false;pinched=false},0)}
+img.addEventListener('touchend',endPinch,{passive:false});img.addEventListener('touchcancel',endPinch,{passive:false});
 lb.onclick=function(e){if(e.target===lb)close()};
 document.addEventListener('keydown',function(e){if(!lb.classList.contains('open'))return;
 if(e.key==='Escape'){close();return}
 if(e.key==='Tab'){trap(e);return}
+if((e.key==='+'||e.key==='=')&&!img.hidden){e.preventDefault();setZoom(z+.5);return}
+if(e.key==='-'&&!img.hidden){e.preventDefault();setZoom(z-.5);return}
+if(e.key==='0'&&!img.hidden){e.preventDefault();resetZoom();return}
 // Claimed before the video's own controls, which would otherwise seek on the
 // same press as well as moving to the next item.
 if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();go(e.key==='ArrowLeft'?-1:1)}});
 var sx=0,sy=0,stage=lb.querySelector('.photo-lightbox-stage');
-stage.addEventListener('touchstart',function(e){var t=e.changedTouches[0];sx=t.clientX;sy=t.clientY},{passive:true});
+stage.addEventListener('touchstart',function(e){swiping=e.touches.length===1&&z===1;if(!swiping)return;var t=e.changedTouches[0];sx=t.clientX;sy=t.clientY},{passive:true});
 stage.addEventListener('touchend',function(e){var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
-if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1)},{passive:true});
+if(!swiping||pinched||z>1){swiping=false;return}if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1);swiping=false},{passive:true});
+
+function mapClamp(z){return Math.min(20,Math.max(1,Math.round(z)))}
+function mapUrl(lat,lon,z){return 'https://maps.google.com/maps?ll='+lat+','+lon+'&z='+z+'&t=m&hl=en&output=embed'}
+function mapOpenUrl(lat,lon,z){return 'https://www.google.com/maps/@'+lat+','+lon+','+z+'z'}
+function mapY(lat){var s=Math.sin(lat*Math.PI/180);s=Math.min(Math.max(s,-.9999),.9999);return .5-Math.log((1+s)/(1-s))/(4*Math.PI)}
+function mapPosition(c){var w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;var lat=Number(c.dataset.mapLat),lon=Number(c.dataset.mapLon),z=mapClamp(Number(c.dataset.mapZoom)),size=256*Math.pow(2,z),cx=(lon+180)/360*size,cy=mapY(lat)*size;
+Array.prototype.forEach.call(c.querySelectorAll('.photo-map-pin-html'),function(p){var x=(Number(p.dataset.lon)+180)/360*size,y=mapY(Number(p.dataset.lat))*size,left=w/2+x-cx,top=h/2+y-cy;p.style.left=left+'px';p.style.top=top+'px';p.style.display=left>=25&&left<=w-25&&top>=50&&top<=h-10?'flex':'none'});
+var f=c.querySelector('.photo-google-map');if(f){var u=mapUrl(lat,lon,z);if(f.getAttribute('src')!==u)f.setAttribute('src',u)}var a=c.querySelector('.photo-map-open');if(a)a.href=mapOpenUrl(lat,lon,z);var zin=c.querySelector('[data-map-zoom-in]'),zout=c.querySelector('[data-map-zoom-out]');if(zin)zin.disabled=z>=20;if(zout)zout.disabled=z<=1}
+function mapChange(c,d,x,y){var oz=mapClamp(Number(c.dataset.mapZoom)),nz=mapClamp(oz+d);if(nz===oz)return;if(x!=null&&y!=null){var r=c.getBoundingClientRect(),ox=x-r.left-r.width/2,oy=y-r.top-r.height/2,os=256*Math.pow(2,oz),ns=256*Math.pow(2,nz),lon=Number(c.dataset.mapLon),lat=Number(c.dataset.mapLat),fx=(((lon+180)/360*os)+ox)/os,fy=(mapY(lat)*os+oy)/os,ncx=fx*ns-ox,ncy=fy*ns-oy;c.dataset.mapLon=String(ncx/ns*360-180);c.dataset.mapLat=String(Math.atan(Math.sinh(Math.PI*(1-2*ncy/ns)))*180/Math.PI)}c.dataset.mapZoom=String(nz);mapPosition(c)}
+Array.prototype.forEach.call(document.querySelectorAll('.photo-day-map-canvas'),function(c){var pd=0;
+c.addEventListener('wheel',function(e){e.preventDefault();mapChange(c,e.deltaY<0?1:-1,e.clientX,e.clientY)},{passive:false});
+c.addEventListener('touchstart',function(e){if(e.touches.length!==2)return;e.preventDefault();pd=Math.hypot(e.touches[1].clientX-e.touches[0].clientX,e.touches[1].clientY-e.touches[0].clientY)},{passive:false});
+c.addEventListener('touchmove',function(e){if(e.touches.length!==2||!pd)return;e.preventDefault();var a=e.touches[0],b=e.touches[1],nd=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);if(Math.abs(nd-pd)<28)return;mapChange(c,nd>pd?1:-1,(a.clientX+b.clientX)/2,(a.clientY+b.clientY)/2);pd=nd},{passive:false});
+c.addEventListener('touchend',function(e){if(e.touches.length<2)pd=0},{passive:true});mapPosition(c)});
 
 var KEY='pp:maps-collapsed';
 function collapsed(){try{var v=localStorage.getItem(KEY);return v===null?false:v==='1'}catch(e){return false}}
@@ -615,6 +773,8 @@ s.querySelector('[data-filter-bar]').classList.remove('active')}
 
 document.addEventListener('click',function(e){
 var t=e.target;
+var zi=t.closest('[data-map-zoom-in]'),zo=t.closest('[data-map-zoom-out]');
+if(zi||zo){mapChange((zi||zo).closest('.photo-day-map-canvas'),zi?1:-1);return}
 var mt=t.closest('[data-map-toggle]');
 if(mt){var m=mt.closest('.photo-day-map');var c=m.classList.toggle('is-collapsed');
 mt.setAttribute('aria-expanded',String(!c));store(c);return}

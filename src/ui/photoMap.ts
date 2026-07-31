@@ -1,6 +1,12 @@
 import type { MapRegion } from '../types';
 import { escapeAttr } from '../util/escape';
-import { fitZoom, screenPosition } from '../geo/mercator';
+import {
+  fitZoom,
+  latitudeFromMercator,
+  mercatorY,
+  screenPosition,
+  worldSizeAt,
+} from '../geo/mercator';
 
 /**
  * The day map: a Google Maps embed used as a basemap, with HTML pins projected
@@ -21,7 +27,10 @@ import { fitZoom, screenPosition } from '../geo/mercator';
  */
 
 const MAP_SUB =
-  'Google Maps view with photo locations plotted from the original geotags.';
+  'Google Maps view with photo locations plotted from the original geotags. Scroll or use +/− to zoom; pinch on mobile.';
+
+const MIN_MAP_ZOOM = 1;
+const MAX_MAP_ZOOM = 20;
 
 let resizeObserver: ResizeObserver | null = null;
 
@@ -75,14 +84,23 @@ export function mapRegionHtml(
   region: MapRegion,
   index: number,
   total: number,
-  options: { collapsed?: boolean; idPrefix?: string } = {},
+  options: {
+    collapsed?: boolean;
+    idPrefix?: string;
+    title?: string;
+    subtitle?: string;
+    iframeTitle?: string;
+  } = {},
 ): string {
-  const title = total > 1 ? `🗺️ Photo trail · map ${index + 1} of ${total}` : '🗺️ Photo trail';
+  const title =
+    options.title ??
+    (total > 1 ? `🗺️ Photo trail · map ${index + 1} of ${total}` : '🗺️ Photo trail');
 
   const sub =
-    total > 1
+    options.subtitle ??
+    (total > 1
       ? 'This day’s photos span more than one part of the world, so each map covers one of them.'
-      : MAP_SUB;
+      : MAP_SUB);
 
   const pins = region.clusters
     .map((cluster) => {
@@ -134,9 +152,13 @@ export function mapRegionHtml(
     `<div class="photo-day-map-canvas" data-map-lat="${region.centerLat}"` +
     ` data-map-lon="${region.centerLon}" data-map-zoom="${region.zoom}"` +
     ` data-map-base-zoom="${region.zoom}">` +
-    '<iframe class="photo-google-map" title="Map of this day’s photo locations"' +
+    `<iframe class="photo-google-map" title="${escapeAttr(options.iframeTitle ?? 'Map of this day’s photo locations')}"` +
     ' loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>' +
     `<div class="photo-map-overlay">${pins}</div>` +
+    '<div class="photo-map-zoom" role="group" aria-label="Map zoom controls">' +
+    '<button type="button" data-map-zoom-in aria-label="Zoom map in">+</button>' +
+    '<button type="button" data-map-zoom-out aria-label="Zoom map out">−</button>' +
+    '</div>' +
     '<a class="photo-map-open" target="_blank" rel="noopener">View interactive map ↗</a>' +
     '</div>' +
     `<div class="photo-day-map-legend">${legend}</div>` +
@@ -168,6 +190,7 @@ export function observeMaps(root: ParentNode = document): void {
 
   resizeObserver.disconnect();
   for (const canvas of root.querySelectorAll<HTMLElement>('.photo-day-map-canvas')) {
+    wireMapZoom(canvas);
     resizeObserver.observe(canvas);
   }
 }
@@ -194,7 +217,10 @@ function positionPins(canvas: HTMLElement): void {
 
   // Re-fit against the real canvas now that it has been laid out; the zoom
   // baked in at build time was computed against an assumed size.
-  const zoom = fitZoom(points, width, height, baseZoom);
+  const requestedZoom = Number(canvas.dataset.mapUserZoom);
+  const zoom = Number.isFinite(requestedZoom)
+    ? clampZoom(requestedZoom)
+    : fitZoom(points, width, height, baseZoom, MIN_MAP_ZOOM);
   canvas.dataset.mapZoom = String(zoom);
 
   const center = { lat: centerLat, lon: centerLon };
@@ -215,4 +241,84 @@ function positionPins(canvas: HTMLElement): void {
     pin.style.top = `${position.top.toFixed(1)}px`;
     pin.style.display = position.visible ? 'flex' : 'none';
   });
+
+  const zoomIn = canvas.querySelector<HTMLButtonElement>('[data-map-zoom-in]');
+  const zoomOut = canvas.querySelector<HTMLButtonElement>('[data-map-zoom-out]');
+  if (zoomIn) zoomIn.disabled = zoom >= MAX_MAP_ZOOM;
+  if (zoomOut) zoomOut.disabled = zoom <= MIN_MAP_ZOOM;
+}
+
+function wireMapZoom(canvas: HTMLElement): void {
+  if (canvas.dataset.mapZoomWired === '1') return;
+  canvas.dataset.mapZoomWired = '1';
+
+  const change = (delta: number, clientX?: number, clientY?: number) => {
+    const current = Number(canvas.dataset.mapZoom);
+    const oldZoom = clampZoom(Number.isFinite(current) ? current : 1);
+    const nextZoom = clampZoom(oldZoom + delta);
+    if (nextZoom === oldZoom) return;
+
+    if (clientX != null && clientY != null) {
+      const rect = canvas.getBoundingClientRect();
+      const offsetX = clientX - rect.left - rect.width / 2;
+      const offsetY = clientY - rect.top - rect.height / 2;
+      const oldSize = worldSizeAt(oldZoom);
+      const nextSize = worldSizeAt(nextZoom);
+      const centerLon = Number(canvas.dataset.mapLon);
+      const centerLat = Number(canvas.dataset.mapLat);
+      const focusX = (((centerLon + 180) / 360) * oldSize + offsetX) / oldSize;
+      const focusY = (mercatorY(centerLat) * oldSize + offsetY) / oldSize;
+      const nextCenterX = focusX * nextSize - offsetX;
+      const nextCenterY = focusY * nextSize - offsetY;
+      canvas.dataset.mapLon = String((nextCenterX / nextSize) * 360 - 180);
+      canvas.dataset.mapLat = String(latitudeFromMercator(nextCenterY / nextSize));
+    }
+
+    canvas.dataset.mapUserZoom = String(nextZoom);
+    positionPins(canvas);
+  };
+
+  canvas.querySelector('[data-map-zoom-in]')?.addEventListener('click', () => change(1));
+  canvas.querySelector('[data-map-zoom-out]')?.addEventListener('click', () => change(-1));
+  canvas.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    change(event.deltaY < 0 ? 1 : -1, event.clientX, event.clientY);
+  }, { passive: false });
+
+  let pinchDistance = 0;
+  const distance = (first: Touch, second: Touch) =>
+    Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+
+  canvas.addEventListener('touchstart', (event) => {
+    if (event.touches.length !== 2) return;
+    const first = event.touches[0];
+    const second = event.touches[1];
+    if (!first || !second) return;
+    event.preventDefault();
+    pinchDistance = distance(first, second);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (event) => {
+    if (event.touches.length !== 2 || pinchDistance <= 0) return;
+    const first = event.touches[0];
+    const second = event.touches[1];
+    if (!first || !second) return;
+    event.preventDefault();
+    const nextDistance = distance(first, second);
+    if (Math.abs(nextDistance - pinchDistance) < 28) return;
+    change(
+      nextDistance > pinchDistance ? 1 : -1,
+      (first.clientX + second.clientX) / 2,
+      (first.clientY + second.clientY) / 2,
+    );
+    pinchDistance = nextDistance;
+  }, { passive: false });
+  const endPinch = (event: TouchEvent) => {
+    if (event.touches.length < 2) pinchDistance = 0;
+  };
+  canvas.addEventListener('touchend', endPinch, { passive: true });
+  canvas.addEventListener('touchcancel', endPinch, { passive: true });
+}
+
+function clampZoom(zoom: number): number {
+  return Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, Math.round(zoom)));
 }

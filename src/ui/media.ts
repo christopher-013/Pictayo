@@ -54,6 +54,15 @@ export async function videoUrlFor(id: string): Promise<string | null> {
   return url;
 }
 
+/** Releases every object URL held for one item after it leaves the library. */
+export function revokePhoto(id: string): void {
+  for (const urls of [thumbUrls, displayUrls, videoUrls]) {
+    const url = urls.get(id);
+    if (url) URL.revokeObjectURL(url);
+    urls.delete(id);
+  }
+}
+
 export function revokeAll(): void {
   for (const url of thumbUrls.values()) URL.revokeObjectURL(url);
   for (const url of displayUrls.values()) URL.revokeObjectURL(url);

@@ -22,11 +22,21 @@ export interface LightboxItem {
 }
 
 const SWIPE_THRESHOLD_PX = 45;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.5;
 
 let items: LightboxItem[] = [];
 let index = -1;
 let touchStartX = 0;
 let touchStartY = 0;
+let swipeTracking = false;
+let gestureWasPinch = false;
+let zoomScale = MIN_ZOOM;
+let pinchStartDistance = 0;
+let pinchStartScale = MIN_ZOOM;
+let pinchActive = false;
+let suppressImageClick = false;
 
 let root: HTMLElement;
 let image: HTMLImageElement;
@@ -40,6 +50,10 @@ let countEl: HTMLElement;
 let prevButton: HTMLButtonElement;
 let nextButton: HTMLButtonElement;
 let closeButton: HTMLButtonElement;
+let zoomControls: HTMLElement;
+let zoomOutButton: HTMLButtonElement;
+let zoomResetButton: HTMLButtonElement;
+let zoomInButton: HTMLButtonElement;
 let returnFocus: HTMLElement | null = null;
 let backgroundState: Array<{ element: HTMLElement; inert: boolean }> = [];
 
@@ -55,11 +69,35 @@ export function initLightbox(): void {
   countEl = must('photo-lightbox-count');
   prevButton = must<HTMLButtonElement>('photo-lightbox-prev');
   nextButton = must<HTMLButtonElement>('photo-lightbox-next');
+  zoomControls = must('photo-lightbox-zoom');
+  zoomOutButton = must<HTMLButtonElement>('photo-lightbox-zoom-out');
+  zoomResetButton = must<HTMLButtonElement>('photo-lightbox-zoom-reset');
+  zoomInButton = must<HTMLButtonElement>('photo-lightbox-zoom-in');
 
   closeButton = must<HTMLButtonElement>('photo-lightbox-close');
   closeButton.addEventListener('click', closeLightbox);
   prevButton.addEventListener('click', () => navigate(-1));
   nextButton.addEventListener('click', () => navigate(1));
+  zoomOutButton.addEventListener('click', () => setZoom(zoomScale - ZOOM_STEP));
+  zoomResetButton.addEventListener('click', resetZoom);
+  zoomInButton.addEventListener('click', () => setZoom(zoomScale + ZOOM_STEP));
+
+  image.addEventListener('click', (event) => {
+    if (suppressImageClick) return;
+    if (zoomScale > MIN_ZOOM) {
+      resetZoom();
+      return;
+    }
+
+    const rect = image.getBoundingClientRect();
+    setZoomOrigin(event.clientX - rect.left, event.clientY - rect.top, rect);
+    setZoom(2);
+  });
+
+  image.addEventListener('touchstart', startPinch, { passive: false });
+  image.addEventListener('touchmove', movePinch, { passive: false });
+  image.addEventListener('touchend', endPinch, { passive: false });
+  image.addEventListener('touchcancel', endPinch, { passive: false });
 
   // Backdrop click only — a click that lands on the dialog itself should not close.
   root.addEventListener('click', (event) => {
@@ -73,6 +111,15 @@ export function initLightbox(): void {
       closeLightbox();
     } else if (event.key === 'Tab') {
       trapFocus(event);
+    } else if ((event.key === '+' || event.key === '=') && !image.hidden) {
+      event.preventDefault();
+      setZoom(zoomScale + ZOOM_STEP);
+    } else if (event.key === '-' && !image.hidden) {
+      event.preventDefault();
+      setZoom(zoomScale - ZOOM_STEP);
+    } else if (event.key === '0' && !image.hidden) {
+      event.preventDefault();
+      resetZoom();
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       // Claimed before the native video controls can act on them: once a clip
       // has focus its own handler seeks on arrow keys, so without this the same
@@ -84,6 +131,8 @@ export function initLightbox(): void {
 
   const stage = must('photo-lightbox-stage');
   stage.addEventListener('touchstart', (event) => {
+    swipeTracking = event.touches.length === 1 && zoomScale === MIN_ZOOM;
+    if (!swipeTracking) return;
     const touch = event.changedTouches[0];
     if (!touch) return;
     touchStartX = touch.clientX;
@@ -91,6 +140,10 @@ export function initLightbox(): void {
   }, { passive: true });
 
   stage.addEventListener('touchend', (event) => {
+    if (!swipeTracking || gestureWasPinch || zoomScale > MIN_ZOOM) {
+      swipeTracking = false;
+      return;
+    }
     const touch = event.changedTouches[0];
     if (!touch) return;
     const dx = touch.clientX - touchStartX;
@@ -99,6 +152,7 @@ export function initLightbox(): void {
     if (Math.abs(dx) > SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
       navigate(dx < 0 ? 1 : -1);
     }
+    swipeTracking = false;
   }, { passive: true });
 }
 
@@ -131,6 +185,7 @@ export function closeLightbox(): void {
   index = -1;
 
   stopVideo();
+  resetZoom();
   image.removeAttribute('src');
   image.alt = '';
 
@@ -181,10 +236,12 @@ async function render(): Promise<void> {
   // Whichever element the last item used has to stop before the next one
   // starts, or a video keeps playing — audible — behind the following photo.
   stopVideo();
+  resetZoom();
 
   const isVideo = item.kind === 'video';
   image.hidden = isVideo;
   video.hidden = !isVideo;
+  zoomControls.hidden = isVideo;
 
   // Guard against a slow blob read landing after the user has already moved on.
   const requested = item.photoId;
@@ -206,6 +263,81 @@ async function render(): Promise<void> {
     image.src = url;
     image.alt = item.title;
   }
+}
+
+function setZoom(next: number): void {
+  zoomScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
+  image.style.transform = `scale(${zoomScale})`;
+  image.classList.toggle('is-zoomed', zoomScale > MIN_ZOOM);
+  zoomOutButton.disabled = zoomScale <= MIN_ZOOM;
+  zoomInButton.disabled = zoomScale >= MAX_ZOOM;
+  zoomResetButton.textContent = `${Math.round(zoomScale * 100)}%`;
+}
+
+function resetZoom(): void {
+  zoomScale = MIN_ZOOM;
+  pinchActive = false;
+  gestureWasPinch = false;
+  image.classList.remove('is-zoomed', 'is-pinching');
+  image.style.transform = '';
+  image.style.transformOrigin = '';
+  if (zoomOutButton) zoomOutButton.disabled = true;
+  if (zoomInButton) zoomInButton.disabled = false;
+  if (zoomResetButton) zoomResetButton.textContent = '100%';
+}
+
+function startPinch(event: TouchEvent): void {
+  if (event.touches.length !== 2) return;
+
+  const [first, second] = [event.touches[0], event.touches[1]];
+  if (!first || !second) return;
+
+  event.preventDefault();
+  pinchActive = true;
+  gestureWasPinch = true;
+  suppressImageClick = true;
+  swipeTracking = false;
+  pinchStartDistance = touchDistance(first, second);
+  pinchStartScale = zoomScale;
+  image.classList.add('is-pinching');
+
+  const rect = image.getBoundingClientRect();
+  setZoomOrigin(
+    (first.clientX + second.clientX) / 2 - rect.left,
+    (first.clientY + second.clientY) / 2 - rect.top,
+    rect,
+  );
+}
+
+function movePinch(event: TouchEvent): void {
+  if (!pinchActive || event.touches.length < 2) return;
+  const [first, second] = [event.touches[0], event.touches[1]];
+  if (!first || !second || pinchStartDistance <= 0) return;
+
+  event.preventDefault();
+  setZoom(pinchStartScale * (touchDistance(first, second) / pinchStartDistance));
+}
+
+function endPinch(event: TouchEvent): void {
+  if (!pinchActive || event.touches.length >= 2) return;
+  event.preventDefault();
+  pinchActive = false;
+  image.classList.remove('is-pinching');
+  setTimeout(() => {
+    suppressImageClick = false;
+    gestureWasPinch = false;
+  }, 0);
+}
+
+function touchDistance(first: Touch, second: Touch): number {
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+}
+
+function setZoomOrigin(x: number, y: number, rect: DOMRect): void {
+  if (rect.width <= 0 || rect.height <= 0) return;
+  const left = Math.min(100, Math.max(0, (x / rect.width) * 100));
+  const top = Math.min(100, Math.max(0, (y / rect.height) * 100));
+  image.style.transformOrigin = `${left}% ${top}%`;
 }
 
 function stopVideo(): void {

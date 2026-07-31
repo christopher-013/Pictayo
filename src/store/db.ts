@@ -13,9 +13,10 @@ import type { Photo, Place } from '../types';
 const DB_NAME = 'picturepicture';
 /**
  * v2 added the landmark cache; v3 discards it so nearby landmarks get found;
- * v4 added video storage; v5 adds nearby dining suggestions to the place cache.
+ * v4 added video storage; v5 added nearby dining suggestions; v6 tightened the
+ * cache precision; v7 allows a moderate amount of indoor GPS drift.
  */
-const DB_VERSION = 5;
+const DB_VERSION = 7;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -90,6 +91,16 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
       if (oldVersion < 5 && oldVersion >= 2) {
         // Older records cannot distinguish "no dining result" from "dining was
         // never queried". This store contains only disposable lookup cache data.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 6 && oldVersion >= 2) {
+        // v5 dining results used a 120 m radius and a ~110 m cache key. Clear
+        // them so the stricter 10 m rule is applied immediately after upgrade.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 7 && oldVersion >= 2) {
+        // v6 cached misses from its overly strict 10 m dining search. Ask again
+        // using the 30 m range while retaining the precise cache coordinates.
         transaction.objectStore('landmarks').clear();
       }
     },

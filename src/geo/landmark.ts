@@ -93,8 +93,15 @@ export interface LocationEnrichment {
  * where this fallback matters.
  */
 const NEARBY_RADIUS_M = 220;
-/** Kept tighter than landmarks so a food suggestion remains credible. */
-const DINING_RADIUS_M = 120;
+/**
+ * Dining guesses need to stay close to the recorded point while allowing for
+ * the drift commonly seen in indoor phone GPS.
+ *
+ * Ten metres was too strict for photos taken inside Kappei Sushi; its mapped
+ * point sits about 20 m from the photo cluster. Thirty metres covers that
+ * normal drift without returning to the overly broad original 120 m search.
+ */
+const DINING_RADIUS_M = 30;
 const DINING_AMENITIES = new Set(['restaurant', 'cafe', 'fast_food', 'food_court']);
 
 /**
@@ -169,9 +176,13 @@ export function splitOnCountMarkers(elements: OverpassElement[]): OverpassElemen
   return groups;
 }
 
-/** ~110m, matching the reverse-geocode cache so the two stay in step. */
+/**
+ * Roughly metre-level precision. The dining radius is only 30 m, so the old
+ * three-decimal (~110 m) cache key could reuse a venue found for a materially
+ * different point.
+ */
 export function landmarkCacheKey(lat: number, lon: number): string {
-  return `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  return `${lat.toFixed(5)},${lon.toFixed(5)}`;
 }
 
 /**

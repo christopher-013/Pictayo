@@ -140,14 +140,13 @@ function toMapRegion(clusters: PlaceCluster[], index: number): MapRegion {
 }
 
 /**
- * Newest day first, undated last.
+ * Oldest dated day first, undated last.
  *
- * The most recent import is the useful default for an ongoing library, and this
- * matches the original product scope. Photos within each day remain oldest
- * first so the day itself still reads chronologically.
+ * The navigation reads like a trip timeline from left to right. Photos within
+ * each day are also oldest first, so the entire library stays chronological.
  */
 export function compareDays(a: DayGroup, b: DayGroup): number {
   if (a.dayKey === UNDATED_KEY) return 1;
   if (b.dayKey === UNDATED_KEY) return -1;
-  return b.dayKey.localeCompare(a.dayKey);
+  return a.dayKey.localeCompare(b.dayKey);
 }

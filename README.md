@@ -28,17 +28,22 @@ coordinates are shared with map and place-name services as described in
    mapped areas *contain* the point, so photos shot in the stands say **Tokyo
    Dome** rather than Bunkyo-ku. See [Landmarks](#landmarks).
 7. **Suggest nearby dining** — the same batched location lookup finds the
-   nearest named restaurant, cafe, fast-food venue, or food court within 120m.
+   nearest named restaurant, cafe, fast-food venue, or food court within 30m.
    It is always labeled as a possibility, not a claim about where the photo was
    taken.
 8. **Caption** — from landmark, place, nearby dining, and time of day.
-9. **Browse** — one day per page, chosen from a date strip that runs newest on
-   the left to oldest on the right. Each card names the places that day's photos
-   were taken, busiest first, shortened to their most specific part — "Shinjuku,
-   Tokyo" becomes "Shinjuku", since the broader half repeats across every day of
-   a trip. The selected day lives in the URL hash, so the back button steps
-   through days and a link to one survives a reload.
-10. **Export** — a self-contained static site you can publish anywhere.
+9. **Browse** — one day per page, chosen from a horizontally swipeable date
+   strip that runs oldest on the left to newest on the right. Each card names
+   the places that day's photos were taken, busiest first, shortened to their
+   most specific part — "Shinjuku, Tokyo" becomes "Shinjuku", since the broader
+   half repeats across every day of a trip. The selected day lives in the URL
+   hash, so the back button steps through days and a link to one survives a
+   reload. Photos open in a lightbox with click and button zoom on desktop,
+   plus direct pinch zoom on touch screens.
+10. **See everywhere** — a globe button after the dates opens one map containing
+    every geotagged stop. Selecting a pin returns to the matching day.
+11. **Export** — a self-contained static site you can publish anywhere, including
+    the all-locations map as `everywhere.html`.
 
 Each day renders on its own rather than as one long timeline: a few hundred
 photos meant every day's maps and thumbnails were live at once. Day maps start
@@ -118,11 +123,15 @@ Functional teals are darker still so body text and white-on-colour stay legible.
 There is **no Google Maps API key**, no billing account, and no map library.
 
 The basemap is a plain `<iframe>` pointed at Google's keyless embed
-(`maps.google.com/maps?ll=…&output=embed`) with `pointer-events: none`. Pins are
+(`maps.google.com/maps?ll=…&output=embed`). Pins are
 ordinary HTML buttons positioned on top of it by projecting each coordinate with
 the same Web Mercator maths Google uses — 256px tiles, world size doubling per
 zoom level. Zoom is fitted twice: once when the markup is built, then again
 against the real canvas once it has been laid out.
+
+The +/− controls, desktop mouse wheel, and mobile pinch gesture update the map
+zoom and reproject every photo pin together. Keeping those two operations in one
+place prevents custom pins from drifting away from their Google Maps locations.
 
 This technique is borrowed from the Tokyo2026 trip site, which is also where the
 visual design comes from. The difference is that Tokyo2026's metadata was all
@@ -193,11 +202,16 @@ inside it and no amount of tuning would ever surface it. A second lookup finds
 the nearest notable feature within 220m, and anything found that way is
 described as a guess: **"close to teamLab Planets"**, never "at".
 
-The same Overpass request also checks a tighter 120m radius for a named
+The same Overpass request also checks a focused 30m radius for a named
 restaurant, cafe, fast-food venue, or food court. The nearest match appears as
 **"Possible place to eat nearby"** with its approximate distance. That wording
 is deliberate: GPS and map data can identify a plausible venue, but cannot
 prove the photographer was inside it.
+
+The focused cutoff allows for normal indoor GPS drift without returning to the
+overly broad original 120m search. Dining cache coordinates are kept at roughly metre-level precision,
+so a result found for one doorway is not reused for another location down the
+street.
 
 Nearby candidates are ranked by category first and distance only as a
 tie-break. Ranking by distance alone picks the wrong answer in exactly the case
@@ -245,7 +259,9 @@ a 320px thumbnail for the grid and a 1600px version for the lightbox and export
 Your library therefore survives a refresh and comes back on your next visit to
 the same browser. **To get true full-resolution files back, re-import them** —
 PicturePicture is a viewer for your photos, not a home for them. Your originals
-are never modified or moved.
+are never modified or moved. The trash button on a card removes only that
+browser-stored copy and its derivatives; the source file remains untouched and
+can be imported again later.
 
 ## Privacy
 

@@ -36,6 +36,13 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
   const dining = caption?.dining
     ? `<div class="photo-dining">🍽️ ${escapeAttr(caption.dining)}</div>`
     : '';
+  const remove =
+    `<button class="photo-remove" type="button" data-remove-photo="${escapeAttr(photo.id)}"` +
+    ` aria-label="Remove ${escapeAttr(photo.name)} from PicturePicture"` +
+    ' title="Remove from PicturePicture">' +
+    '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/>' +
+    '</svg></button>';
 
   return (
     `<div class="photo-card" data-photo-id="${escapeAttr(photo.id)}"` +
@@ -47,7 +54,10 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
     location +
     dining +
     (caption?.desc ? `<div class="photo-desc">${escapeAttr(caption.desc)}</div>` : '') +
-    (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
+    '<div class="photo-card-footer">' +
+    (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '<span></span>') +
+    remove +
+    '</div>' +
     '</div>' +
     '</div>'
   );

@@ -8,6 +8,7 @@ import { CachedGeocoder } from './geo/geocode';
 import { OverpassLandmarkFinder } from './geo/landmark';
 import {
   clearLibrary,
+  deletePhotos,
   estimateUsageBytes,
   loadPhotos,
   loadThumbs,
@@ -18,8 +19,9 @@ import {
 } from './store/db';
 import { initLightbox } from './ui/lightbox';
 import { initDayView, setDays } from './ui/dayView';
-import { revokeAll, thumbUrlFor } from './ui/media';
+import { revokeAll, revokePhoto, thumbUrlFor } from './ui/media';
 import { exportSite } from './export/exportSite';
+import { confirmAction, initConfirmDialog } from './ui/confirmDialog';
 
 /** Flush to IndexedDB in batches so a large import survives an early tab close. */
 const SAVE_BATCH_SIZE = 24;
@@ -72,8 +74,9 @@ const el = {
 void start();
 
 async function start(): Promise<void> {
+  initConfirmDialog();
   initLightbox();
-  initDayView(el.nav, el.page);
+  initDayView(el.nav, el.page, (photoId) => void handleRemovePhoto(photoId));
 
   wirePicker(
     {
@@ -262,11 +265,14 @@ async function handleExport(): Promise<void> {
 async function handleClear(): Promise<void> {
   if (busy || photos.size === 0) return;
 
-  const confirmed = confirm(
-    `Remove all ${photos.size} photos from this device?\n\n` +
-      'Your original files are untouched — this only clears what PicturePicture ' +
-      'has stored in this browser.',
-  );
+  const confirmed = await confirmAction({
+    eyebrow: 'LOCAL LIBRARY',
+    title: 'Clear PicturePicture?',
+    message: `Remove all ${photos.size} imported item${photos.size === 1 ? '' : 's'} from this device?`,
+    note: 'Your original files are untouched. This only clears the copies PicturePicture has stored in this browser.',
+    confirmLabel: 'Clear imported items',
+    icon: '🧹',
+  });
   if (!confirmed) return;
 
   await clearLibrary().catch((e) => console.warn('Clear failed', e));
@@ -278,6 +284,37 @@ async function handleClear(): Promise<void> {
 
   setDays(days);
   updateChrome();
+}
+
+async function handleRemovePhoto(photoId: string): Promise<void> {
+  if (busy) return;
+
+  const photo = photos.get(photoId);
+  if (!photo) return;
+
+  const confirmed = await confirmAction({
+    eyebrow: 'REMOVE IMPORT',
+    title: 'Remove this item?',
+    message: photo.name,
+    note: 'Your original file will not be deleted. You can add it to PicturePicture again later.',
+    confirmLabel: 'Remove from PicturePicture',
+    icon: photo.kind === 'video' ? '🎬' : '🖼️',
+  });
+  if (!confirmed) return;
+
+  busy = true;
+  try {
+    await deletePhotos([photoId]);
+    revokePhoto(photoId);
+    photos.delete(photoId);
+    thumbs.delete(photoId);
+    await refresh();
+  } catch (error) {
+    console.warn('Could not remove imported media', error);
+    setNotice('Could not remove that item from PicturePicture. Please try again.');
+  } finally {
+    busy = false;
+  }
 }
 
 /**
