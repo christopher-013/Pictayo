@@ -176,8 +176,13 @@ async function handleFiles(files: File[]): Promise<void> {
     void requestPersistence();
 
     setProgress(files.length, files.length, 'Looking up places…');
+    // Assemble the clusters without painting them yet, then finish the slower
+    // landmark/dining pass before the new cards become visible. Rendering the
+    // area-only captions first made every card visibly rename itself moments
+    // after import, which looked like incorrect metadata being corrected.
+    await refresh(false);
+    await enrichInBackground(false);
     await refresh();
-    void enrichInBackground();
 
     const notices: string[] = [];
     if (failures > 0) {
@@ -197,31 +202,33 @@ async function handleFiles(files: File[]): Promise<void> {
   }
 }
 
-async function refresh(): Promise<void> {
+async function refresh(render = true): Promise<void> {
   const list: Photo[] = [...photos.values()].map((photo) => {
     const blob = thumbs.get(photo.id);
     return blob ? { ...photo, thumbUrl: thumbUrlFor(photo.id, blob) } : { ...photo };
   });
 
   days = await buildLibrary(list, geocoder);
+  if (!render) return;
   setDays(days);
   updateChrome();
 }
 
 /**
- * Names landmarks and possible nearby dining in the background, then rebuilds
- * so captions and pin labels pick them up.
+ * Names landmarks and possible nearby dining, then optionally rebuilds so
+ * captions and pin labels pick them up.
  *
- * Deliberately not awaited by {@link refresh}: Overpass has to be queried a
- * couple of seconds apart, so a trip's worth of places can take a minute. The
- * library is usable immediately with area names and sharpens up afterwards.
+ * Restore uses the background mode so a saved library appears immediately.
+ * Fresh imports await this pass before rendering, avoiding a visible relabel
+ * from an administrative area to the final landmark and dining description.
  */
-async function enrichInBackground(): Promise<void> {
+async function enrichInBackground(refreshAfter = true): Promise<void> {
   if (enriching || days.length === 0) return;
   enriching = true;
 
   try {
-    if (await enrichLandmarks(days, landmarkFinder)) await refresh();
+    const changed = await enrichLandmarks(days, landmarkFinder);
+    if (changed && refreshAfter) await refresh();
   } catch (error) {
     // Enrichment is a nicety; area names are already on screen.
     console.warn('Place enrichment lookup failed', error);

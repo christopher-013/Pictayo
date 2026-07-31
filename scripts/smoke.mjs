@@ -515,6 +515,15 @@ if (!existsSync(fixturesDir)) {
 
 // ── Built output ─────────────────────────────────────────────────────────────
 
+{
+  const mainSource = readFileSync(join('src', 'main.ts'), 'utf8');
+  const assemble = mainSource.indexOf('await refresh(false);');
+  const enrich = mainSource.indexOf('await enrichInBackground(false);', assemble);
+  const render = mainSource.indexOf('await refresh();', enrich);
+  check('import: finishes place enrichment before rendering new cards',
+    assemble >= 0 && enrich > assemble && render > enrich);
+}
+
 const dist = 'dist';
 
 if (!existsSync(dist)) {
