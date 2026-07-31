@@ -9,7 +9,6 @@ import { OverpassLandmarkFinder } from './geo/landmark';
 import {
   clearLibrary,
   deletePhotos,
-  estimateUsageBytes,
   loadPhotos,
   loadThumbs,
   requestPersistence,
@@ -28,8 +27,6 @@ import { initFeedback } from './ui/feedback';
 const SAVE_BATCH_SIZE = 24;
 const LANDING_PRIVACY =
   'Media stays on this device. Location coordinates are shared with map and place-name services when geotags are available.';
-const LIBRARY_PRIVACY =
-  'Media stays on this device; geotag coordinates are shared with map and place-name services.';
 
 const photos = new Map<string, PersistedPhoto>();
 const thumbs = new Map<string, Blob>();
@@ -42,7 +39,6 @@ const LOCATION_STATUS_DELAY_MS = 450;
 let days: DayGroup[] = [];
 let busy = false;
 let enriching = false;
-let summaryVersion = 0;
 
 const el = {
   landing: must('landing'),
@@ -351,7 +347,6 @@ async function handleRemovePhoto(photoId: string): Promise<void> {
  * it goes back to the start screen.
  */
 function updateChrome(): void {
-  const version = ++summaryVersion;
   const count = photos.size;
   const hasPhotos = count > 0;
 
@@ -362,29 +357,10 @@ function updateChrome(): void {
   el.export.disabled = !hasPhotos;
   el.clear.disabled = !hasPhotos;
 
-  if (!hasPhotos) {
-    el.summary.textContent = LIBRARY_PRIVACY;
-    return;
-  }
-
-  const all = [...photos.values()];
-  const located = all.filter((p) => p.meta.gps).length;
-  const videoCount = all.filter((p) => p.kind === 'video').length;
-  const photoCount = count - videoCount;
-  const dayCount = days.length;
-
-  const items = [
-    `${photoCount} photo${photoCount === 1 ? '' : 's'}`,
-    ...(videoCount > 0 ? [`${videoCount} video${videoCount === 1 ? '' : 's'}`] : []),
-  ].join(' · ');
-
-  void estimateUsageBytes().then((bytes) => {
-    if (version !== summaryVersion) return;
-    const size = bytes ? ` · ${formatBytes(bytes)} stored locally` : '';
-    el.summary.textContent =
-      `${items} across ${dayCount} day${dayCount === 1 ? '' : 's'} · ` +
-      `${located} with location${size}`;
-  });
+  // Normal library statistics were useful during development but added noise
+  // to the public header. Keep this element only for exceptional notices.
+  el.summary.textContent = '';
+  el.summary.hidden = true;
 }
 
 /** Writes to whichever view is on screen — the start screen or the library. */
@@ -426,15 +402,11 @@ function hideProgress(): void {
 
 /** Puts a message wherever the user is currently looking. */
 function setNotice(text: string): void {
-  summaryVersion += 1;
   if (!el.landing.hidden) el.landingNote.textContent = text;
-  else el.summary.textContent = text;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  else {
+    el.summary.hidden = false;
+    el.summary.textContent = text;
+  }
 }
 
 function must<T extends HTMLElement = HTMLElement>(id: string): T {
