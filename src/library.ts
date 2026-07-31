@@ -95,6 +95,8 @@ async function nameCluster(cluster: PlaceCluster, geocoder: Geocoder): Promise<v
   cluster.place = landmark?.name ?? cluster.area;
   cluster.nearbyDining = dining?.name ?? null;
   cluster.nearbyDiningDistanceMeters = dining?.distanceMeters ?? null;
+  cluster.nearbyDiningLat = dining?.lat ?? null;
+  cluster.nearbyDiningLon = dining?.lon ?? null;
   cluster.mapsUrl = googleMapsUrl(cluster.lat, cluster.lon);
 }
 

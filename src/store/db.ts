@@ -14,9 +14,10 @@ const DB_NAME = 'picturepicture';
 /**
  * v2 added the landmark cache; v3 discards it so nearby landmarks get found;
  * v4 added video storage; v5 added nearby dining suggestions; v6 tightened the
- * cache precision; v7 allows a moderate amount of indoor GPS drift.
+ * cache precision; v7 allows a moderate amount of indoor GPS drift; v8 allows
+ * dining cache records to retain the matched venue position for detail links.
  */
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -28,6 +29,8 @@ export interface CachedLandmark {
   diningName?: string;
   diningKind?: string;
   diningDistanceMeters?: number;
+  diningLat?: number;
+  diningLon?: number;
 }
 
 /** Runtime-only fields are stripped before persisting. */

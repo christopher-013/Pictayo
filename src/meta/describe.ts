@@ -1,6 +1,6 @@
 import type { Caption, Photo, PlaceCluster } from '../types';
 import { timeOfDayPhrase } from './datetime';
-import { googleMapsUrl } from '../geo/geocode';
+import { googleMapsUrl, googleMapsVenueUrl } from '../geo/geocode';
 
 /**
  * Turning metadata into a caption.
@@ -47,7 +47,18 @@ export class MetadataDescriber implements DescriptionProvider {
         }.`
       : undefined;
 
-    return { location, desc: this.compose(photo, cluster), mapsUrl, dining };
+    const diningUrl =
+      cluster?.nearbyDining &&
+      typeof cluster.nearbyDiningLat === 'number' &&
+      typeof cluster.nearbyDiningLon === 'number'
+        ? googleMapsVenueUrl(
+            cluster.nearbyDining,
+            cluster.nearbyDiningLat,
+            cluster.nearbyDiningLon,
+          )
+        : undefined;
+
+    return { location, desc: this.compose(photo, cluster), mapsUrl, dining, diningUrl };
   }
 
   private compose(photo: Photo, cluster: PlaceCluster | null): string {

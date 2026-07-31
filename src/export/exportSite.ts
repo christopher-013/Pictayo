@@ -182,6 +182,7 @@ function buildDayPage(context: PageContext): string {
             title: photo.name,
             location: caption?.location ?? '',
             dining: caption?.dining ?? '',
+            diningUrl: caption?.diningUrl ?? '',
             desc: caption?.desc ?? '',
             mapsUrl: caption?.mapsUrl ?? '',
             captured,
@@ -214,7 +215,11 @@ function buildDayPage(context: PageContext): string {
         ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
         : '';
       const dining = caption?.dining
-        ? `<div class="photo-dining">🍽️ ${escapeAttr(caption.dining)}</div>`
+        ? `<div class="photo-dining">🍽️ ${
+            caption.diningUrl
+              ? `<a href="${escapeAttr(caption.diningUrl)}" target="_blank" rel="noopener noreferrer" title="View restaurant details in Google Maps">${escapeAttr(caption.dining)}</a>`
+              : escapeAttr(caption.dining)
+          }</div>`
         : '';
 
       return (
@@ -649,7 +654,7 @@ video.photo-lightbox-media{width:100%}
 .photo-kind{display:inline-block;font-size:9px;color:var(--teal);background:#d6f2f4;border:1px solid rgba(10,124,130,.2);border-radius:999px;padding:2px 5px;margin-bottom:4px}
 .photo-location{font-size:12px;color:var(--teal);margin-bottom:4px}
 .photo-location a{color:var(--teal);text-underline-offset:2px}
-.photo-dining{font-size:11px;color:#8a4f08;line-height:1.3;margin-bottom:4px}
+.photo-dining{font-size:11px;color:#8a4f08;line-height:1.3;margin-bottom:4px}.photo-dining a{color:inherit;text-underline-offset:2px}
 .photo-desc{font-size:11px;color:var(--ink3);line-height:1.3}
 .photo-captured{font-size:10px;color:var(--ink2);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
 .photo-empty{background:var(--bg3);border:1px dashed var(--border);border-radius:14px;padding:18px;color:var(--ink3);font-size:13px;text-align:center}
@@ -673,7 +678,7 @@ img.photo-lightbox-media.is-zoomed{cursor:zoom-out}img.photo-lightbox-media.is-p
 .photo-lightbox-count{font-size:13px;color:rgba(255,255,255,.62);white-space:nowrap}
 .photo-lightbox-location{font-size:14px;color:#5fe3e8;margin-top:5px}
 .photo-lightbox-location a{color:#5fe3e8}
-.photo-lightbox-dining{font-size:14px;color:#ffd27a;line-height:1.35;margin-top:5px}
+.photo-lightbox-dining{font-size:14px;color:#ffd27a;line-height:1.35;margin-top:5px}.photo-lightbox-dining a{color:inherit;text-underline-offset:2px}
 .photo-lightbox-desc{font-size:14px;color:rgba(255,255,255,.82);margin-top:5px}
 .photo-lightbox-captured{font-size:13px;color:rgba(255,255,255,.65);margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)}
 body.lb-open{overflow:hidden}
@@ -719,7 +724,7 @@ var lo=el('lb-loc');lo.innerHTML='';lo.style.display=it.location?'block':'none';
 if(it.location){lo.appendChild(document.createTextNode('\\u{1F4CD} '));
 if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_blank';a.rel='noopener';a.textContent=it.location;lo.appendChild(a)}
 else lo.appendChild(document.createTextNode(it.location))}
-var eat=el('lb-dining');eat.textContent=it.dining?'\\u{1F37D}\\u{FE0F} '+it.dining:'';eat.style.display=it.dining?'block':'none';
+var eat=el('lb-dining');eat.replaceChildren();eat.style.display=it.dining?'block':'none';if(it.dining){eat.append('\\u{1F37D}\\u{FE0F} ');if(it.diningUrl){var ea=document.createElement('a');ea.href=it.diningUrl;ea.target='_blank';ea.rel='noopener noreferrer';ea.title='View restaurant details in Google Maps';ea.textContent=it.dining;eat.append(ea)}else eat.append(it.dining)}
 var d=el('lb-desc');d.textContent=it.desc||'';d.style.display=it.desc?'block':'none';
 var c=el('lb-cap');c.textContent=it.captured?'\\u{1F552} '+it.captured:'';c.style.display=it.captured?'block':'none'}
 function open(n){ret=document.activeElement;i=Math.max(0,Math.min(n,LB.length-1));show();lb.classList.add('open');lb.setAttribute('aria-hidden','false');document.body.classList.add('lb-open');inert(true);requestAnimationFrame(function(){closeBtn.focus()})}

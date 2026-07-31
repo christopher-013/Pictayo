@@ -34,7 +34,11 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
         ? `<div class="photo-location">📍 ${escapeAttr(caption.location)}</div>`
         : '';
   const dining = caption?.dining
-    ? `<div class="photo-dining">🍽️ ${escapeAttr(caption.dining)}</div>`
+    ? `<div class="photo-dining">🍽️ ${
+        caption.diningUrl
+          ? `<a href="${escapeAttr(caption.diningUrl)}" target="_blank" rel="noopener noreferrer" title="View restaurant details in Google Maps">${escapeAttr(caption.dining)}</a>`
+          : escapeAttr(caption.dining)
+      }</div>`
     : '';
   const remove =
     `<button class="photo-remove" type="button" data-remove-photo="${escapeAttr(photo.id)}"` +

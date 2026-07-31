@@ -894,6 +894,8 @@ button, a, input { font: inherit; }
   line-height: 1.3;
 }
 
+.photo-dining a { color: inherit; text-underline-offset: 2px; }
+
 .photo-desc { font-size: 11px; color: var(--ink3); line-height: 1.3; }
 
 .photo-card-footer {
@@ -1222,6 +1224,7 @@ video.photo-lightbox-media { width: 100%; }
 .photo-lightbox-location { font-size: 14px; line-height: 1.3; color: #5fe3e8; margin-top: 5px; }
 .photo-lightbox-location a { color: #5fe3e8; text-decoration: underline; text-underline-offset: 2px; }
 .photo-lightbox-dining { font-size: 14px; line-height: 1.35; color: #ffd27a; margin-top: 5px; }
+.photo-lightbox-dining a { color: inherit; text-underline-offset: 2px; }
 .photo-lightbox-desc { font-size: 14px; line-height: 1.4; color: rgba(255, 255, 255, 0.82); margin-top: 5px; }
 
 .photo-lightbox-captured {

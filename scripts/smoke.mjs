@@ -241,6 +241,8 @@ function near(name, actual, expected, tolerance) {
   check('dining: reports the venue kind', dining?.kind === 'restaurant');
   check('dining: reports an approximate distance',
     typeof dining?.distanceMeters === 'number' && dining.distanceMeters > 0);
+  check('dining: preserves the venue mapped position',
+    dining?.lat === restaurant.lat && dining?.lon === restaurant.lon);
   check('dining: ignores unsupported amenities', pickNearbyDining([bar], at) === null);
   check('dining: requires a name',
     pickNearbyDining([{ ...restaurant, tags: { amenity: 'restaurant' } }], at) === null);
@@ -313,6 +315,7 @@ function near(name, actual, expected, tolerance) {
     id: 'c0', lat: 35.7056, lon: 139.7519, photoIds: ['p', 'q'],
     place: 'Tokyo Dome', area: 'Bunkyo-ku, Tokyo', landmark: 'Tokyo Dome',
     landmarkNearby: false, nearbyDining: null, nearbyDiningDistanceMeters: null,
+    nearbyDiningLat: null, nearbyDiningLon: null,
     mapsUrl: '', firstAt: 1, lastAt: 2,
   };
 
@@ -344,11 +347,24 @@ function near(name, actual, expected, tolerance) {
 
   const diningCluster = {
     ...cluster, nearbyDining: 'Sushi Dai', nearbyDiningDistanceMeters: 42,
+    nearbyDiningLat: 35.64865, nearbyDiningLon: 139.7906,
   };
   const withDining = describer.describe({ photo: photo(), cluster: diningCluster, clusterSize: 2 });
   check('caption: nearby dining uses a compact distance',
     withDining.dining === 'Nearby place: Sushi Dai · 42 m.',
     withDining.dining);
+  check('caption: nearby dining links to a coordinate-scoped Maps search',
+    withDining.diningUrl?.startsWith('https://www.google.com/maps/search/?api=1&query=') &&
+      withDining.diningUrl.includes('Sushi%20Dai') &&
+      withDining.diningUrl.includes('35.648650'));
+
+  const diningCard = photoCardHtml({
+    photo: { ...photo(), kind: 'photo', thumbUrl: 'blob:test', caption: withDining },
+    lightboxIndex: 0,
+  });
+  check('photo card: nearby dining line links to restaurant details',
+    diningCard.includes('View restaurant details in Google Maps') &&
+      diningCard.includes('target="_blank"'));
 
   const guessed = describer.describe({ photo: photo('file'), cluster, clusterSize: 1 });
   check('caption: flags file-date fallback', guessed.desc.includes('file date'), guessed.desc);
@@ -394,7 +410,8 @@ function near(name, actual, expected, tolerance) {
         id: 'c0', lat: 35.7135, lon: 139.703, photoIds: ['p'],
         place: 'Natsuge Museum', area: 'Toshima-ku, Tokyo',
         landmark: 'Natsuge Museum', landmarkNearby: true,
-        nearbyDining: null, nearbyDiningDistanceMeters: null, mapsUrl: '',
+        nearbyDining: null, nearbyDiningDistanceMeters: null,
+        nearbyDiningLat: null, nearbyDiningLon: null, mapsUrl: '',
         firstAt: 1, lastAt: 1,
       }],
     }],
@@ -575,6 +592,8 @@ if (!existsSync(dist)) {
   check('build: includes interactive map zoom controls',
     appBundle.includes('data-map-zoom-in') && appBundle.includes('mapUserZoom'));
   check('build: uses the custom modal confirmation flow', appBundle.includes('showModal'));
+  check('build: nearby restaurant details are linked',
+    appBundle.includes('View restaurant details in Google Maps'));
   let exportScriptParses = true;
   try {
     new Function(EXPORT_JS);
@@ -586,6 +605,7 @@ if (!existsSync(dist)) {
   check('export: includes mobile pinch handling', EXPORT_JS.includes("addEventListener('touchmove'"));
   check('export: includes coordinated map wheel zoom',
     EXPORT_JS.includes("addEventListener('wheel'") && EXPORT_JS.includes('mapPosition(c)'));
+  check('export: lightbox links nearby restaurant details', EXPORT_JS.includes('it.diningUrl'));
   // Mojibake check: the em-dash must survive the build as real UTF-8.
   check('build: text encoded correctly', !html.includes('�'));
 }
@@ -596,7 +616,8 @@ if (!existsSync(dist)) {
   const cluster = {
     id: 'c0', lat: 35.68, lon: 139.76, photoIds: ['p1'], place: 'Tokyo', area: 'Tokyo',
     landmark: null, landmarkNearby: false, nearbyDining: null,
-    nearbyDiningDistanceMeters: null, mapsUrl: '', firstAt: null, lastAt: null,
+    nearbyDiningDistanceMeters: null, nearbyDiningLat: null, nearbyDiningLon: null,
+    mapsUrl: '', firstAt: null, lastAt: null,
   };
   const exportDay = {
     dayKey: '2026-06-10', label: 'Wed, Jun 10, 2026', photos: [], taggedCount: 1,

@@ -48,6 +48,19 @@ export function googleMapsUrl(lat: number, lon: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 }
 
+/**
+ * Opens a Google Maps place search scoped by the venue's mapped position.
+ * Including both the name and coordinates is more specific than a global name
+ * search, especially for chains and repeated Japanese restaurant names.
+ */
+export function googleMapsVenueUrl(name: string, lat: number, lon: number): string {
+  const query = `${name}, ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+  return (
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` +
+    '&utm_source=picturepicture&utm_campaign=nearby_place'
+  );
+}
+
 interface BigDataCloudResponse {
   locality?: string;
   city?: string;

@@ -78,6 +78,9 @@ export interface NearbyDining {
   kind: string;
   /** Approximate distance from the photo cluster centroid. */
   distanceMeters: number;
+  /** The venue's own mapped position, not the photo cluster centroid. */
+  lat: number;
+  lon: number;
 }
 
 export interface LocationEnrichment {
@@ -205,6 +208,8 @@ export async function cachedDining(lat: number, lon: number): Promise<NearbyDini
     name: cached.diningName,
     kind: cached.diningKind ?? '',
     distanceMeters: cached.diningDistanceMeters ?? 0,
+    lat: cached.diningLat ?? lat,
+    lon: cached.diningLon ?? lon,
   };
 }
 
@@ -237,6 +242,8 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
                 name: cached.diningName,
                 kind: cached.diningKind ?? '',
                 distanceMeters: cached.diningDistanceMeters ?? 0,
+                lat: cached.diningLat ?? point.lat,
+                lon: cached.diningLon ?? point.lon,
               }
             : null,
         });
@@ -333,6 +340,8 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
         diningName: dining?.name ?? '',
         diningKind: dining?.kind ?? '',
         diningDistanceMeters: dining?.distanceMeters ?? 0,
+        diningLat: dining?.lat,
+        diningLon: dining?.lon,
       }).catch(() => undefined);
     }
 
@@ -395,7 +404,13 @@ export function pickNearbyDining(
     const distance = roughDistanceMeters(from, { lat: position.lat, lon: position.lon });
     if (distance > radiusMeters || (best && distance >= best.distanceMeters)) continue;
 
-    best = { name, kind, distanceMeters: Math.max(0, Math.round(distance)) };
+    best = {
+      name,
+      kind,
+      distanceMeters: Math.max(0, Math.round(distance)),
+      lat: position.lat,
+      lon: position.lon,
+    };
   }
 
   return best;

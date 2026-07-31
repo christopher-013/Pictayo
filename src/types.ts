@@ -35,6 +35,8 @@ export interface Caption {
   mapsUrl: string;
   /** Best-effort nearby food venue, always phrased as a possibility. */
   dining?: string;
+  /** Coordinate-scoped Google Maps search for the nearby venue. */
+  diningUrl?: string;
 }
 
 export type MediaKind = 'photo' | 'video';
@@ -88,6 +90,9 @@ export interface PlaceCluster {
   nearbyDining: string | null;
   /** Approximate distance from the cluster centroid to the dining candidate. */
   nearbyDiningDistanceMeters: number | null;
+  /** Mapped venue position, used to scope its details link accurately. */
+  nearbyDiningLat: number | null;
+  nearbyDiningLon: number | null;
   mapsUrl: string;
   /** Earliest and latest capture instants in this cluster, for caption context. */
   firstAt: number | null;

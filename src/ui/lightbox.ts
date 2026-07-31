@@ -18,6 +18,7 @@ export interface LightboxItem {
   desc: string;
   mapsUrl: string;
   dining: string;
+  diningUrl: string;
   captured: string;
 }
 
@@ -228,8 +229,22 @@ async function render(): Promise<void> {
 
   descEl.textContent = item.desc;
   descEl.style.display = item.desc ? 'block' : 'none';
-  diningEl.textContent = item.dining ? `🍽️ ${item.dining}` : '';
+  diningEl.replaceChildren();
   diningEl.style.display = item.dining ? 'block' : 'none';
+  if (item.dining) {
+    diningEl.append('🍽️ ');
+    if (item.diningUrl) {
+      const link = document.createElement('a');
+      link.href = item.diningUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.title = 'View restaurant details in Google Maps';
+      link.textContent = item.dining;
+      diningEl.append(link);
+    } else {
+      diningEl.append(item.dining);
+    }
+  }
   capturedEl.textContent = item.captured ? `🕒 ${item.captured}` : '';
   capturedEl.style.display = item.captured ? 'block' : 'none';
 
