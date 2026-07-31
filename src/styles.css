@@ -1028,7 +1028,8 @@ button, a, input { font: inherit; }
 
 .action-dialog-actions {
   display: grid;
-  grid-template-columns: minmax(100px, auto) minmax(220px, 1fr);
+  grid-template-columns: 126px minmax(210px, 250px);
+  justify-content: end;
   gap: 10px;
   margin-top: 30px;
 }
@@ -1277,7 +1278,11 @@ body.photo-lightbox-open { overflow: hidden; }
   .action-dialog-card { padding: 28px 22px 22px; border-radius: 18px; }
   .action-dialog-icon { width: 50px; height: 50px; margin-bottom: 18px; font-size: 22px; }
   .action-dialog-eyebrow { margin-bottom: 9px; font-size: 10px; }
-  .action-dialog-actions { grid-template-columns: 1fr; margin-top: 22px; }
+  .action-dialog-actions {
+    grid-template-columns: minmax(0, 280px);
+    justify-content: center;
+    margin-top: 22px;
+  }
   .action-dialog-confirm { grid-row: 1; }
   .action-dialog-cancel { grid-row: 2; }
 }

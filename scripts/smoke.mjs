@@ -534,6 +534,9 @@ if (!existsSync(fixturesDir)) {
       styleSource.includes('width: var(--day-chip-width)'));
   check('navigation: long place names truncate with an ellipsis',
     styleSource.includes('text-overflow: ellipsis'));
+  check('dialog: destructive action uses a compact bounded column',
+    styleSource.includes('grid-template-columns: 126px minmax(210px, 250px)') &&
+      styleSource.includes('justify-content: end'));
 }
 
 const dist = 'dist';
