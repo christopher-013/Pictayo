@@ -32,10 +32,11 @@ import { MetadataDescriber, wikipediaLocationInfo } from '../src/meta/describe.t
 import { readMeta } from '../src/meta/exif.ts';
 import { escapeAttr } from '../src/util/escape.ts';
 import { parseIso6709, parseAppleCreationDate, findBox, parseMoov } from '../src/meta/videoMeta.ts';
+import { sampledPhotoId } from '../src/import/contentHash.ts';
 import { compareDays } from '../src/library.ts';
 import { dayHeading, placesFor } from '../src/ui/dayChip.ts';
 import { photoCardHtml } from '../src/ui/photoCard.ts';
-import { exportSite, EXPORT_JS } from '../src/export/exportSite.ts';
+import { exportSite, EXPORT_JS, scriptSafeJson } from '../src/export/exportSite.ts';
 import feedbackWorker from '../feedback-worker.js';
 
 let passed = 0;
@@ -511,6 +512,20 @@ function near(name, actual, expected, tolerance) {
   check('escape: handles null', escapeAttr(null) === '');
 }
 
+// ── Bounded content hashing ─────────────────────────────────────────────────
+
+{
+  const first = new Uint8Array(1024 * 1024).fill(7);
+  const second = first.slice();
+  second[second.length - 1] = 8;
+  const firstId = await sampledPhotoId(new Blob([first]));
+  const duplicateId = await sampledPhotoId(new Blob([first]));
+  const changedId = await sampledPhotoId(new Blob([second]));
+  check('hash: identical photo content keeps a stable id', firstId === duplicateId);
+  check('hash: a changed tail produces a different id', firstId !== changedId);
+  check('hash: includes exact byte length in the id', firstId.endsWith(first.length.toString(16)));
+}
+
 // ── EXIF, against the generated fixtures ─────────────────────────────────────
 
 const fixturesDir = 'fixtures';
@@ -548,6 +563,14 @@ if (!existsSync(fixturesDir)) {
   const mainSource = readFileSync(join('src', 'main.ts'), 'utf8');
   const styleSource = readFileSync(join('src', 'styles.css'), 'utf8');
   const feedbackSource = readFileSync(join('src', 'ui', 'feedback.ts'), 'utf8');
+  const ingestWorkerSource = readFileSync(join('src', 'import', 'ingest.worker.ts'), 'utf8');
+  const feedbackWorkerSource = readFileSync('feedback-worker.js', 'utf8');
+  const externalLinkSources = [
+    join('src', 'ui', 'photoCard.ts'),
+    join('src', 'ui', 'photoMap.ts'),
+    join('src', 'ui', 'lightbox.ts'),
+    join('src', 'export', 'exportSite.ts'),
+  ].map((path) => readFileSync(path, 'utf8')).join('\n');
   const provisional = mainSource.indexOf('await refresh(true, localOnlyGeocoder);');
   const status = mainSource.indexOf("showLocationProgress('Locations are processing", provisional);
   const resolve = mainSource.indexOf('await refresh(false);', provisional);
@@ -572,6 +595,16 @@ if (!existsSync(fixturesDir)) {
       !feedbackSource.includes('github.com'));
   check('feedback: does not collect or submit an email address',
     !feedbackSource.includes('feedback-email') && !feedbackSource.includes('email:'));
+  check('import: photo worker never buffers a whole original for hashing',
+    ingestWorkerSource.includes('sampledPhotoId(file)') && !ingestWorkerSource.includes('file.arrayBuffer()'));
+  check('security: no committed GitHub token pattern',
+    !/\b(?:ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/.test(
+      `${mainSource}\n${feedbackSource}\n${feedbackWorkerSource}`,
+    ));
+  check('security: new-window links always suppress opener and referrer',
+    !externalLinkSources.includes('rel="noopener"') &&
+      !externalLinkSources.includes(".rel = 'noopener';") &&
+      !externalLinkSources.includes("a.rel='noopener';"));
 }
 
 {
@@ -591,6 +624,26 @@ if (!existsSync(fixturesDir)) {
   });
   const deniedResponse = await feedbackWorker.fetch(deniedRequest, {});
   check('feedback worker: rejects unapproved origins', deniedResponse.status === 403);
+
+  const unsafeRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+    method: 'POST',
+    headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ summary: '<script>alert(1)</script>', message: '' }),
+  });
+  const unsafeResponse = await feedbackWorker.fetch(unsafeRequest, {});
+  check('feedback worker: rejects active-content payloads', unsafeResponse.status === 422);
+
+  const unconfiguredRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+    method: 'POST',
+    headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ summary: 'Valid report', message: 'No secret details here.' }),
+  });
+  const unconfiguredResponse = await feedbackWorker.fetch(unconfiguredRequest, {});
+  const unconfiguredBody = await unconfiguredResponse.json();
+  check('feedback worker: fails closed with a generic missing-secret response',
+    unconfiguredResponse.status === 503 &&
+      !JSON.stringify(unconfiguredBody).toLowerCase().includes('secret') &&
+      !JSON.stringify(unconfiguredBody).toLowerCase().includes('configured'));
 }
 
 const dist = 'dist';
@@ -624,6 +677,14 @@ if (!existsSync(dist)) {
     html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));
   check('build: canonical URL and crawl directives are present',
     html.includes('rel="canonical"') && html.includes('name="robots"'));
+  check('build: restrictive CSP excludes unsafe script execution',
+    html.includes('http-equiv="Content-Security-Policy"') &&
+      html.includes("object-src 'none'") && html.includes("form-action 'none'") &&
+      !html.includes("script-src 'self' 'unsafe-inline'") && !html.includes("'unsafe-eval'"));
+  check('build: CSP allowlists every application network service',
+    ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
+      'overpass.private.coffee', 'picturepicture-feedback.cch13.workers.dev']
+      .every((host) => html.includes(host)));
   check('build: social preview metadata is complete',
     html.includes('property="og:url"') && html.includes('name="twitter:image"'));
   check('build: structured data describes the web application',
@@ -685,6 +746,15 @@ if (!existsSync(dist)) {
   check('export: creates everywhere.html', Boolean(archive['everywhere.html']));
   check('export: appends Everywhere after the date links',
     dayPage.indexOf('everywhere.html') > dayPage.indexOf('day-chip-dow'));
+  check('export: lightbox metadata is inert JSON',
+    dayPage.includes('<script type="application/json" id="lb-data">') &&
+      !dayPage.includes('<script>var LB='));
+  const hostileTitle = '</script><script>alert("export injection")</script>&';
+  const safeJson = scriptSafeJson({ title: hostileTitle });
+  check('export: script-safe JSON contains no HTML delimiters',
+    !safeJson.includes('<') && !safeJson.includes('>') && !safeJson.includes('&'));
+  check('export: script-safe JSON preserves the original value',
+    JSON.parse(safeJson).title === hostileTitle);
   check('export: date and Show All chips share one responsive width',
     exportedCss.includes('flex:0 0 var(--day-chip-width);width:var(--day-chip-width)'));
   check('export: Everywhere page contains the world map and a day link',

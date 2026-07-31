@@ -22,6 +22,11 @@ export function initFeedback(): void {
   const closeDialog = (): void => dialog.close();
   close.addEventListener('click', closeDialog);
   cancel.addEventListener('click', closeDialog);
+  dialog.addEventListener('close', () => {
+    form.reset();
+    status.textContent = '';
+    status.className = 'feedback-status';
+  });
 
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) closeDialog();
@@ -83,7 +88,12 @@ export function initFeedback(): void {
       }, 1800);
     } catch (error) {
       console.warn('Could not submit feedback', error);
-      status.textContent = 'Couldn’t send right now — check your connection and try again.';
+      const detail = error instanceof Error ? error.message : '';
+      const safeDetail =
+        /^(Feedback contains|Please wait|A summary is required|Feedback is too long)/.test(detail)
+          ? detail
+          : '';
+      status.textContent = safeDetail || 'Couldn’t send right now — check your connection and try again.';
       status.className = 'feedback-status is-error';
     } finally {
       if (submit) submit.disabled = false;

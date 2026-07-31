@@ -132,6 +132,20 @@ function encode(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
+/**
+ * Serializes untrusted metadata for an inert JSON script element.
+ * JSON escaping alone does not neutralize `</script>`, because the HTML parser
+ * closes a script element before JSON parsing happens.
+ */
+export function scriptSafeJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/&/g, '\\u0026')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 /** Pulls one of the app's own brand assets to bundle into the export. */
 async function fetchAsset(path: string): Promise<Uint8Array | null> {
   try {
@@ -176,7 +190,7 @@ function buildDayPage(context: PageContext): string {
       // the day in order rather than skipping the clips.
       const entry = () =>
         lightboxItems.push(
-          JSON.stringify({
+          scriptSafeJson({
             src: path,
             kind: photo.kind,
             title: photo.name,
@@ -214,7 +228,7 @@ function buildDayPage(context: PageContext): string {
       }
 
       const location = caption?.location
-        ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
+        ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener noreferrer">${escapeAttr(caption.location)}</a></div>`
         : '';
       const dining = caption?.dining
         ? `<div class="photo-dining">🍽️ ${
@@ -257,6 +271,7 @@ function buildDayPage(context: PageContext): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeAttr(`${title} — ${day.label}`)}</title>
 <meta name="theme-color" content="#019aa0">
+<meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -309,7 +324,7 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 <div class="photo-lightbox-captured" id="lb-cap"></div>
 </div></div></div>
 
-<script>var LB=[${lightboxItems.join(',')}];</script>
+<script type="application/json" id="lb-data">[${lightboxItems.join(',')}]</script>
 <script src="assets/site.js"></script>
 </body>
 </html>`;
@@ -395,6 +410,7 @@ function buildEverywherePage(days: DayGroup[], title: string, hasLogo: boolean):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeAttr(`${title} — Everywhere I Have Been`)}</title>
 <meta name="theme-color" content="#019aa0">
+<meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -420,7 +436,7 @@ ${content}
 <div id="lb-zoom"><button id="lb-zoom-out"></button><button id="lb-zoom-reset"></button><button id="lb-zoom-in"></button></div></div>
 <div><span id="lb-title"></span><span id="lb-count"></span><span id="lb-loc"></span>
 <span id="lb-dining"></span><span id="lb-desc"></span><span id="lb-cap"></span></div></div></div>
-<script>var LB=[];</script><script src="assets/site.js"></script>
+<script type="application/json" id="lb-data">[]</script><script src="assets/site.js"></script>
 </body>
 </html>`;
 }
@@ -539,7 +555,7 @@ function staticMapHtml(
     '<button type="button" data-map-zoom-out aria-label="Zoom map out">−</button></div>' +
     `<a class="photo-map-open" href="${escapeAttr(
       interactiveUrl(region.centerLat, region.centerLon, zoom),
-    )}" target="_blank" rel="noopener">View interactive map ↗</a>` +
+    )}" target="_blank" rel="noopener noreferrer">View interactive map ↗</a>` +
     '</div>' +
     `<div class="photo-day-map-legend">${legend}</div>` +
     '</div></div>'
@@ -703,6 +719,7 @@ main{padding:12px 12px 48px}
 
 export const EXPORT_JS = `
 (function(){
+var data=document.getElementById('lb-data'),LB=[];try{LB=JSON.parse(data&&data.textContent||'[]')}catch(e){}
 var i=-1,lb=document.getElementById('lb'),img=document.getElementById('lb-img'),vid=document.getElementById('lb-video');
 var closeBtn=document.getElementById('lb-close'),ret=null,bg=[],z=1,pinch=false,pd=0,ps=1,suppress=false,pinched=false,swiping=false;
 function el(id){return document.getElementById(id)}
@@ -731,7 +748,7 @@ el('lb-count').textContent=(i+1)+' / '+LB.length;
 el('lb-prev').disabled=i<=0;el('lb-next').disabled=i>=LB.length-1;
 var lo=el('lb-loc');lo.innerHTML='';lo.style.display=it.location?'block':'none';
 if(it.location){lo.appendChild(document.createTextNode('\\u{1F4CD} '));
-if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_blank';a.rel='noopener';a.textContent=it.location;lo.appendChild(a)}
+if(it.mapsUrl){var a=document.createElement('a');a.href=it.mapsUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent=it.location;lo.appendChild(a)}
 else lo.appendChild(document.createTextNode(it.location))}
 var eat=el('lb-dining');eat.replaceChildren();eat.style.display=it.dining?'block':'none';if(it.dining){eat.append('\\u{1F37D}\\u{FE0F} ');if(it.diningUrl){var ea=document.createElement('a');ea.href=it.diningUrl;ea.target='_blank';ea.rel='noopener noreferrer';ea.title='View restaurant details in Google Maps';ea.textContent=it.dining;eat.append(ea)}else eat.append(it.dining)}
 var d=el('lb-desc');d.replaceChildren();d.style.display=it.desc?'block':'none';if(it.desc){d.append(it.desc);if(it.infoUrl&&it.infoLabel){d.append(' ');var ia=document.createElement('a');ia.href=it.infoUrl;ia.target='_blank';ia.rel='noopener noreferrer';ia.title='Read about '+it.infoLabel;ia.textContent='Learn about '+it.infoLabel;d.append(ia)}}

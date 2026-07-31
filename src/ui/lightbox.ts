@@ -221,7 +221,7 @@ async function render(): Promise<void> {
       const link = document.createElement('a');
       link.href = item.mapsUrl;
       link.target = '_blank';
-      link.rel = 'noopener';
+      link.rel = 'noopener noreferrer';
       link.textContent = item.location;
       locationEl.append(link);
     } else {

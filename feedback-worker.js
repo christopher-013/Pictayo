@@ -17,6 +17,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
 ];
 const CATEGORIES = new Set(['bug', 'idea', 'praise', 'other']);
 const MAX_BODY_BYTES = 16 * 1024;
+const UNSAFE_FEEDBACK_ERROR = 'Feedback contains content that cannot be submitted.';
 
 export default {
   async fetch(request, env) {
@@ -45,7 +46,12 @@ export default {
       return json({ ok: false, error: 'Feedback is too large' }, 413, cors);
     }
 
-    const raw = await request.text();
+    let raw;
+    try {
+      raw = await request.text();
+    } catch {
+      return json({ ok: false, error: 'Could not read feedback' }, 400, cors);
+    }
     if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
       return json({ ok: false, error: 'Feedback is too large' }, 413, cors);
     }
@@ -72,6 +78,11 @@ export default {
       if (!result.success) return json({ ok: false, error: 'Please wait before sending more feedback.' }, 429, cors);
     }
 
+    if (!isSafeFeedbackText(payload.summary, 120, true) ||
+        !isSafeFeedbackText(payload.message, 2000, false)) {
+      return json({ ok: false, error: UNSAFE_FEEDBACK_ERROR }, 422, cors);
+    }
+
     const category = CATEGORIES.has(payload.category) ? payload.category : 'other';
     const summary = clean(payload.summary, 120, true);
     const message = clean(payload.message, 2000, false);
@@ -80,7 +91,10 @@ export default {
     const version = clean(payload.version, 40, true);
     const userAgent = clean(payload.userAgent, 400, true);
     if (!summary) return json({ ok: false, error: 'A summary is required' }, 400, cors);
-    if (!env.GITHUB_TOKEN) return json({ ok: false, error: 'Feedback service is not configured' }, 503, cors);
+    if (!env.GITHUB_TOKEN) {
+      console.error('Feedback service is missing its GitHub secret');
+      return json({ ok: false, error: 'Feedback could not be submitted right now.' }, 503, cors);
+    }
 
     const typeLabel = { bug: 'Bug', idea: 'Idea', praise: 'Praise', other: 'Feedback' }[category];
     const issueBody = [
@@ -109,6 +123,8 @@ export default {
           'User-Agent': 'PicturePicture-Feedback-Worker',
         },
         body: JSON.stringify({ title: `[${typeLabel}] ${summary}`, body: issueBody }),
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
       });
     } catch {
       return json({ ok: false, error: 'Feedback could not be submitted right now.' }, 502, cors);
@@ -134,6 +150,9 @@ function corsHeaders(origin) {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     'Cache-Control': 'no-store',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
     Vary: 'Origin',
   };
   if (origin) headers['Access-Control-Allow-Origin'] = origin;
@@ -158,4 +177,28 @@ function clean(value, maximum, singleLine) {
     .replace(/>/g, '&gt;');
   if (singleLine) text = text.replace(/\s+/g, ' ');
   return text.trim().slice(0, maximum);
+}
+
+function isSafeFeedbackText(value, maximum, singleLine) {
+  const raw = String(value == null ? '' : value);
+  if (raw.length > maximum) return false;
+  if (singleLine && /[\r\n]/u.test(raw)) return false;
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/u.test(raw)) {
+    return false;
+  }
+
+  const text = raw.normalize('NFKC').toLowerCase();
+  if (/<\s*\/?\s*(?:script|iframe|img|svg|object|embed|link|meta|style|form|input|button|video|audio|source|base|math)\b/iu.test(text)) {
+    return false;
+  }
+  if (/\bon[a-z]{2,30}\s*=/iu.test(text)) return false;
+  if (/\b(?:javascript|vbscript)\s*:/iu.test(text)) return false;
+  if (/\bdata\s*:\s*(?:text\/html|image\/svg\+xml|application\/(?:javascript|xhtml\+xml))/iu.test(text)) {
+    return false;
+  }
+  // The issue tracker is public and the page is attached automatically. Links
+  // and contact details are unnecessary here and are common spam payloads.
+  if (/\b(?:https?:\/\/|www\.)\S+/iu.test(text)) return false;
+  if (/\b[^\s@]+@[^\s@]+\.[a-z]{2,}\b/iu.test(text)) return false;
+  return true;
 }

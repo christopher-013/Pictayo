@@ -159,7 +159,7 @@ export function mapRegionHtml(
     '<button type="button" data-map-zoom-in aria-label="Zoom map in">+</button>' +
     '<button type="button" data-map-zoom-out aria-label="Zoom map out">−</button>' +
     '</div>' +
-    '<a class="photo-map-open" target="_blank" rel="noopener">View interactive map ↗</a>' +
+    '<a class="photo-map-open" target="_blank" rel="noopener noreferrer">View interactive map ↗</a>' +
     '</div>' +
     `<div class="photo-day-map-legend">${legend}</div>` +
     '</div>' +

@@ -76,6 +76,10 @@ with no EXIF date at all.
 
 Other scripts: `npm run build` (typecheck + production build), `npm run typecheck`.
 
+For release scrutiny, see [SECURITY.md](SECURITY.md) for the threat model and
+reporting process, [AUDIT.md](AUDIT.md) for the latest public-beta audit, and
+[CLAUDE.md](CLAUDE.md) for automated-review invariants and priorities.
+
 ## Releasing
 
 ```bash

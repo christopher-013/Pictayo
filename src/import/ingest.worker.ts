@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import { readMeta } from '../meta/exif';
 import type { IngestRequest, IngestResult } from '../types';
+import { sampledPhotoId } from './contentHash';
 
 /**
  * Per-file ingest: hash, read metadata, and produce the two derivatives the app
@@ -20,7 +21,7 @@ self.onmessage = async (event: MessageEvent<IngestRequest>) => {
   const { id, file } = event.data;
 
   try {
-    const [contentId, meta] = await Promise.all([hashFile(file), readMeta(file)]);
+    const [contentId, meta] = await Promise.all([sampledPhotoId(file), readMeta(file)]);
 
     let thumb: Blob | null = null;
     let display: Blob | null = null;
@@ -85,18 +86,6 @@ self.onmessage = async (event: MessageEvent<IngestRequest>) => {
     postMessage(failure);
   }
 };
-
-/**
- * Content hash as the photo id, so re-importing the same folder updates rows
- * instead of duplicating them. Truncated to 16 hex chars — ample for a personal
- * library and much kinder as a DOM id than a full digest.
- */
-async function hashFile(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-  return [...new Uint8Array(digest).slice(0, 8)]
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 async function encode(bitmap: ImageBitmap, max: number, quality: number): Promise<Blob> {
   // Never upscale — a small original stays small.

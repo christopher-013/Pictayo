@@ -9,6 +9,7 @@
 <meta name="application-name" content="PicturePicture">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://api.bigdatacloud.net https://overpass-api.de https://overpass.kumi.systems https://overpass.private.coffee https://picturepicture-feedback.cch13.workers.dev; frame-src https://maps.google.com https://www.google.com; upgrade-insecure-requests">
 <link rel="canonical" href="https://christopher-013.github.io/PicturePicture/">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -179,7 +180,7 @@
     <div class="feedback-dialog-eyebrow">PUBLIC BETA</div>
     <h2 id="feedback-dialog-title">Send feedback</h2>
     <p id="feedback-dialog-intro">Tell us what worked or what broke. Your note is sent directly from PicturePicture — no GitHub account, dialog, or sign-in needed.</p>
-    <p class="feedback-dialog-privacy" id="feedback-dialog-privacy"><strong>Public tracker:</strong> Your summary and details will be publicly visible. Do not include passwords, private photo details, email addresses, or other personal information.</p>
+    <p class="feedback-dialog-privacy" id="feedback-dialog-privacy"><strong>Public tracker:</strong> Your summary and details will be publicly visible. Do not include passwords, private photo details, email addresses, links, or other personal information.</p>
 
     <fieldset class="feedback-category" aria-label="Feedback type">
       <label><input type="radio" name="feedback-category" value="bug" checked> 🐞 Bug</label>
@@ -189,7 +190,7 @@
     </fieldset>
     <label class="feedback-field" for="feedback-summary"><span>Summary</span><input id="feedback-summary" type="text" maxlength="120" placeholder="One line — e.g. Map controls overlap a photo" required></label>
     <label class="feedback-field" for="feedback-message"><span>Details</span><textarea id="feedback-message" rows="5" maxlength="2000" placeholder="What happened, what you expected, and steps to reproduce."></textarea></label>
-    <label class="feedback-honeypot" for="feedback-website" aria-hidden="true">Website<input id="feedback-website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"></label>
+    <label class="feedback-honeypot" for="feedback-website" aria-hidden="true" inert>Website<input id="feedback-website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"></label>
     <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
     <div class="feedback-actions">
       <button class="feedback-cancel" id="feedback-cancel" type="button">Cancel</button>

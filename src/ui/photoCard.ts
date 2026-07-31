@@ -29,7 +29,7 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
 
   const location =
     caption?.location && caption.mapsUrl
-      ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener">${escapeAttr(caption.location)}</a></div>`
+      ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener noreferrer">${escapeAttr(caption.location)}</a></div>`
       : caption?.location
         ? `<div class="photo-location">📍 ${escapeAttr(caption.location)}</div>`
         : '';
