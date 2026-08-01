@@ -63,17 +63,24 @@ export function placesFor(day: DayGroup): DayPlaces {
   const clusters = day.regions
     .flatMap((region) => region.clusters)
     .slice()
-    .sort((a, b) => b.photoIds.length - a.photoIds.length);
+    .sort((a, b) => {
+      const countDifference = b.photoIds.length - a.photoIds.length;
+      if (countDifference !== 0) return countDifference;
+
+      // When equally represented, prefer a landmark known to enclose the
+      // photos over a nearby guess, and either landmark over an area-only name.
+      // This makes a Sensō-ji cluster win its tie with nearby Kaminarimon.
+      return landmarkConfidence(b) - landmarkConfidence(a);
+    });
 
   const seen = new Set<string>();
   const names: string[] = [];
 
   for (const cluster of clusters) {
-    // A nearest landmark is only a guess. Keep the reliable area in the compact
-    // day navigation instead of confidently relabelling the whole day after a
-    // nearby museum, station, or attraction.
-    const displayPlace = cluster.landmarkNearby ? cluster.area : cluster.place;
-    const short = displayPlace.split(',')[0]?.trim();
+    // The same matched location shown on the map and photo card should also be
+    // reflected in the day navigation. Nearby matches are already identified
+    // as "Near" in the detailed caption, where that nuance fits.
+    const short = cluster.place.split(',')[0]?.trim();
     if (!short || seen.has(short)) continue;
     seen.add(short);
     names.push(short);
@@ -86,4 +93,9 @@ export function placesFor(day: DayGroup): DayPlaces {
 
   // No "+N" suffix: it added width for information the tooltip already carries.
   return { label: names.slice(0, MAX_CHIP_PLACES).join(' · '), all: names };
+}
+
+function landmarkConfidence(cluster: DayGroup['regions'][number]['clusters'][number]): number {
+  if (!cluster.landmark) return 0;
+  return cluster.landmarkNearby ? 1 : 2;
 }

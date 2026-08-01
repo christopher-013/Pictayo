@@ -351,9 +351,14 @@ function near(name, actual, expected, tolerance) {
   check('caption: names the landmark and the area',
     withLandmark.desc === 'Midday at Tokyo Dome, Bunkyo-ku, Tokyo.', withLandmark.desc);
   check('caption: location line is the landmark', withLandmark.location === 'Tokyo Dome');
-  check('caption: nearby landmark uses its surrounding destination article',
-    withLandmark.infoLabel === 'Bunkyo' &&
-      withLandmark.infoUrl === 'https://en.wikipedia.org/wiki/Bunkyo%2C_Tokyo');
+  check('caption: landmark links to its own article',
+    withLandmark.infoLabel === 'Tokyo Dome' &&
+      withLandmark.infoUrl === 'https://en.wikipedia.org/wiki/Tokyo_Dome');
+
+  const sensoJiInfo = wikipediaLocationInfo('Sensō-ji');
+  check('caption: Sensō-ji links to the correct article, not Taito',
+    sensoJiInfo?.label === 'Sensō-ji' &&
+      sensoJiInfo.url === 'https://en.wikipedia.org/wiki/Sens%C5%8D-ji');
 
   const hakoneInfo = wikipediaLocationInfo('Hakone, Kanagawa');
   check('caption: Hakone links directly to its English Wikipedia article',
@@ -380,6 +385,9 @@ function near(name, actual, expected, tolerance) {
     guessedPlace.desc === 'Midday close to teamLab Planets, Koto-ku, Tokyo.', guessedPlace.desc);
   check('caption: location line says Near', guessedPlace.location === 'Near teamLab Planets',
     guessedPlace.location);
+  check('caption: nearby matched landmark links to itself',
+    guessedPlace.infoLabel === 'teamLab Planets' &&
+      guessedPlace.infoUrl === 'https://en.wikipedia.org/wiki/teamLab_Planets');
   check('caption: enclosing landmark is not hedged', !withLandmark.desc.includes('close to'));
 
   const diningCluster = {
@@ -443,8 +451,8 @@ function near(name, actual, expected, tolerance) {
     card.indexOf('photo-card-footer') < card.indexOf('data-remove-photo'));
   check('photo card: remove control uses a monochrome SVG icon',
     card.includes('<svg aria-hidden="true"'));
-  check('photo card: description links to destination information',
-    card.includes('Learn about Bunkyo') && card.includes('en.wikipedia.org'));
+  check('photo card: description links to landmark information',
+    card.includes('Learn about Tokyo Dome') && card.includes('en.wikipedia.org/wiki/Tokyo_Dome'));
 }
 
 // ── Day navigation ───────────────────────────────────────────────────────────
@@ -474,12 +482,34 @@ function near(name, actual, expected, tolerance) {
     }],
     taggedCount: 1,
   };
-  check('day nav: nearby landmark keeps reliable area',
-    placesFor(nearbyDay).label === 'Toshima-ku', placesFor(nearbyDay).label);
+  check('day nav: reflects the matched landmark',
+    placesFor(nearbyDay).label === 'Natsuge Museum', placesFor(nearbyDay).label);
   nearbyDay.label = 'Sat, Jun 6, 2026';
   check('day heading: date followed by location without media type',
-    dayHeading(nearbyDay) === 'Sat, Jun 6, 2026 · Toshima-ku',
+    dayHeading(nearbyDay) === 'Sat, Jun 6, 2026 · Natsuge Museum',
     dayHeading(nearbyDay));
+
+  const sensoJiDay = {
+    ...nearbyDay,
+    regions: [{
+      ...nearbyDay.regions[0],
+      taggedCount: 6,
+      clusters: [
+        {
+          ...nearbyDay.regions[0].clusters[0],
+          id: 'near-kaminarimon', place: 'Kaminarimon', landmark: 'Kaminarimon',
+          landmarkNearby: true, photoIds: ['a', 'b', 'c'],
+        },
+        {
+          ...nearbyDay.regions[0].clusters[0],
+          id: 'at-sensoji', place: 'Sensō-ji', landmark: 'Sensō-ji',
+          landmarkNearby: false, photoIds: ['d', 'e', 'f'],
+        },
+      ],
+    }],
+  };
+  check('day nav: enclosing Sensō-ji wins a tie with nearby Kaminarimon',
+    placesFor(sensoJiDay).label === 'Sensō-ji', placesFor(sensoJiDay).label);
 }
 
 // ── Video metadata ───────────────────────────────────────────────────────────

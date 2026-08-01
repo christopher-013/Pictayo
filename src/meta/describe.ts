@@ -47,7 +47,12 @@ export class MetadataDescriber implements DescriptionProvider {
       ? googleMapsVenueUrl(cluster.nearbyDining, cluster.area)
       : undefined;
 
-    const info = cluster ? wikipediaLocationInfo(cluster.area) : null;
+    // Once landmark enrichment has identified a specific place, link to that
+    // place rather than the surrounding administrative area. Otherwise a
+    // Sensō-ji photo can correctly say "Sensō-ji" while "Learn about Taito"
+    // opens the unrelated video-game company article.
+    const infoSubject = cluster?.landmark ? cluster.place : cluster?.area;
+    const info = infoSubject ? wikipediaLocationInfo(infoSubject) : null;
 
     return {
       location,
@@ -114,16 +119,14 @@ export class MetadataDescriber implements DescriptionProvider {
 }
 
 /**
- * Builds a useful destination-level article link from a resolved area name.
- * Nearby landmarks deliberately use their surrounding destination: a small
- * bridge may have no article, while Hakone provides meaningful trip context.
+ * Builds a Wikipedia article link from a resolved landmark or area name.
  */
 export function wikipediaLocationInfo(
-  area: string,
+  subject: string,
 ): { label: string; url: string } | null {
-  if (!area || /°[NS],/.test(area)) return null;
+  if (!subject || /°[NS],/.test(subject)) return null;
 
-  const [rawPrimary] = area.split(',');
+  const [rawPrimary] = subject.split(',');
   const primary = rawPrimary?.trim();
   if (!primary) return null;
 
