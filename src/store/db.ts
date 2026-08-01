@@ -15,9 +15,10 @@ const DB_NAME = 'picturepicture';
  * v2 added the landmark cache; v3 discards it so nearby landmarks get found;
  * v4 added video storage; v5 added nearby dining suggestions; v6 tightened the
  * cache precision; v7 allows a moderate amount of indoor GPS drift; v8 allows
- * dining cache records to retain the matched venue position for detail links.
+ * dining cache records to retain the matched venue position for detail links;
+ * v9 refreshes misses after expanding nearby landmark feature coverage.
  */
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -104,6 +105,12 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
       if (oldVersion < 7 && oldVersion >= 2) {
         // v6 cached misses from its overly strict 10 m dining search. Ask again
         // using the 30 m range while retaining the precise cache coordinates.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 9 && oldVersion >= 2) {
+        // v8's proximity query never requested amenity or building features,
+        // even though its result picker supported them. Clear cached misses so
+        // places such as Sensō-ji are resolved with the corrected query.
         transaction.objectStore('landmarks').clear();
       }
     },

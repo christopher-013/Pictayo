@@ -22,7 +22,8 @@ import { strFromU8, unzipSync } from 'fflate';
 import { screenPosition, fitZoom, centerOf, mercatorY, latitudeFromMercator } from '../src/geo/mercator.ts';
 import { distanceMeters, clusterPhotos, splitIntoRegions } from '../src/geo/cluster.ts';
 import {
-  landmarkCacheKey, pickLandmark, pickNearest, pickNearbyDining, splitOnCountMarkers,
+  landmarkCacheKey, nearbyLandmarkQuery, pickLandmark, pickNearest,
+  pickNearbyDining, splitOnCountMarkers,
 } from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
@@ -218,6 +219,31 @@ function near(name, actual, expected, tolerance) {
   check('nearby: reads `center` for ways', pickNearest([viaCenter], at)?.name === 'A Park');
 
   check('nearby: empty input is a miss', pickNearest([], at) === null);
+
+  // Regression from photos jun-13-165/166 at Sensō-ji Hondō. The picker
+  // supported temple tags, but the Overpass proximity query omitted them, so
+  // the real feature could never reach the picker when its enclosing outline
+  // was unnamed.
+  const sensoJiQuery = nearbyLandmarkQuery({
+    lat: 35.714644444444446,
+    lon: 139.79649444444445,
+  });
+  check('nearby query: requests places of worship',
+    sensoJiQuery.includes('amenity') && sensoJiQuery.includes('place_of_worship'));
+  check('nearby query: requests temple buildings',
+    sensoJiQuery.includes('building') && sensoJiQuery.includes('temple'));
+  check('nearby query: filters amenity values instead of fetching every amenity',
+    !sensoJiQuery.includes('[amenity][name]'));
+
+  const sensoJiNode = {
+    type: 'node', lat: 35.71475, lon: 139.79655,
+    tags: { amenity: 'place_of_worship', name: '浅草寺', 'name:en': 'Sensō-ji' },
+  };
+  check('nearby: identifies Sensō-ji from its named temple feature',
+    pickNearest([sensoJiNode], {
+      lat: 35.714644444444446,
+      lon: 139.79649444444445,
+    })?.name === 'Sensō-ji');
 }
 
 // ── Nearby dining ────────────────────────────────────────────────────────────

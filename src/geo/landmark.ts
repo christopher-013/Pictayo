@@ -107,16 +107,6 @@ const NEARBY_RADIUS_M = 220;
 const DINING_RADIUS_M = 30;
 const DINING_AMENITIES = new Set(['restaurant', 'cafe', 'fast_food', 'food_court']);
 
-/**
- * Tags searched for nearby landmarks.
- *
- * Narrower than the enclosing-area rules on purpose. A 220m circle in central
- * Tokyo contains hundreds of shops and restaurants, and pulling them all back
- * for every place would be slow and pointless — none of them would survive the
- * filter anyway.
- */
-const NEARBY_KEYS = ['tourism', 'leisure', 'historic', 'aeroway', 'man_made', 'railway'];
-
 export interface GeoPoint {
   lat: number;
   lon: number;
@@ -153,6 +143,28 @@ const LANDMARK_RULES: readonly LandmarkRule[] = [
   { key: 'building', values: new Set(['stadium', 'train_station', 'cathedral', 'temple', 'castle']) },
   { key: 'landuse', values: new Set(['commercial', 'retail']) },
 ];
+
+/**
+ * Builds the focused nearby-landmark lookup for one point.
+ *
+ * Keep the requested values derived from `LANDMARK_RULES`. The old query only
+ * requested a hand-maintained subset of tag keys, so `pickNearest` knew how to
+ * recognize `amenity=place_of_worship` and `building=temple` but Overpass never
+ * sent those features to it. That is why photos inside Sensō-ji could fall back
+ * to "Taito, Tokyo" when the enclosing building outline itself had no name.
+ * Value filters also avoid downloading every named amenity in a dense city.
+ */
+export function nearbyLandmarkQuery(point: GeoPoint): string {
+  const selectors = LANDMARK_RULES.map(({ key, values }) => {
+    const pattern = [...values].join('|');
+    return (
+      `nwr(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})` +
+      `["${key}"~"^(${pattern})$"][name];`
+    );
+  }).join('');
+
+  return `(${selectors});`;
+}
 
 interface OverpassElement {
   type?: string;
@@ -287,13 +299,6 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
     // Overpass QL but is rejected outright by the main instance with a 406, so
     // it is not usable in practice. This spells the same thing out longhand
     // using only syntax the servers actually accept.
-    const nearby = (point: GeoPoint) =>
-      '(' +
-      NEARBY_KEYS.map(
-        (key) => `nwr(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[${key}][name];`,
-      ).join('') +
-      ');';
-
     const dining = (point: GeoPoint) =>
       `nwr(around:${DINING_RADIUS_M},${point.lat},${point.lon})` +
       '["amenity"~"^(restaurant|cafe|fast_food|food_court)$"][name];';
@@ -304,7 +309,7 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
         .map(
           ({ point }) =>
             `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;` +
-            `${nearby(point)}out tags center;out count;` +
+            `${nearbyLandmarkQuery(point)}out tags center;out count;` +
             `${dining(point)}out tags center;out count;`,
         )
         .join('');
