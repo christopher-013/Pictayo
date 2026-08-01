@@ -72,10 +72,29 @@ export default {
       return json({ ok: true, number: null }, 201, cors);
     }
 
-    if (env.FEEDBACK_RATE_LIMITER?.limit) {
-      const client = request.headers.get('CF-Connecting-IP') || 'unknown';
-      const result = await env.FEEDBACK_RATE_LIMITER.limit({ key: client });
-      if (!result.success) return json({ ok: false, error: 'Please wait before sending more feedback.' }, 429, cors);
+    // Rate limiting is required, not best-effort.
+    //
+    // Treating the binding as optional fails open: a deploy that loses it —
+    // wrong environment, a dropped namespace, an older config — would keep
+    // creating issues with a live token and no throttle at all, silently. The
+    // binding is declared in wrangler.jsonc, so its absence is a misconfigured
+    // deploy rather than a request worth serving.
+    const limiter = env.FEEDBACK_RATE_LIMITER;
+    if (typeof limiter?.limit !== 'function') {
+      console.error('Feedback service is missing its rate limiter binding');
+      return json({ ok: false, error: 'Feedback could not be submitted right now.' }, 503, cors);
+    }
+
+    const client = request.headers.get('CF-Connecting-IP') || 'unknown';
+    let withinLimit;
+    try {
+      withinLimit = (await limiter.limit({ key: client })).success;
+    } catch {
+      // An unavailable limiter is still an absent control.
+      withinLimit = false;
+    }
+    if (!withinLimit) {
+      return json({ ok: false, error: 'Please wait before sending more feedback.' }, 429, cors);
     }
 
     if (!isSafeFeedbackText(payload.summary, 120, true) ||

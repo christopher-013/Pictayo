@@ -21,6 +21,8 @@ only feedback API. The hardening work in this audit is covered by the normal
 | External navigation | Improved | All new-window links use `noopener noreferrer`. |
 | Feedback abuse | Improved | Allowlisted origins, rate limit, honeypot, size/type checks, hostile-content rejection, sanitization, timeout, generic errors. |
 | Import memory | Improved | Photo IDs sample at most 768 KiB instead of buffering every complete original for hashing. |
+| Feedback rate limit | Fixed | The Worker treated `FEEDBACK_RATE_LIMITER` as optional and failed **open**: with the binding absent, 12 rapid requests created 12 GitHub issues. It now refuses to file issues without a working limiter, and smoke covers the missing, throttling, and failing-limiter cases. |
+| Dev-server styling | Fixed | `style-src 'self'` blocked Vite's dev-mode inline styles, leaving `npm run dev` completely unstyled and the manual review pass unable to verify anything. The relaxation now lives in `vite.config.ts` for `serve` only; smoke asserts it never reaches the built page. |
 | Release gate | Improved | CI now runs an npm vulnerability audit before build and smoke tests. |
 | Privacy | Documented | `SECURITY.md` records every outbound data flow and local-storage limitation. |
 | AI/code review | Documented | `CLAUDE.md` lists architecture, invariants, commands, and review priorities. |

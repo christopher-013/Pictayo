@@ -699,25 +699,56 @@ if (!existsSync(fixturesDir)) {
   const deniedResponse = await feedbackWorker.fetch(deniedRequest, {});
   check('feedback worker: rejects unapproved origins', deniedResponse.status === 403);
 
-  const unsafeRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
-    method: 'POST',
-    headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ summary: '<script>alert(1)</script>', message: '' }),
+  // Rate limiting is required, so every test past this point has to supply the
+  // binding a real deployment gets from wrangler.jsonc.
+  const withLimiter = (success = true) => ({
+    FEEDBACK_RATE_LIMITER: { limit: async () => ({ success }) },
   });
-  const unsafeResponse = await feedbackWorker.fetch(unsafeRequest, {});
+
+  const feedbackRequest = (body) =>
+    new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+      method: 'POST',
+      headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  const unsafeResponse = await feedbackWorker.fetch(
+    feedbackRequest({ summary: '<script>alert(1)</script>', message: '' }), withLimiter());
   check('feedback worker: rejects active-content payloads', unsafeResponse.status === 422);
 
-  const unconfiguredRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
-    method: 'POST',
-    headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ summary: 'Valid report', message: 'No secret details here.' }),
-  });
-  const unconfiguredResponse = await feedbackWorker.fetch(unconfiguredRequest, {});
+  const unconfiguredResponse = await feedbackWorker.fetch(
+    feedbackRequest({ summary: 'Valid report', message: 'No secret details here.' }), withLimiter());
   const unconfiguredBody = await unconfiguredResponse.json();
   check('feedback worker: fails closed with a generic missing-secret response',
     unconfiguredResponse.status === 503 &&
       !JSON.stringify(unconfiguredBody).toLowerCase().includes('secret') &&
       !JSON.stringify(unconfiguredBody).toLowerCase().includes('configured'));
+
+  // A deploy that loses the rate-limit binding must refuse to file issues
+  // rather than quietly accepting an unlimited stream of them.
+  const unlimitedResponse = await feedbackWorker.fetch(
+    feedbackRequest({ summary: 'Valid report', message: 'No limiter bound.' }),
+    { GITHUB_TOKEN: 'test-token-never-used' });
+  check('feedback worker: fails closed when the rate limiter is missing',
+    unlimitedResponse.status === 503, `got ${unlimitedResponse.status}`);
+  check('feedback worker: missing limiter does not name the cause',
+    !JSON.stringify(await unlimitedResponse.json()).toLowerCase().includes('rate'));
+
+  const throttledResponse = await feedbackWorker.fetch(
+    feedbackRequest({ summary: 'Valid report', message: 'Too many.' }),
+    { GITHUB_TOKEN: 'test-token-never-used', ...withLimiter(false) });
+  check('feedback worker: throttles once the limiter says no',
+    throttledResponse.status === 429, `got ${throttledResponse.status}`);
+
+  // A limiter that throws is an absent control, not a reason to proceed.
+  const brokenResponse = await feedbackWorker.fetch(
+    feedbackRequest({ summary: 'Valid report', message: 'Limiter down.' }),
+    {
+      GITHUB_TOKEN: 'test-token-never-used',
+      FEEDBACK_RATE_LIMITER: { limit: async () => { throw new Error('limiter unavailable'); } },
+    });
+  check('feedback worker: treats a failing limiter as throttled',
+    brokenResponse.status === 429, `got ${brokenResponse.status}`);
 }
 
 const dist = 'dist';
@@ -755,6 +786,12 @@ if (!existsSync(dist)) {
     html.includes('http-equiv="Content-Security-Policy"') &&
       html.includes("object-src 'none'") && html.includes("form-action 'none'") &&
       !html.includes("script-src 'self' 'unsafe-inline'") && !html.includes("'unsafe-eval'"));
+  // The dev server relaxes style-src so Vite's injected styles render; that
+  // relaxation lives in vite.config.ts and must never reach the built page.
+  check('build: shipped CSP keeps style-src strict',
+    !html.includes("'unsafe-inline'"), 'the dev-only style relaxation leaked into the build');
+  check('build: no inline styles need relaxing',
+    !/<style[\s>]/i.test(html) && !/\sstyle="/i.test(html));
   check('build: CSP allowlists every application network service',
     ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
       'overpass.private.coffee', 'picturepicture-feedback.cch13.workers.dev']
