@@ -191,15 +191,7 @@ button, a, input { font: inherit; }
   text-wrap: pretty;
 }
 
-.beta-links {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 7px;
-  white-space: nowrap;
-}
-
-.feedback-link {
+.footer-link {
   padding: 0;
   border: 0;
   background: transparent;
@@ -211,8 +203,8 @@ button, a, input { font: inherit; }
   cursor: pointer;
 }
 
-.feedback-link:hover { color: var(--teal-deep); }
-.feedback-link:focus-visible { outline: 3px solid rgba(1, 154, 160, 0.3); outline-offset: 3px; border-radius: 2px; }
+.footer-link:hover { color: var(--teal-deep); }
+.footer-link:focus-visible { outline: 3px solid rgba(1, 154, 160, 0.3); outline-offset: 3px; border-radius: 2px; }
 
 .landing-progress {
   width: min(420px, 90%);
@@ -230,6 +222,7 @@ button, a, input { font: inherit; }
  * pinning a logo this size would cost too much of the screen.
  */
 .app-header {
+  position: relative;
   background: var(--brand-gradient);
   border-bottom: 1px solid rgba(10, 124, 130, 0.14);
 }
@@ -262,7 +255,7 @@ button, a, input { font: inherit; }
   height: auto;
 }
 
-.app-privacy { text-align: center; }
+.app-notice { text-align: center; }
 
 .app-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -292,10 +285,27 @@ button, a, input { font: inherit; }
 }
 .btn-primary:hover:not(:disabled) { background: #086970; border-color: #086970; }
 
+.btn-feedback {
+  padding-inline: 18px;
+  border-radius: 999px;
+  border-color: rgba(10, 81, 87, 0.35);
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--teal-deep);
+  box-shadow: 0 2px 8px rgba(10, 81, 87, 0.08);
+}
+.btn-feedback:hover:not(:disabled) { background: #fff; border-color: var(--teal); }
+
+.header-feedback {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  z-index: 2;
+}
+
 .btn-quiet { border-color: var(--border); color: var(--ink3); background: transparent; }
 .btn-quiet:hover:not(:disabled) { background: #fff; border-color: var(--pin); color: var(--pin); }
 
-.app-privacy {
+.app-notice {
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 18px 8px;
@@ -311,6 +321,19 @@ button, a, input { font: inherit; }
   flex-direction: column;
   gap: 14px;
 }
+
+.site-footer {
+  padding: 10px 18px;
+  border-top: 1px solid rgba(10, 81, 87, 0.16);
+  background: rgba(255, 255, 255, 0.66);
+  color: #687681;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.site-footer p { margin: 0; }
+.site-footer .footer-link { color: var(--teal-deep); }
 
 /* ── Import ────────────────────────────────────────────────────────────── */
 
@@ -1450,26 +1473,27 @@ body.photo-lightbox-open { overflow: hidden; }
 /* ── Small screens ─────────────────────────────────────────────────────── */
 
 @media (max-width: 560px) {
-  .app-privacy { padding: 0 12px 8px; }
+  .app-notice { padding: 0 12px 8px; }
   .app-main { padding: 12px 12px 48px; }
 
   .app-logo img { width: 102px; }
   .app-header-inner { gap: 7px; padding: 8px 8px 6px; }
   .app-actions {
     width: 100%;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
     gap: 4px;
-    flex-wrap: nowrap;
   }
   .app-actions .btn {
-    flex: 0 1 auto;
+    width: 100%;
     min-width: 0;
-    padding: 7px 7px;
-    font-size: 12px;
+    padding: 7px 2px;
+    font-size: 10px;
     line-height: 1.15;
     white-space: nowrap;
   }
   .app-actions .btn-primary { white-space: normal; }
+  .header-feedback { top: 8px; right: 8px; padding: 7px 10px; font-size: 11px; }
   .mobile-label-break { display: inline; }
   .day-nav-scroll { --day-chip-width: 104px; padding: 8px 12px; }
   .day-chip { padding: 6px 9px; }
@@ -1478,7 +1502,7 @@ body.photo-lightbox-open { overflow: hidden; }
   .landing-heading { font-size: 23px; }
   .landing-tagline { font-size: 14px; }
   .landing-cta { padding: 14px 26px; font-size: 16px; }
-  .beta-links { display: flex; justify-content: center; margin: 6px 0 0; }
+  .site-footer { padding: 9px 12px; font-size: 11px; }
 
   .photo-day-map-canvas { aspect-ratio: 4 / 3; min-height: 210px; }
   .photo-day-map-title { font-size: 15px; }

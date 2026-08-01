@@ -9,7 +9,7 @@
 <meta name="application-name" content="PicturePicture">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://api.bigdatacloud.net https://overpass-api.de https://overpass.kumi.systems https://overpass.private.coffee https://picturepicture-feedback.cch13.workers.dev; frame-src https://maps.google.com https://www.google.com; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://api.bigdatacloud.net https://overpass-api.de https://overpass.kumi.systems https://overpass.private.coffee https://picturepicture-feedback.cch13.workers.dev; frame-src https://maps.google.com https://www.google.com">
 <link rel="canonical" href="https://christopher-013.github.io/PicturePicture/">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -90,7 +90,6 @@
 
     <p class="landing-note">
       <span id="landing-note">Media stays on this device. Location coordinates are shared with map and place-name services when geotags are available.</span>
-      <span class="beta-links">Public beta · <button type="button" class="feedback-link" data-open-feedback>Send feedback</button></span>
     </p>
   </div>
 
@@ -104,6 +103,7 @@
 </section>
 
 <header class="app-header" id="app-header" hidden>
+  <button type="button" class="btn btn-feedback header-feedback" data-open-feedback>Feedback</button>
   <div class="app-header-inner">
     <h1 class="app-logo">
       <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
@@ -115,9 +115,8 @@
       <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
     </div>
   </div>
-  <div class="app-privacy">
+  <div class="app-notice">
     <span id="library-summary" role="status" aria-live="polite" hidden></span>
-    <span class="beta-links">Public beta · <button type="button" class="feedback-link" data-open-feedback>Send feedback</button></span>
   </div>
 </header>
 
@@ -140,6 +139,13 @@
   <div id="day-page" class="day-page" role="tabpanel"></div>
 
 </main>
+
+<footer class="site-footer">
+  <p>No account needed. Your library stays in this browser. <span aria-hidden="true">·</span>
+    Public beta — <button type="button" class="footer-link" data-open-feedback>Send feedback</button>
+    <span aria-hidden="true">·</span> <a class="footer-link" href="./privacy.html">Privacy</a>.
+  </p>
+</footer>
 
 <!-- Full-window drop target; the landing screen and library view both use it. -->
 <div class="drop-overlay" id="drop-overlay" aria-hidden="true">

@@ -678,7 +678,7 @@ if (!existsSync(dist)) {
   check('build: all asset paths relative', absolute.length === 0, absolute.join(', '));
 
   for (const required of ['favicon.png', 'apple-touch-icon.png', 'logo.webp', 'mark.webp',
-    'robots.txt', 'sitemap.xml', 'site.webmanifest']) {
+    'robots.txt', 'sitemap.xml', 'site.webmanifest', 'privacy.html', 'privacy.css']) {
     check(`build: ships ${required}`, existsSync(join(dist, required)));
   }
 
@@ -707,8 +707,20 @@ if (!existsSync(dist)) {
     html.includes('property="og:url"') && html.includes('name="twitter:image"'));
   check('build: structured data describes the web application',
     html.includes('application/ld+json') && html.includes('PhotographyApplication'));
-  check('build: public-beta feedback has two entry points and an in-app dialog',
-    (html.match(/data-open-feedback/g) || []).length >= 2 && html.includes('id="feedback-dialog"'));
+  check('build: feedback has a top-right bubble, footer link, and in-app dialog',
+    html.includes('class="btn btn-feedback header-feedback"') &&
+      html.includes('class="footer-link" data-open-feedback') &&
+      (html.match(/data-open-feedback/g) || []).length === 2 &&
+      html.includes('id="feedback-dialog"'));
+  check('build: footer links to the public privacy page',
+    html.includes('class="site-footer"') && html.includes('href="./privacy.html"'));
+  const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
+  check('build: privacy page documents local media and external location services',
+    privacyHtml.includes('does not upload your library') &&
+      privacyHtml.includes('BigDataCloud') && privacyHtml.includes('OpenStreetMap') &&
+      privacyHtml.includes('Google Maps'));
+  check('build: privacy page has its own restrictive CSP',
+    privacyHtml.includes('Content-Security-Policy') && privacyHtml.includes("script-src 'none'"));
   check('build: feedback bundle never sends the visitor to GitHub',
     appBundle.includes('picturepicture-feedback.cch13.workers.dev/api/feedback') &&
       !appBundle.includes('github.com'));
