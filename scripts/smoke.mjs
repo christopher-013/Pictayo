@@ -907,6 +907,11 @@ if (!existsSync(dist)) {
     alphaValues.filter((alpha) => alpha === 0).length > alphaValues.length * 0.25);
   const alphaAt = (x, y) => logoRaw.data[(y * logoRaw.info.width + x) * logoRaw.info.channels + 3];
   check('brand: mascot whites remain opaque', alphaAt(380, 120) > 250);
+  const markRaw = await sharp(join(dist, 'mark.webp')).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const markAlpha = [];
+  for (let i = 3; i < markRaw.data.length; i += markRaw.info.channels) markAlpha.push(markRaw.data[i]);
+  check('brand: compact mobile mascot has a transparent background',
+    markAlpha.filter((alpha) => alpha === 0).length > markAlpha.length * 0.2);
 
   const assets = readdirSync(join(dist, 'assets'));
   check('build: emits the ingest worker', assets.some((f) => f.startsWith('ingest.worker')));
@@ -917,7 +922,10 @@ if (!existsSync(dist)) {
 
   check('build: title present', /<title>[^<]+<\/title>/.test(html));
   check('build: Pictayo public-release brand is present',
-    html.includes('<title>Pictayo') && html.includes('name="pictayo-version" content="1.0.0"'));
+    html.includes('<title>Pictayo — Your Memories, Mapped by Time and Place</title>') &&
+      html.includes('name="pictayo-version" content="1.0.0"') &&
+      html.includes('Your memories, mapped by time and place.') &&
+      html.includes('Your private photo map'));
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
     html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));
@@ -940,7 +948,8 @@ if (!existsSync(dist)) {
   check('build: social preview metadata is complete',
     html.includes('property="og:url"') && html.includes('name="twitter:image"'));
   check('build: structured data describes the web application',
-    html.includes('application/ld+json') && html.includes('PhotographyApplication'));
+    html.includes('application/ld+json') && html.includes('SoftwareApplication') &&
+      html.includes('PhotographyApplication') && html.includes('"operatingSystem": "Web"'));
   const appStyle = readFileSync(join('src', 'styles.css'), 'utf8');
   check('build: feedback has a top-right bubble, footer link, and in-app dialog',
     html.includes('class="btn btn-feedback header-feedback"') &&
@@ -959,10 +968,17 @@ if (!existsSync(dist)) {
   check('build: landing keeps one tagline and opens details from Learn More',
     html.includes('<h1 class="landing-tagline">') &&
       !html.includes('class="landing-heading"') &&
+      html.includes('Choose Photos') && html.includes('See How It Works') &&
       html.includes('<span class="landing-learn" id="landing-learn">') &&
       html.includes('data-open-info="learn-more"') &&
       html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"') &&
       !html.includes('Learn More <span aria-hidden="true">↗</span>'));
+  check('build: About copy explains the name, pronunciation, and broad audience',
+    html.includes('pic-TAH-yo') && html.includes('“Pic tayo,”') &&
+      html.includes('Pictayo is made for everyone.'));
+  check('build: responsive header has accessible Pictayo text outside the logo artwork',
+    html.includes('class="app-logo-mobile" aria-label="Pictayo"') &&
+      html.includes('<strong>Pic</strong>tayo'));
   check('build: informational content uses native modal dialogs',
     html.includes('id="learn-more-dialog"') && html.includes('id="privacy-dialog"'));
   check('build: privacy dialog uses a compact non-scrolling desktop flow',
@@ -976,6 +992,11 @@ if (!existsSync(dist)) {
       privacyHtml.includes('Google Maps'));
   check('build: privacy page has its own restrictive CSP',
     privacyHtml.includes('Content-Security-Policy') && privacyHtml.includes("script-src 'none'"));
+  const manifest = JSON.parse(readFileSync(join(dist, 'site.webmanifest'), 'utf8'));
+  check('build: web manifest uses the Pictayo launch identity',
+    manifest.name === 'Pictayo' && manifest.short_name === 'Pictayo' &&
+      manifest.description === 'Your memories, mapped by time and place.' &&
+      manifest.theme_color === '#0b326b' && manifest.background_color === '#ffffff');
   check('build: feedback bundle never sends the visitor to GitHub',
     appBundle.includes('picturepicture-feedback.cch13.workers.dev/api/feedback') &&
       !appBundle.includes('github.com'));
@@ -1033,6 +1054,9 @@ if (!existsSync(dist)) {
   const dayPage = strFromU8(archive['index.html']);
   const everywherePage = strFromU8(archive['everywhere.html']);
   const exportedCss = strFromU8(archive['assets/site.css']);
+  check('export: Pictayo logo dimensions match the generated asset',
+    readFileSync(join('src', 'export', 'exportSite.ts'), 'utf8')
+      .includes('width="760" height="608"'));
   check('export: creates everywhere.html', Boolean(archive['everywhere.html']));
   check('export: appends Everywhere after the date links',
     dayPage.indexOf('everywhere.html') > dayPage.indexOf('day-chip-dow'));

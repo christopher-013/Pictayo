@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Pictayo — Private Photo Map &amp; Travel Timeline</title>
-<meta name="description" content="Turn photos and videos into a private travel timeline organized by date and location. Explore every trip on interactive maps, directly in your browser.">
+<title>Pictayo — Your Memories, Mapped by Time and Place</title>
+<meta name="description" content="Organize your personal photos by date and explore their locations on an interactive map. Pictayo turns your camera roll into a private visual timeline of your memories.">
+<meta name="keywords" content="photo map, photo timeline, organize photos by date, geotagged photos, travel photo map, private photo organizer, photo metadata viewer, camera roll map, personal photo website, Pictayo">
 <meta name="author" content="Pictayo">
 <meta name="application-name" content="Pictayo">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
@@ -18,16 +19,16 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Pictayo">
 <meta property="og:locale" content="en_US">
-<meta property="og:title" content="Pictayo — Private Photo Map &amp; Travel Timeline">
-<meta property="og:description" content="Organize photos and videos by when and where they were taken, then explore every trip on interactive maps. Your media stays on your device.">
+<meta property="og:title" content="Pictayo — Your Memories, Mapped">
+<meta property="og:description" content="Turn your photos into an interactive timeline and map organized by when and where they were taken.">
 <meta property="og:url" content="https://christopher-013.github.io/PicturePicture/">
 <meta property="og:image" content="https://christopher-013.github.io/PicturePicture/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Pictayo logo featuring a white Maltipoo taking a travel photo">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Pictayo — Private Photo Map &amp; Travel Timeline">
-<meta name="twitter:description" content="Organize photos and videos by when and where they were taken, with interactive maps in your browser.">
+<meta name="twitter:title" content="Pictayo — Your Memories, Mapped">
+<meta name="twitter:description" content="Turn your photos into an interactive timeline and map organized by when and where they were taken.">
 <meta name="twitter:image" content="https://christopher-013.github.io/PicturePicture/og-image.png">
 <meta name="twitter:image:alt" content="Pictayo logo featuring a white Maltipoo taking a travel photo">
 <meta name="pictayo-version" content="1.0.0">
@@ -36,13 +37,13 @@
   "@context": "https://schema.org",
   "@graph": [
     {
-      "@type": "WebApplication",
+      "@type": "SoftwareApplication",
       "@id": "https://christopher-013.github.io/PicturePicture/#app",
       "name": "Pictayo",
       "url": "https://christopher-013.github.io/PicturePicture/",
-      "description": "Turn photos and videos into a private travel timeline organized by date and location, with interactive maps.",
+      "description": "Pictayo organizes personal photos by date and displays available geolocations on an interactive map.",
       "applicationCategory": "PhotographyApplication",
-      "operatingSystem": "Any modern web browser",
+      "operatingSystem": "Web",
       "inLanguage": "en",
       "isAccessibleForFree": true,
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -59,7 +60,7 @@
       "@id": "https://christopher-013.github.io/PicturePicture/#website",
       "name": "Pictayo",
       "url": "https://christopher-013.github.io/PicturePicture/",
-      "description": "A private photo map and travel timeline that runs in your browser.",
+      "description": "Pictayo is a private photo map and timeline that organizes your pictures by when and where they were taken.",
       "inLanguage": "en",
       "publisher": { "@id": "https://christopher-013.github.io/PicturePicture/#app" }
     }
@@ -72,18 +73,24 @@
 <!-- Start screen. Replaced by the library view as soon as photos are imported. -->
 <section class="landing" id="landing">
   <div class="landing-inner">
-    <img class="landing-logo" src="/logo.webp" alt="Pictayo logo featuring a white Maltipoo taking a photo beside a travel picture, map, and location pin" width="760" height="456" fetchpriority="high">
+    <img class="landing-logo" src="/logo.webp" alt="Pictayo logo featuring a white Maltipoo taking a photo beside a Mount Fuji picture, map, and location pin" width="760" height="608" fetchpriority="high">
 
+    <p class="landing-eyebrow">Your private photo map</p>
     <h1 class="landing-tagline">
-      Sort your photos and videos — free, in your browser
+      Your memories, mapped by time and place.
     </h1>
+    <p class="landing-support">Import your own photos and let Pictayo organize them by date, place them on an interactive map, and turn them into a visual timeline of the places you have been.</p>
 
     <div class="landing-menu">
       <button type="button" class="landing-cta" id="btn-add">
         <span class="landing-cta-icon" aria-hidden="true">📷</span>
-        Add photos &amp; videos
+        Choose Photos
       </button>
-      <button type="button" class="landing-alt" id="btn-add-folder">Add a folder instead</button>
+      <div class="landing-secondary-actions">
+        <button type="button" class="landing-alt" id="btn-add-folder">Add a folder instead</button>
+        <button type="button" class="landing-alt" data-open-info="learn-more">See How It Works</button>
+      </div>
+      <p class="landing-privacy-note">Your photos remain on your device.</p>
     </div>
 
     <p class="landing-note" id="landing-note" role="status" aria-live="polite" hidden></p>
@@ -102,7 +109,8 @@
 <header class="app-header" id="app-header" hidden>
   <div class="app-header-inner">
     <h1 class="app-logo">
-      <img src="/logo.webp" alt="Pictayo" width="760" height="456" decoding="async">
+      <img class="app-logo-full" src="/logo.webp" alt="Pictayo logo featuring a white Maltipoo taking a photo beside a Mount Fuji picture, map, and location pin" width="760" height="608" decoding="async">
+      <span class="app-logo-mobile" aria-label="Pictayo"><img src="/mark.webp" alt="" width="192" height="192" decoding="async"><span><strong>Pic</strong>tayo</span></span>
     </h1>
     <div class="app-actions">
       <button type="button" class="btn btn-primary" id="btn-add-more"><span class="desktop-action-label">Add photos &amp; videos</span><span class="mobile-action-label">Add</span></button>
@@ -136,7 +144,7 @@
 </main>
 
 <footer class="site-footer">
-  <p class="site-footer-line">No account needed. Your library stays in this browser. <span aria-hidden="true">·</span>
+  <p class="site-footer-line"><strong>Pictayo</strong> — Your memories, mapped by time and place. Your library stays in this browser. <span aria-hidden="true">·</span>
     <button type="button" class="footer-link" data-open-feedback>Send feedback</button>
     <span aria-hidden="true">·</span> <button type="button" class="footer-link" data-open-info="privacy">Privacy</button><span class="landing-learn" id="landing-learn"><span aria-hidden="true"> · </span><button type="button" class="footer-link" data-open-info="learn-more">Learn More</button></span>.
   </p>
@@ -146,33 +154,44 @@
   <article class="info-dialog-card learn-more-dialog-card">
     <button class="info-dialog-close" type="button" data-close-info aria-label="Close Learn More dialog">×</button>
     <div class="info-dialog-icon" aria-hidden="true">✨</div>
-    <div class="info-dialog-eyebrow">YOUR PHOTOS, ORGANIZED</div>
+    <div class="info-dialog-eyebrow">PRIVATE PHOTO MAP AND TIMELINE</div>
     <div class="info-dialog-body">
       <div class="landing-learn-intro">
-        <h2 id="learn-more-dialog-title">Turn a camera roll into a trip you can revisit.</h2>
-        <p>Pictayo reads the date and location already stored in your media, then builds a visual timeline with maps and useful place names.</p>
+        <h2 id="learn-more-dialog-title">Turn your camera roll into a visual story.</h2>
+        <p>Pictayo helps you rediscover your photos by organizing them into a chronological timeline and placing available geolocations on an interactive map. Import your pictures, explore your memories by date and place, and turn your camera roll into a visual story.</p>
       </div>
       <section class="pictayo-brand-story" aria-labelledby="pictayo-brand-story-title">
-        <h3 id="pictayo-brand-story-title">Why Pictayo?</h3>
-        <p>Pictayo is inspired by the Filipino and Taglish invitation “Pic tayo” — “Let’s take a picture.” Our Maltipoo mascot brings that friendly, travel-ready spirit to every photo story.</p>
+        <h3 id="pictayo-brand-story-title">About Pictayo <span class="pictayo-pronunciation">(pic-TAH-yo)</span></h3>
+        <p>Pictayo was inspired by the Filipino and Taglish phrase “Pic tayo,” meaning “Let’s take a picture.” It reflects the familiar moment when family or friends gather together to capture a memory. Pictayo is made for everyone.</p>
+        <p>Pictayo turns those individual pictures into something more meaningful: a visual timeline and map showing when and where your memories happened.</p>
       </section>
       <div class="landing-learn-grid">
         <article>
           <span aria-hidden="true">1</span>
-          <h3>Add your media</h3>
-          <p>Choose photos and videos, or import a whole folder at once.</p>
+          <h3>Choose your photos</h3>
+          <p>Select pictures from your phone or computer.</p>
         </article>
         <article>
           <span aria-hidden="true">2</span>
-          <h3>Explore your story</h3>
-          <p>Browse days, maps, landmarks, nearby places, and translated text found in photos.</p>
+          <h3>Pictayo organizes them</h3>
+          <p>Dates and available location information are used to build your timeline and map.</p>
         </article>
         <article>
           <span aria-hidden="true">3</span>
-          <h3>Keep or share it</h3>
-          <p>Your library stays in this browser, and you can export a standalone site whenever you are ready.</p>
+          <h3>Explore your memories</h3>
+          <p>Browse your photos by day, revisit places on the map, and relive your journey.</p>
         </article>
       </div>
+      <section class="landing-feature-summary" aria-label="Pictayo features">
+        <h3>Made for your memories</h3>
+        <ul>
+          <li><strong>See your memories in order.</strong> Photo dates build a chronological timeline.</li>
+          <li><strong>Remember where every moment happened.</strong> Available geotags appear on an interactive map.</li>
+          <li><strong>Designed around your privacy.</strong> Your photo library is processed directly in your browser.</li>
+          <li><strong>Made for every screen.</strong> Explore on a phone, tablet, or desktop computer.</li>
+          <li><strong>Turn your memories into a website.</strong> Export a standalone visual photo experience to keep or share.</li>
+        </ul>
+      </section>
       <p class="landing-learn-privacy">
         No account needed. Your media remains on this device. Location coordinates are shared only with the map and place-name services described in our <button type="button" class="footer-link" data-open-info="privacy">Privacy notice</button>.
       </p>
@@ -206,7 +225,7 @@
           <p>Removing one item or clearing Pictayo deletes only the browser-stored copies. Your original files are never changed, moved, or deleted.</p>
         </section>
       </div>
-      <p class="info-dialog-updated">Last updated August 2, 2026.</p>
+      <p class="info-dialog-updated">Last updated August 3, 2026.</p>
     </div>
   </article>
 </dialog>

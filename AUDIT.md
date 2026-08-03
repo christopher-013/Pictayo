@@ -1,6 +1,6 @@
 # Pictayo 1.0 release-readiness audit
 
-Audit date: 2026-08-02
+Audit date: 2026-08-03
 
 Release reviewed: `1.0.0`
 
@@ -27,6 +27,7 @@ only feedback API. The hardening work in this audit is covered by the normal
 | Release gate | Improved | CI now runs an npm vulnerability audit before build and smoke tests. |
 | Privacy | Documented | `SECURITY.md` records every outbound data flow and local-storage limitation. |
 | AI/code review | Documented | `CLAUDE.md` lists architecture, invariants, commands, and review priorities. |
+| Public branding | Pass | Pictayo name, approved Maltipoo artwork, accessible responsive wordmark, launch messaging, metadata, manifest, and social preview are aligned for 1.0. |
 
 ## Residual risks and follow-up
 

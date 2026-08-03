@@ -70,7 +70,7 @@ async function snapWhite(pipeline) {
  * get partial alpha instead of staying fully opaque. Without it the logo wears
  * a pale fringe wherever it sits on something that isn't white.
  */
-async function makeTransparent(pipeline) {
+async function makeTransparent(pipeline, includeWordmarkCounters = true) {
   const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
 
@@ -115,7 +115,8 @@ async function makeTransparent(pipeline) {
   const MIN_COUNTER_PIXELS = 50;
   const visited = new Uint8Array(width * height);
 
-  for (let start = WORDMARK_TOP * width; start < background.length; start++) {
+  for (let start = includeWordmarkCounters ? WORDMARK_TOP * width : background.length;
+    start < background.length; start++) {
     if (background[start] || visited[start] || brightnessAt(start) < FILL_THRESHOLD) continue;
 
     const component = [];
@@ -183,11 +184,13 @@ await mkdir(BRAND_OUT, { recursive: true });
 
 const mascotAt = (size) =>
   snapWhite(sharp(SRC).extract(MASCOT).flatten({ background: '#ffffff' }).resize(size, size));
+const transparentMascotAt = (size) =>
+  makeTransparent(sharp(SRC).extract(MASCOT).resize(size, size), false);
 
 // Header brand mark. 192px covers a ~48px slot at 4x, and doubles as the
 // mark inlined into exported albums.
-await (await mascotAt(192)).webp({ quality: 90 }).toFile(`${OUT}/mark.webp`);
-await (await mascotAt(512)).png({ compressionLevel: 9 }).toFile(`${BRAND_OUT}/pictayo-mascot.png`);
+await (await transparentMascotAt(192)).webp({ quality: 90, alphaQuality: 100 }).toFile(`${OUT}/mark.webp`);
+await (await transparentMascotAt(512)).png({ compressionLevel: 9 }).toFile(`${BRAND_OUT}/pictayo-mascot.png`);
 
 // Favicons stay PNG: still the safest bet for tab icons, and Apple's
 // home-screen icon wants an opaque background rather than transparency.

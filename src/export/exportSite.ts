@@ -201,7 +201,7 @@ function buildDayPage(context: PageContext): string {
 <body>
 
 <header class="site-header">
-${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="Pictayo" width="760" height="456">' : ''}
+${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="Pictayo" width="760" height="608">' : ''}
 <h1>${escapeAttr(title)}</h1>
 <p>${days.length} day${days.length === 1 ? '' : 's'} · ${totalPhotos} item${totalPhotos === 1 ? '' : 's'}</p>
 </header>
@@ -444,7 +444,7 @@ function buildEverywherePage(
 </head>
 <body>
 <header class="site-header">
-${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="Pictayo" width="760" height="456">' : ''}
+${hasLogo ? '<img class="site-logo" src="assets/logo.webp" alt="Pictayo" width="760" height="608">' : ''}
 <h1>${escapeAttr(title)}</h1>
 <p>${days.length} day${days.length === 1 ? '' : 's'} · ${totalItems} item${totalItems === 1 ? '' : 's'}</p>
 </header>

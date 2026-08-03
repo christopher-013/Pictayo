@@ -1,21 +1,25 @@
 # Pictayo
 
-Import your photos; the site organizes them by the day they were taken and plots
-where each one was shot on a Google Map overlay.
+**Your memories, mapped by time and place.**
+
+Pictayo is a private photo map and timeline that organizes your pictures by when
+and where they were taken. It reads available photo metadata, builds a
+chronological timeline, and plots geotagged memories on an interactive map.
 
 Everything runs in the browser and media files are never uploaded. Geotag
 coordinates are shared with map and place-name services as described in
 [Privacy](#privacy).
 
-The name is inspired by the Filipino and Taglish invitation “Pic tayo” —
-“Let’s take a picture.” The approved white Maltipoo mascot is the primary
-Pictayo brand character.
+The name (pronounced **pic-TAH-yo**) is inspired by the Filipino and Taglish
+invitation “Pic tayo” — “Let’s take a picture.” Pictayo is made for everyone;
+the approved white Maltipoo mascot brings that friendly, family-and-travel
+spirit to the brand.
 
 ![grouped by day, pinned to a map](https://img.shields.io/badge/runs-entirely%20client--side-0f766e)
 
 ## What it does
 
-1. **Import** — a start screen with the logo and a single "Add photos" button.
+1. **Import** — a start screen with the logo and a prominent "Choose Photos" button.
    Drop files anywhere on the window, pick files, or pick a whole folder; on a
    phone the same button opens the camera roll. Once anything is imported the
    start screen gives way to the library, and a saved library skips it entirely
@@ -128,8 +132,11 @@ Two things that script handles which are easy to get wrong by hand:
 - Transparency is flood-filled from the outside, with a wordmark-only enclosed
   component pass for the counters inside the `p` and `e` letters. Restricting
   that pass to the text preserves the mascot's intentional white artwork.
-- The mascot crop was picked by rendering candidates *at favicon size*. Framings
+- The transparent mascot crop used in the mobile header was picked by rendering
+  candidates *at favicon size*. Framings
   that included the whole photo-and-map composition turned to mush at 40px.
+- Installed app icons keep an opaque background for broad platform support;
+  the in-page compact mascot asset is transparent so it blends into the header.
 
 Brand colours are sampled from the artwork: teal `#01a5ab`, purple `#6559e9`.
 The teal is used as `--brand-teal: #019aa0` — the same hue nudged just dark

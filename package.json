@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Private, browser-based photo and video organization by date and location.",
+  "description": "Pictayo is a private photo map and timeline that organizes pictures by when and where they were taken.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

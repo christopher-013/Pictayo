@@ -1,11 +1,11 @@
 {
-  "name": "Pictayo — Private Photo Map & Travel Timeline",
+  "name": "Pictayo",
   "short_name": "Pictayo",
-  "description": "Organize photos and videos by when and where they were taken, with interactive maps in your browser.",
+  "description": "Your memories, mapped by time and place.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f7fafc",
+  "background_color": "#ffffff",
   "theme_color": "#0b326b",
   "icons": [
     {
