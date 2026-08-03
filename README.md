@@ -292,6 +292,10 @@ leave the device so the app can provide maps and human-readable place names:
 - **BigDataCloud** receives one cluster coordinate per reverse-geocode lookup.
 - **OpenStreetMap Overpass** receives batched cluster coordinates for optional
   landmark and nearby-dining enrichment.
+- **English Wikipedia** receives a cluster coordinate only when the map lookup
+  does not return a landmark. Nearby articles, place descriptions, and
+  aggregate pageview counts help select a recognizable place without
+  city-specific rules.
 - **Google Maps** receives a map centre when an embedded map is displayed, and
   receives the selected coordinate if someone opens an interactive map link.
 

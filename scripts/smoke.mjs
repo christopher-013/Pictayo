@@ -26,7 +26,7 @@ import {
 } from '../src/geo/cluster.ts';
 import {
   isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickLandmark, pickNearest,
-  pickNearbyDining, splitOnCountMarkers,
+  pickNearbyDining, pickNotableWikipediaPlace, splitOnCountMarkers,
 } from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
@@ -197,6 +197,36 @@ function near(name, actual, expected, tolerance) {
     isFreshCacheEntry({ name: '', diningName: '', checkedAt: 1_000 }, 1_001));
   check('landmark cache: incomplete results expire for retry',
     !isFreshCacheEntry({ name: '', diningName: '', checkedAt: 1_000 }, 7 * 60 * 60 * 1000));
+
+  const notableFromWikipedia = pickNotableWikipediaPlace([
+    {
+      title: 'Nearby Retail Company',
+      coordinates: [{ lat: 35.67121, lon: 139.76321 }],
+      pageviews: { a: 500 },
+      terms: { description: ['Japanese retail company'] },
+    },
+    {
+      title: 'Ginza',
+      coordinates: [{ lat: 35.6717, lon: 139.7649 }],
+      pageviews: { a: 32_000 },
+      terms: { description: ['district of Chūō, Tokyo, Japan'] },
+    },
+  ], { lat: 35.6712, lon: 139.7632 });
+  check('notable place: popularity and place type beat the nearest business',
+    notableFromWikipedia?.name === 'Ginza', notableFromWikipedia?.name);
+
+  const templeParent = pickNotableWikipediaPlace([{
+    title: 'Main Hall (Sensō-ji)',
+    coordinates: [{ lat: 35.71475, lon: 139.79655 }],
+    pageviews: { a: 10_000 },
+    terms: { description: ['Buddhist temple building in Tokyo'] },
+  }], { lat: 35.7147, lon: 139.7966 });
+  check('notable place: a landmark subplace uses its recognizable parent name',
+    templeParent?.name === 'Sensō-ji', templeParent?.name);
+  check('notable place: distant articles are rejected',
+    pickNotableWikipediaPlace([{
+      title: 'Far Away', coordinates: [{ lat: 35.8, lon: 139.9 }], pageviews: { a: 1_000_000 },
+    }], { lat: 35.7, lon: 139.7 }) === null);
 }
 
 // ── Nearby landmarks ─────────────────────────────────────────────────────────

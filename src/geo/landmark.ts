@@ -105,6 +105,9 @@ const NEARBY_RADIUS_M = 220;
  * normal drift without returning to the overly broad original 120 m search.
  */
 const DINING_RADIUS_M = 30;
+const NOTABLE_PLACE_RADIUS_M = 350;
+const WIKIPEDIA_ENDPOINT = 'https://en.wikipedia.org/w/api.php';
+const WIKIPEDIA_TIMEOUT_MS = 8_000;
 /** Empty/partial results are retried because map data and transiently empty
  * Overpass responses must not turn into permanent generic ward labels. */
 const INCOMPLETE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -322,25 +325,32 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     const elements = await this.fetchWithFallback(overpassQl);
 
-    if (!elements) {
-      this.consecutiveFailures += 1;
-      // Nothing cached on failure: these places are worth asking about again.
-      return results;
-    }
+    if (!elements) this.consecutiveFailures += 1;
+    else this.consecutiveFailures = 0;
 
-    this.consecutiveFailures = 0;
-
-    const groups = splitOnCountMarkers(elements);
-
-    for (const [index, { key, point }] of batch.entries()) {
+    const groups = splitOnCountMarkers(elements ?? []);
+    const preliminary = batch.map(({ point }, index) => {
       // Three groups per point, in the order the query emitted them.
       const enclosing = groups[index * 3] ?? [];
       const nearby = groups[index * 3 + 1] ?? [];
       const diningCandidates = groups[index * 3 + 2] ?? [];
+      return {
+        landmark: pickLandmark(enclosing) ?? pickNearest(nearby, point),
+        dining: pickNearbyDining(diningCandidates, point),
+      };
+    });
 
-      // Being inside somewhere always beats being near it.
-      const landmark = pickLandmark(enclosing) ?? pickNearest(nearby, point);
-      const dining = pickNearbyDining(diningCandidates, point);
+    // Run fallbacks concurrently so a batch adds at most one Wikipedia round
+    // trip to the critical path, rather than one serial request per location.
+    const notableFallbacks = await Promise.all(
+      preliminary.map((item, index) =>
+        item.landmark ? Promise.resolve(null) : this.findNotableWikipediaPlace(batch[index]!.point),
+      ),
+    );
+
+    for (const [index, { key }] of batch.entries()) {
+      const landmark = preliminary[index]!.landmark ?? notableFallbacks[index] ?? null;
+      const dining = preliminary[index]!.dining;
       results.set(key, { landmark, dining });
 
       await putCachedLandmark({
@@ -392,6 +402,98 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     return null;
   }
+
+  /** Generic fallback ranked by nearby Wikipedia article recognition. */
+  private async findNotableWikipediaPlace(point: GeoPoint): Promise<Landmark | null> {
+    const params = new URLSearchParams({
+      action: 'query',
+      generator: 'geosearch',
+      ggscoord: `${point.lat}|${point.lon}`,
+      ggsradius: String(NOTABLE_PLACE_RADIUS_M),
+      ggslimit: '10',
+      ggsnamespace: '0',
+      prop: 'coordinates|pageviews|pageterms',
+      pvipdays: '30',
+      wbptterms: 'description',
+      format: 'json',
+      formatversion: '2',
+      origin: '*',
+    });
+
+    try {
+      const response = await fetch(`${WIKIPEDIA_ENDPOINT}?${params}`, {
+        signal: AbortSignal.timeout(WIKIPEDIA_TIMEOUT_MS),
+        referrerPolicy: 'no-referrer',
+        credentials: 'omit',
+      });
+      if (!response.ok) return null;
+      const data = (await response.json()) as WikipediaNearbyResponse;
+      return pickNotableWikipediaPlace(data.query?.pages ?? [], point);
+    } catch {
+      return null;
+    }
+  }
+}
+
+interface WikipediaNearbyPage {
+  title?: string;
+  coordinates?: Array<{ lat?: number; lon?: number }>;
+  pageviews?: Record<string, number | null>;
+  terms?: { description?: string[] };
+}
+
+interface WikipediaNearbyResponse {
+  query?: { pages?: WikipediaNearbyPage[] };
+}
+
+/** Selects a recognizable nearby subject without city-specific rules. */
+export function pickNotableWikipediaPlace(
+  pages: WikipediaNearbyPage[],
+  from: GeoPoint,
+  radiusMeters = NOTABLE_PLACE_RADIUS_M,
+): Landmark | null {
+  let best: { name: string; score: number; distance: number } | null = null;
+
+  for (const page of pages) {
+    const title = page.title?.trim();
+    const position = page.coordinates?.[0];
+    if (!title || typeof position?.lat !== 'number' || typeof position.lon !== 'number') continue;
+
+    const distance = roughDistanceMeters(from, { lat: position.lat, lon: position.lon });
+    if (distance > radiusMeters) continue;
+
+    const views = Object.values(page.pageviews ?? {}).reduce<number>(
+      (sum, value) => sum + (typeof value === 'number' ? value : 0),
+      0,
+    );
+    const description = page.terms?.description?.[0] ?? '';
+    const score =
+      Math.log10(views + 1) * 25 + notableDescriptionBoost(description) - distance / 4;
+    const name = parentPlaceName(title);
+
+    if (best && (score < best.score || (score === best.score && distance >= best.distance))) continue;
+    best = { name, score, distance };
+  }
+
+  if (!best || best.score < 25) return null;
+  return { name: best.name, kind: 'wikipedia=nearby', near: best.distance > 75 };
+}
+
+function notableDescriptionBoost(description: string): number {
+  if (/\b(temple|shrine|castle|museum|stadium|market|park|monument|landmark|tourist attraction)\b/i.test(description)) {
+    return 38;
+  }
+  if (/\b(district|neighbou?rhood|quarter|area|town|village)\b/i.test(description)) return 32;
+  if (/\b(station|bridge|tower|garden|gallery|theatre|university)\b/i.test(description)) return 18;
+  if (/\b(company|store|shop|brand|office)\b/i.test(description)) return -18;
+  return 0;
+}
+
+/** "Main Hall (Sensō-ji)" should describe the location as Sensō-ji. */
+function parentPlaceName(title: string): string {
+  const parent = title.match(/\(([^)]+)\)$/)?.[1]?.trim();
+  if (!parent || /^(district|building|station|Tokyo|Japan)$/i.test(parent)) return title;
+  return parent;
 }
 
 /**

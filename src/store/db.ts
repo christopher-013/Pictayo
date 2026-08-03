@@ -19,9 +19,10 @@ const DB_NAME = 'picturepicture';
  * v9 refreshes misses after expanding nearby landmark feature coverage; v10
  * refreshes matches after adding named districts and notability-based ranking;
  * v11 refreshes results after correcting overly broad photo clustering and
- * adds lookup timestamps so incomplete results can be retried.
+ * adds lookup timestamps so incomplete results can be retried; v12 refreshes
+ * generic misses after adding the adaptable notable-place fallback.
  */
-const DB_VERSION = 11;
+const DB_VERSION = 12;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -127,6 +128,10 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
       if (oldVersion < 11 && oldVersion >= 2) {
         // Old 250 m cluster centroids could sit between distinct destinations
         // and cached those misses forever. Re-run from the corrected points.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 12 && oldVersion >= 2) {
+        // Retry generic ward fallbacks with nearby Wikipedia recognition.
         transaction.objectStore('landmarks').clear();
       }
     },
