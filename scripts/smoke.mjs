@@ -314,6 +314,25 @@ function near(name, actual, expected, tolerance) {
       nearbyLandmarkQuery(ginzaPoint).includes('quarter'));
   check('nearby: notable district beats a small nearby gallery',
     pickNearest([leForum, ginza], ginzaPoint)?.name === 'Ginza');
+
+  // Regression from the Pokémon Center photos at Shibuya PARCO. A nearby
+  // documented event memorial used to tie the mall's score and win on
+  // proximity, producing the unrelated "February 26 incident" caption.
+  const shibuyaParcoPoint = { lat: 35.66238333333333, lon: 139.69868472222223 };
+  const february26Memorial = {
+    type: 'node', lat: 35.66242, lon: 139.69867,
+    tags: {
+      historic: 'memorial', name: '二・二六事件',
+      'name:en': 'February 26 incident', wikidata: 'Q871121',
+    },
+  };
+  const shibuyaParco = {
+    type: 'way', center: { lat: 35.66215, lon: 139.69884 },
+    tags: { shop: 'mall', name: '渋谷PARCO', 'name:en': 'Shibuya PARCO' },
+  };
+  check('nearby: a destination venue outranks an unrelated event memorial',
+    pickNearest([february26Memorial, shibuyaParco], shibuyaParcoPoint)?.name ===
+      'Shibuya PARCO');
 }
 
 // ── Nearby dining ────────────────────────────────────────────────────────────
@@ -445,6 +464,40 @@ function near(name, actual, expected, tolerance) {
   const areaOnly = { ...cluster, place: 'Bunkyo-ku, Tokyo', landmark: null };
   const plain = describer.describe({ photo: photo(), cluster: areaOnly, clusterSize: 2 });
   check('caption: area not repeated', plain.desc === 'Midday at Bunkyo-ku, Tokyo.', plain.desc);
+
+  const coordinateFallback = '35.6624°N, 139.6987°E';
+  const parcoWithCoordinateArea = describer.describe({
+    photo: photo(),
+    cluster: {
+      ...cluster,
+      place: 'Shibuya PARCO',
+      area: coordinateFallback,
+      landmark: 'Shibuya PARCO',
+      landmarkNearby: true,
+    },
+    clusterSize: 2,
+  });
+  check('caption: coordinate fallback is hidden when a landmark is known',
+    parcoWithCoordinateArea.desc === 'Midday close to Shibuya PARCO.' &&
+      !parcoWithCoordinateArea.desc.includes('35.6624'),
+    parcoWithCoordinateArea.desc);
+
+  const coordinatesOnly = describer.describe({
+    photo: photo(),
+    cluster: {
+      ...cluster,
+      place: coordinateFallback,
+      area: coordinateFallback,
+      landmark: null,
+      landmarkNearby: false,
+    },
+    clusterSize: 1,
+  });
+  check('caption: raw GPS coordinates are never visible copy',
+    coordinatesOnly.location === 'Mapped location' &&
+      coordinatesOnly.desc === 'Midday at this mapped location.' &&
+      !coordinatesOnly.desc.includes('35.6624'),
+    `${coordinatesOnly.location} / ${coordinatesOnly.desc}`);
 
   // A guessed landmark must read as a guess, in both the sentence and the
   // location line — never as a claim that you were inside it.

@@ -667,7 +667,15 @@ function nearbyLandmarkScore(
   } else if (key === 'place') {
     base = value === 'quarter' ? 85 : value === 'neighbourhood' ? 80 : 75;
   } else if (key === 'historic' && value === 'memorial') {
-    base = 60;
+    // A memorial can be a useful answer when the camera is actually beside
+    // it, but dense city maps also contain memorials for events that are not
+    // visible destinations. Do not let a documented event marker outrank the
+    // shopping centre, station or attraction containing the photographer.
+    base = 40;
+  } else if (key === 'shop' && ['mall', 'department_store'].includes(value)) {
+    // Large named complexes are often the human-recognisable destination (and
+    // indoor GPS commonly drifts toward an edge of their mapped footprint).
+    base = 100;
   }
 
   const documentedNotability = tags.wikipedia || tags.wikidata ? 15 : 0;

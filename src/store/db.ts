@@ -22,9 +22,10 @@ const DB_NAME = 'picturepicture';
  * refreshes matches after adding named districts and notability-based ranking;
  * v11 refreshes results after correcting overly broad photo clustering and
  * adds lookup timestamps so incomplete results can be retried; v12 refreshes
- * generic misses after adding the adaptable notable-place fallback.
+ * generic misses after adding the adaptable notable-place fallback; v13
+ * refreshes results after correcting nearby memorial-versus-venue ranking.
  */
-const DB_VERSION = 12;
+const DB_VERSION = 13;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -134,6 +135,12 @@ function openWithDeadline(): Promise<IDBPDatabase<PictayoDB>> {
       }
       if (oldVersion < 12 && oldVersion >= 2) {
         // Retry generic ward fallbacks with nearby Wikipedia recognition.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 13 && oldVersion >= 2) {
+        // v12 could let a nearby documented memorial outrank the large venue
+        // containing the camera. These lookups are disposable and must be
+        // resolved again with the corrected destination ranking.
         transaction.objectStore('landmarks').clear();
       }
     },

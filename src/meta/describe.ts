@@ -30,12 +30,15 @@ export interface DescriptionProvider {
 
 export class MetadataDescriber implements DescriptionProvider {
   describe({ photo, cluster }: DescriptionContext): Caption {
+    const visiblePlace = cluster ? descriptiveLocation(cluster.place) : '';
+    const visibleArea = cluster ? descriptiveLocation(cluster.area) : '';
+
     // "Near" only on the location line and in the sentence — pins and date
     // chips show the bare name, where there is no room for the qualifier.
     const location = cluster
       ? cluster.landmarkNearby
-        ? `Near ${cluster.place}`
-        : cluster.place
+        ? `Near ${visiblePlace || 'mapped location'}`
+        : visiblePlace || 'Mapped location'
       : '';
 
     const mapsUrl = cluster ? googleMapsUrl(cluster.lat, cluster.lon) : '';
@@ -44,14 +47,14 @@ export class MetadataDescriber implements DescriptionProvider {
       : undefined;
 
     const diningUrl = cluster?.nearbyDining
-      ? googleMapsVenueUrl(cluster.nearbyDining, cluster.area)
+      ? googleMapsVenueUrl(cluster.nearbyDining, visibleArea)
       : undefined;
 
     // Once landmark enrichment has identified a specific place, link to that
     // place rather than the surrounding administrative area. Otherwise a
     // Sensō-ji photo can correctly say "Sensō-ji" while "Learn about Taito"
     // opens the unrelated video-game company article.
-    const infoSubject = cluster?.landmark ? cluster.place : cluster?.area;
+    const infoSubject = cluster?.landmark ? visiblePlace : visibleArea;
     const info = infoSubject ? wikipediaLocationInfo(infoSubject) : null;
 
     return {
@@ -74,10 +77,13 @@ export class MetadataDescriber implements DescriptionProvider {
     // surrounding district — worth naming both, since "Tokyo Dome" alone
     // doesn't say which city. With no landmark the two are equal and the
     // area would just repeat itself.
-    const where =
-      cluster.area && cluster.area !== cluster.place
-        ? `${cluster.place}, ${cluster.area}`
-        : cluster.place;
+    const place = descriptiveLocation(cluster.place);
+    const area = descriptiveLocation(cluster.area);
+    const where = place
+      ? area && area !== place
+        ? `${place}, ${area}`
+        : place
+      : area || 'this mapped location';
 
     // "close to" when the landmark was only the nearest one. Claiming you were
     // inside somewhere the app merely guessed at would be worse than saying
@@ -147,4 +153,12 @@ function cameraName(make: string | null, model: string | null): string {
 
 function capitalize(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+/** Coordinates remain in the Maps URL, but never appear as user-facing copy. */
+function descriptiveLocation(value: string | null | undefined): string {
+  if (!value) return '';
+  return /^\s*\d+(?:\.\d+)?°[NS]\s*,\s*\d+(?:\.\d+)?°[EW]\s*$/i.test(value)
+    ? ''
+    : value.trim();
 }
