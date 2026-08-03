@@ -100,7 +100,6 @@
 </section>
 
 <header class="app-header" id="app-header" hidden>
-  <button type="button" class="btn btn-feedback header-feedback" data-open-feedback>Feedback</button>
   <div class="app-header-inner">
     <h1 class="app-logo">
       <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
@@ -111,17 +110,16 @@
       <button type="button" class="btn" id="btn-export" disabled>Export site</button>
       <button type="button" class="btn btn-quiet" id="btn-clear" disabled>Clear</button>
     </div>
-  </div>
-  <div class="app-notice">
-    <span id="library-summary" role="status" aria-live="polite" hidden></span>
+    <button type="button" class="btn btn-feedback header-feedback" data-open-feedback>Feedback</button>
   </div>
 </header>
 
-<!--
-  Sits outside the header so it can stick to the top on its own. The header
-  carries the full logo and is too tall to pin there while browsing.
--->
+<!-- Sticks directly below the compact app controls while browsing. -->
 <nav class="day-nav" id="day-nav" aria-label="Choose a day" hidden></nav>
+
+<div class="app-notice">
+  <span id="library-summary" role="status" aria-live="polite" hidden></span>
+</div>
 
 <main class="app-main" id="app-main" hidden>
 

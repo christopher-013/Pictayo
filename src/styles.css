@@ -44,6 +44,7 @@
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
   --r: 14px;
   --r-sm: 8px;
+  --app-header-height: 64px;
 
   /*
    * Shared by the start screen and the app header so the two read as one
@@ -294,26 +295,27 @@ button, a, input { font: inherit; }
 
 /* ── App header ────────────────────────────────────────────────────────── */
 
-/*
- * Not sticky: the date strip below it is what you need while browsing, and
- * pinning a logo this size would cost too much of the screen.
- */
 .app-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  min-height: var(--app-header-height);
   background: var(--brand-gradient);
   border-bottom: 1px solid rgba(10, 124, 130, 0.14);
+  box-shadow: 0 3px 16px rgba(12, 81, 87, 0.10);
 }
 
-/* Centred, and kept short — the date strip sticks below it and the photos are
- * what the page is for. */
+/* Adtona-style utility bar: brand at left, primary actions centred, feedback
+ * at right. Equal outer columns keep the actions centred in the viewport. */
 .app-header-inner {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) auto minmax(96px, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 14px;
+  min-height: calc(var(--app-header-height) - 1px);
   max-width: 1400px;
   margin: 0 auto;
-  padding: 10px 18px 8px;
+  padding: 6px 18px;
 }
 
 /*
@@ -323,18 +325,24 @@ button, a, input { font: inherit; }
  * size is what keeps it from competing with them. Its transparency lets the
  * header gradient run straight through rather than boxing it in.
  */
-.app-logo { margin: 0; line-height: 0; }
+.app-logo { justify-self: start; margin: 0; line-height: 0; }
 
 .app-logo img {
   display: block;
-  width: 118px;
+  width: 78px;
   max-width: 100%;
   height: auto;
 }
 
 .app-notice { text-align: center; }
 
-.app-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.app-actions {
+  display: flex;
+  justify-self: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
 
 .mobile-label-break { display: none; }
 
@@ -373,10 +381,8 @@ button, a, input { font: inherit; }
 .btn-feedback:hover:not(:disabled) { background: #fff; border-color: var(--teal); }
 
 .header-feedback {
-  position: absolute;
-  top: 12px;
-  right: 18px;
-  z-index: 2;
+  position: static;
+  justify-self: end;
 }
 
 .btn-quiet { border-color: var(--border); color: var(--ink3); background: transparent; }
@@ -503,8 +509,8 @@ button, a, input { font: inherit; }
  */
 .day-nav {
   position: sticky;
-  top: 0;
-  z-index: 40;
+  top: var(--app-header-height);
+  z-index: 50;
   background: rgba(255, 253, 246, 0.88);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -1646,24 +1652,28 @@ body.photo-lightbox-open { overflow: hidden; }
   .app-notice { padding: 0 12px 8px; }
   .app-main { padding: 12px 12px 48px; }
 
-  .app-logo img { width: 102px; }
-  .app-header-inner { gap: 7px; padding: 8px 8px 6px; }
+  .app-logo img { width: 44px; }
+  .app-header-inner {
+    grid-template-columns: 44px minmax(0, 1fr) 52px;
+    gap: 5px;
+    padding: 5px 8px;
+  }
   .app-actions {
     width: 100%;
     display: grid;
     grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
-    gap: 4px;
+    gap: 3px;
   }
   .app-actions .btn {
     width: 100%;
     min-width: 0;
-    padding: 7px 2px;
+    padding: 7px 1px;
     font-size: 10px;
     line-height: 1.15;
     white-space: nowrap;
   }
   .app-actions .btn-primary { white-space: normal; }
-  .header-feedback { top: 8px; right: 8px; padding: 7px 10px; font-size: 11px; }
+  .header-feedback { padding: 7px 5px; font-size: 10px; }
   .mobile-label-break { display: inline; }
   .day-nav-scroll { --day-chip-width: 104px; padding: 8px 12px; }
   .day-chip { padding: 6px 9px; }
@@ -1724,6 +1734,13 @@ body.photo-lightbox-open { overflow: hidden; }
   .learn-more-dialog-card .landing-learn-grid { grid-template-columns: 1fr; gap: 8px; margin-top: 14px; }
   .learn-more-dialog-card .landing-learn-grid article { padding: 12px; }
   .learn-more-dialog-card .landing-learn-privacy { margin-top: 14px; padding-top: 12px; }
+}
+
+@media (max-width: 360px) {
+  .app-logo img { width: 36px; }
+  .app-header-inner { grid-template-columns: 36px minmax(0, 1fr) 48px; }
+  .app-actions .btn { font-size: 8.5px; }
+  .header-feedback { padding-inline: 3px; font-size: 9px; }
 }
 
 @media (max-height: 720px) {

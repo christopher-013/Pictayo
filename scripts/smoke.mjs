@@ -729,6 +729,9 @@ if (!existsSync(fixturesDir)) {
   check('navigation: date and Show All chips share one responsive width',
     styleSource.includes('flex: 0 0 var(--day-chip-width)') &&
       styleSource.includes('width: var(--day-chip-width)'));
+  check('navigation: app controls and date strip stay pinned without overlap',
+    styleSource.includes('.app-header {\n  position: sticky;') &&
+      styleSource.includes('top: var(--app-header-height)'));
   check('navigation: long place names truncate with an ellipsis',
     styleSource.includes('text-overflow: ellipsis'));
   check('dialog: destructive action uses a compact bounded column',
