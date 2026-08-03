@@ -1471,7 +1471,35 @@ button, a, input { font: inherit; }
 
 .info-dialog-card { display: flex; flex-direction: column; }
 .info-dialog-body { min-height: 0; overflow-y: auto; padding-right: 8px; }
+.privacy-dialog-grid { display: block; }
+.privacy-dialog-grid section { min-width: 0; }
+.privacy-dialog-grid h3 { margin-top: 14px; }
+.privacy-dialog-grid p { margin-bottom: 0; }
+.privacy-dialog-body .info-dialog-updated { margin: 14px 0 0; }
 .learn-more-dialog-card .landing-learn-grid { margin-top: 20px; }
+
+@media (min-width: 700px) and (min-height: 680px) {
+  #privacy-dialog { width: min(960px, calc(100vw - 48px)); }
+  .privacy-dialog-card { padding: 22px 32px 20px; }
+  .privacy-dialog-card .info-dialog-icon {
+    width: 46px;
+    height: 46px;
+    margin-bottom: 9px;
+    font-size: 21px;
+  }
+  .privacy-dialog-card .info-dialog-eyebrow { margin-bottom: 4px; }
+  .privacy-dialog-card h2 { font-size: 32px; }
+  .privacy-dialog-body {
+    margin-top: 8px;
+    overflow-y: visible;
+    padding-right: 0;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .privacy-dialog-body .info-dialog-lead { margin-bottom: 2px; font-size: 14px; }
+  .privacy-dialog-grid h3 { margin: 9px 0 2px; font-size: 14px; }
+  .privacy-dialog-body .info-dialog-updated { margin-top: 12px; }
+}
 
 .photo-lightbox {
   position: fixed;

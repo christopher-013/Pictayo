@@ -898,6 +898,11 @@ if (!existsSync(dist)) {
       html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"'));
   check('build: informational content uses native modal dialogs',
     html.includes('id="learn-more-dialog"') && html.includes('id="privacy-dialog"'));
+  const privacyStyle = readFileSync(join('src', 'styles.css'), 'utf8');
+  check('build: privacy dialog uses a compact non-scrolling desktop flow',
+    html.includes('privacy-dialog-grid') &&
+      privacyStyle.includes('.privacy-dialog-grid { display: block; }') &&
+      privacyStyle.includes('overflow-y: visible'));
   const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
   check('build: privacy page documents local media and external location services',
     privacyHtml.includes('does not upload your library') &&
