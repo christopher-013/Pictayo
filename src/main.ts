@@ -47,6 +47,7 @@ const el = {
   landingProgressBar: must('landing-progress-bar'),
   landingProgressFill: must('landing-progress-fill'),
   landingProgressLabel: must('landing-progress-label'),
+  landingLearn: must<HTMLDetailsElement>('landing-learn'),
 
   header: must('app-header'),
   main: must('app-main'),
@@ -352,6 +353,7 @@ function updateChrome(): void {
   const hasPhotos = count > 0;
 
   el.landing.hidden = hasPhotos;
+  el.landingLearn.hidden = hasPhotos;
   el.header.hidden = !hasPhotos;
   el.main.hidden = !hasPhotos;
 

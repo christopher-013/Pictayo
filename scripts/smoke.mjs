@@ -841,8 +841,9 @@ if (!existsSync(dist)) {
   check('build: landing keeps one tagline and hides details behind Learn More',
     html.includes('<h1 class="landing-tagline">') &&
       !html.includes('class="landing-heading"') &&
-      html.includes('<details class="landing-learn">') &&
-      html.includes('<summary>Learn More'));
+      html.includes('<details class="landing-learn" id="landing-learn">') &&
+      html.includes('<summary>Learn More') &&
+      html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"'));
   const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
   check('build: privacy page documents local media and external location services',
     privacyHtml.includes('does not upload your library') &&
