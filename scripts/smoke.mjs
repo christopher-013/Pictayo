@@ -245,6 +245,26 @@ function near(name, actual, expected, tolerance) {
       lat: 35.714644444444446,
       lon: 139.79649444444445,
     })?.name === 'Sensō-ji');
+
+  // Regression from jun-13-233/234: both photos are geotagged in Ginza, but a
+  // nearby gallery was selected solely because `tourism` used to outrank every
+  // other category. A documented district is more useful context for street
+  // photography, while the museum regression above still protects specific
+  // major attractions.
+  const ginzaPoint = { lat: 35.67117361111111, lon: 139.76323055555556 };
+  const leForum = {
+    type: 'node', lat: 35.67135, lon: 139.76305,
+    tags: { tourism: 'gallery', name: 'Le Forum – Hermès', wikidata: 'Q3229326' },
+  };
+  const ginza = {
+    type: 'node', lat: 35.6717, lon: 139.7649,
+    tags: { place: 'quarter', name: '銀座', 'name:en': 'Ginza', wikipedia: 'en:Ginza' },
+  };
+  check('nearby query: requests named districts',
+    nearbyLandmarkQuery(ginzaPoint).includes('place') &&
+      nearbyLandmarkQuery(ginzaPoint).includes('quarter'));
+  check('nearby: notable district beats a small nearby gallery',
+    pickNearest([leForum, ginza], ginzaPoint)?.name === 'Ginza');
 }
 
 // ── Nearby dining ────────────────────────────────────────────────────────────

@@ -16,9 +16,10 @@ const DB_NAME = 'picturepicture';
  * v4 added video storage; v5 added nearby dining suggestions; v6 tightened the
  * cache precision; v7 allows a moderate amount of indoor GPS drift; v8 allows
  * dining cache records to retain the matched venue position for detail links;
- * v9 refreshes misses after expanding nearby landmark feature coverage.
+ * v9 refreshes misses after expanding nearby landmark feature coverage; v10
+ * refreshes matches after adding named districts and notability-based ranking.
  */
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -111,6 +112,12 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
         // v8's proximity query never requested amenity or building features,
         // even though its result picker supported them. Clear cached misses so
         // places such as Sensō-ji are resolved with the corrected query.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 10 && oldVersion >= 2) {
+        // v9 ranked a small gallery above every district regardless of context.
+        // Re-run disposable lookups so street photos can resolve to a notable
+        // district such as Ginza while major attractions remain preferred.
         transaction.objectStore('landmarks').clear();
       }
     },

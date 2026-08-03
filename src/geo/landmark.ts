@@ -139,6 +139,10 @@ const LANDMARK_RULES: readonly LandmarkRule[] = [
   { key: 'shop', values: new Set(['mall', 'department_store']) },
   { key: 'man_made', values: new Set(['tower', 'lighthouse', 'pier', 'bridge']) },
   { key: 'natural', values: new Set(['beach', 'peak', 'volcano', 'cave_entrance']) },
+  // Named districts are often the most useful answer for street photography.
+  // Keep them below specific attractions for enclosing-area matches, then let
+  // the nearby scorer weigh their broad context against smaller venues.
+  { key: 'place', values: new Set(['quarter', 'neighbourhood', 'suburb']) },
   { key: 'railway', values: new Set(['station']) },
   { key: 'building', values: new Set(['stadium', 'train_station', 'cathedral', 'temple', 'castle']) },
   { key: 'landuse', values: new Set(['commercial', 'retail']) },
@@ -446,18 +450,17 @@ export function pickLandmark(elements: OverpassElement[]): Landmark | null {
 /**
  * Nearest notable place to a point, for when nothing encloses it.
  *
- * Ranked by distance rather than by category, unlike {@link pickLandmark}. The
- * question here is "what is this photo near?", and the nearest thing that
- * cleared the notability filter is the honest answer — the filter has already
- * thrown out the shops and restaurants that made naive nearest-POI lookup
- * useless.
+ * Ranked by feature significance, documented notability and distance, unlike
+ * the strict specificity order used by {@link pickLandmark}. The question here
+ * is "what useful place name describes this photo?" — not simply which mapped
+ * object has the closest centre.
  */
 export function pickNearest(
   elements: OverpassElement[],
   from: GeoPoint,
   radiusMeters = NEARBY_RADIUS_M,
 ): Landmark | null {
-  let best: { landmark: Landmark; rank: number; distance: number } | null = null;
+  let best: { landmark: Landmark; score: number; distance: number } | null = null;
 
   for (const element of elements) {
     const tags = element.tags;
@@ -477,7 +480,11 @@ export function pickNearest(
     const name = (tags['name:en'] ?? tags.name ?? '').trim();
     if (!name) continue;
 
-    // Category first, distance only as a tie-break.
+    const rule: LandmarkRule = LANDMARK_RULES[rank]!;
+    const value = tags[rule.key]!;
+    const score = nearbyLandmarkScore(tags, rule.key, value, distance, radiusMeters);
+
+    // Prefer cultural significance and geographic context, then proximity.
     //
     // Ranking purely by distance gets this wrong in a way that matters: at
     // teamLab Planets the closest qualifying feature is a station entrance 40m
@@ -485,17 +492,69 @@ export function pickNearest(
     // beat "close to teamLab Planets". Station entrances, memorials and the
     // like are everywhere; what someone photographed is almost never the
     // nearest mapped thing, it is the most notable one nearby.
-    if (best && (rank > best.rank || (rank === best.rank && distance >= best.distance))) continue;
+    if (best && (score < best.score || (score === best.score && distance >= best.distance))) continue;
 
-    const rule: LandmarkRule = LANDMARK_RULES[rank]!;
     best = {
-      landmark: { name, kind: `${rule.key}=${tags[rule.key]}`, near: true },
-      rank,
+      landmark: { name, kind: `${rule.key}=${value}`, near: true },
+      score,
       distance,
     };
   }
 
   return best?.landmark ?? null;
+}
+
+/**
+ * Scores a nearby feature by how useful it is as a human-readable photo
+ * location. A mapped gallery or station can be physically closer than the
+ * district somebody would actually name; conversely, a major museum or temple
+ * should still beat the surrounding neighbourhood.
+ *
+ * Wikipedia/Wikidata tags are a practical, language-neutral indication that a
+ * feature is independently notable. District centres receive a smaller
+ * distance penalty because their mapped centre is arbitrary even when the
+ * photograph is clearly inside the district.
+ */
+function nearbyLandmarkScore(
+  tags: Record<string, string>,
+  key: string,
+  value: string,
+  distance: number,
+  radiusMeters: number,
+): number {
+  const baseByKey: Record<string, number> = {
+    aeroway: 105,
+    tourism: 90,
+    historic: 85,
+    leisure: 80,
+    amenity: 75,
+    shop: 60,
+    man_made: 75,
+    natural: 85,
+    place: 80,
+    railway: 45,
+    building: 80,
+    landuse: 40,
+  };
+
+  let base = baseByKey[key] ?? 0;
+
+  if (key === 'tourism') {
+    if (['attraction', 'theme_park', 'zoo', 'aquarium', 'museum'].includes(value)) base = 120;
+    else if (value === 'viewpoint') base = 85;
+    else if (value === 'gallery') base = 55;
+  } else if (key === 'amenity' && value === 'place_of_worship') {
+    base = 100;
+  } else if (key === 'place') {
+    base = value === 'quarter' ? 85 : value === 'neighbourhood' ? 80 : 75;
+  } else if (key === 'historic' && value === 'memorial') {
+    base = 60;
+  }
+
+  const documentedNotability = tags.wikipedia || tags.wikidata ? 15 : 0;
+  const maximumDistancePenalty = key === 'place' ? 8 : 25;
+  const distancePenalty = Math.min(1, distance / Math.max(1, radiusMeters)) * maximumDistancePenalty;
+  return base + documentedNotability - distancePenalty;
 }
 
 /** Equirectangular approximation — ample over a couple of hundred metres. */
