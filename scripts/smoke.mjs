@@ -885,14 +885,16 @@ if (!existsSync(dist)) {
       html.includes('class="footer-link" data-open-feedback') &&
       (html.match(/data-open-feedback/g) || []).length === 2 &&
       html.includes('id="feedback-dialog"'));
-  check('build: footer links to the public privacy page',
-    html.includes('class="site-footer"') && html.includes('href="./privacy.html"'));
-  check('build: landing keeps one tagline and hides details behind Learn More',
+  check('build: footer opens the in-app privacy dialog',
+    html.includes('class="site-footer"') && html.includes('data-open-info="privacy"'));
+  check('build: landing keeps one tagline and opens details from Learn More',
     html.includes('<h1 class="landing-tagline">') &&
       !html.includes('class="landing-heading"') &&
-      html.includes('<details class="landing-learn" id="landing-learn">') &&
-      html.includes('<summary>Learn More') &&
+      html.includes('class="landing-learn" id="landing-learn"') &&
+      html.includes('data-open-info="learn-more"') &&
       html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"'));
+  check('build: informational content uses native modal dialogs',
+    html.includes('id="learn-more-dialog"') && html.includes('id="privacy-dialog"'));
   const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
   check('build: privacy page documents local media and external location services',
     privacyHtml.includes('does not upload your library') &&

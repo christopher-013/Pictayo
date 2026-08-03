@@ -22,6 +22,7 @@ import { revokeAll, revokePhoto, thumbUrlFor } from './ui/media';
 import { exportSite } from './export/exportSite';
 import { confirmAction, initConfirmDialog } from './ui/confirmDialog';
 import { initFeedback } from './ui/feedback';
+import { initInfoDialogs } from './ui/infoDialogs';
 
 /** Flush to IndexedDB in batches so a large import survives an early tab close. */
 const SAVE_BATCH_SIZE = 24;
@@ -47,7 +48,7 @@ const el = {
   landingProgressBar: must('landing-progress-bar'),
   landingProgressFill: must('landing-progress-fill'),
   landingProgressLabel: must('landing-progress-label'),
-  landingLearn: must<HTMLDetailsElement>('landing-learn'),
+  landingLearn: must('landing-learn'),
 
   header: must('app-header'),
   main: must('app-main'),
@@ -77,6 +78,7 @@ void start();
 async function start(): Promise<void> {
   initConfirmDialog();
   initFeedback();
+  initInfoDialogs();
   initLightbox();
   initDayView(el.nav, el.page, (photoId) => void handleRemovePhoto(photoId));
 

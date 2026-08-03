@@ -140,14 +140,21 @@
 <footer class="site-footer">
   <p class="site-footer-line">No account needed. Your library stays in this browser. <span aria-hidden="true">·</span>
     Public beta — <button type="button" class="footer-link" data-open-feedback>Send feedback</button>
-    <span aria-hidden="true">·</span> <a class="footer-link" href="./privacy.html">Privacy</a>.
+    <span aria-hidden="true">·</span> <button type="button" class="footer-link" data-open-info="privacy">Privacy</button>.
   </p>
-  <details class="landing-learn" id="landing-learn">
-    <summary>Learn More <span aria-hidden="true">⌄</span></summary>
-    <div class="landing-learn-panel">
+  <div class="landing-learn" id="landing-learn">
+    <button type="button" class="landing-learn-trigger" data-open-info="learn-more">Learn More <span aria-hidden="true">↗</span></button>
+  </div>
+</footer>
+
+<dialog class="info-dialog" id="learn-more-dialog" aria-labelledby="learn-more-dialog-title">
+  <article class="info-dialog-card learn-more-dialog-card">
+    <button class="info-dialog-close" type="button" data-close-info aria-label="Close Learn More dialog">×</button>
+    <div class="info-dialog-icon" aria-hidden="true">✨</div>
+    <div class="info-dialog-eyebrow">YOUR PHOTOS, ORGANIZED</div>
+    <div class="info-dialog-body">
       <div class="landing-learn-intro">
-        <p class="landing-learn-eyebrow">YOUR PHOTOS, ORGANIZED</p>
-        <h2>Turn a camera roll into a trip you can revisit.</h2>
+        <h2 id="learn-more-dialog-title">Turn a camera roll into a trip you can revisit.</h2>
         <p>PicturePicture reads the date and location already stored in your media, then builds a visual timeline with maps and useful place names.</p>
       </div>
       <div class="landing-learn-grid">
@@ -168,11 +175,32 @@
         </article>
       </div>
       <p class="landing-learn-privacy">
-        No account needed. Your media remains on this device. Location coordinates are shared only with the map and place-name services described in our <a href="./privacy.html">Privacy notice</a>.
+        No account needed. Your media remains on this device. Location coordinates are shared only with the map and place-name services described in our <button type="button" class="footer-link" data-open-info="privacy">Privacy notice</button>.
       </p>
     </div>
-  </details>
-</footer>
+  </article>
+</dialog>
+
+<dialog class="info-dialog" id="privacy-dialog" aria-labelledby="privacy-dialog-title">
+  <article class="info-dialog-card privacy-dialog-card">
+    <button class="info-dialog-close" type="button" data-close-info aria-label="Close Privacy dialog">×</button>
+    <div class="info-dialog-icon" aria-hidden="true">🔒</div>
+    <div class="info-dialog-eyebrow">PUBLIC BETA</div>
+    <h2 id="privacy-dialog-title">Privacy</h2>
+    <div class="info-dialog-body privacy-dialog-body">
+      <p class="info-dialog-lead">Your photos and videos stay in your browser. PicturePicture has no media backend and does not upload your library.</p>
+      <h3>What stays on this device</h3>
+      <p>Imported media, derived previews, filenames, captions, and capture timestamps are stored locally in your browser. Browser storage is not encrypted by PicturePicture, so protect your browser profile and clear imported items on a shared device.</p>
+      <h3>Location services</h3>
+      <p>When a file contains GPS coordinates, PicturePicture shares coordinates—but never the photo or video—with BigDataCloud for place names, OpenStreetMap Overpass services for nearby landmarks and dining suggestions, and Google Maps when a map is displayed or opened. These providers also receive normal connection information such as your IP address, and their own privacy policies apply.</p>
+      <h3>Public-beta feedback</h3>
+      <p>Feedback sends the category, text you enter, current page, viewport size, app version, and browser information to a dedicated feedback service. It creates a public issue, so do not include personal information, private photo details, email addresses, passwords, or links. Photos are never attached.</p>
+      <h3>Your controls</h3>
+      <p>Removing one item or clearing PicturePicture deletes only the browser-stored copies. Your original files are never changed, moved, or deleted.</p>
+      <p class="info-dialog-updated">Last updated July 31, 2026.</p>
+    </div>
+  </article>
+</dialog>
 
 <!-- Full-window drop target; the landing screen and library view both use it. -->
 <div class="drop-overlay" id="drop-overlay" aria-hidden="true">
