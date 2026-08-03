@@ -100,8 +100,9 @@ button, a, input { font: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Wide enough to hold the tagline on a single line at desktop widths. */
-  max-width: 860px;
+  /* Match Adtona's wide hero eyebrow so the promise reads as one line. */
+  width: 100%;
+  max-width: 1180px;
 }
 
 /* Transparent artwork, so the gradient runs behind it rather than round it. */
@@ -121,16 +122,15 @@ button, a, input { font: inherit; }
 }
 
 .landing-tagline {
-  /* No max-width: the copy is meant to sit on one line, and .landing-inner
-   * caps it. It still wraps naturally once the screen is narrower than that. */
-  max-width: 850px;
+  max-width: none;
   margin: 14px 0 0;
-  font-size: clamp(15px, 1.7vw, 18px);
-  font-weight: 800;
+  font-size: clamp(11px, 1.28vw, 20px);
+  font-weight: 700;
   line-height: 1.4;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
   color: var(--teal-deep);
-  text-wrap: pretty;
 }
 
 .landing-menu {
@@ -1556,6 +1556,15 @@ body.photo-lightbox-open { overflow: hidden; }
 
 /* ── Small screens ─────────────────────────────────────────────────────── */
 
+@media (max-width: 760px) {
+  .landing-tagline {
+    font-size: 12px;
+    letter-spacing: 0.07em;
+    white-space: normal;
+    text-wrap: balance;
+  }
+}
+
 @media (max-width: 560px) {
   .app-notice { padding: 0 12px 8px; }
   .app-main { padding: 12px 12px 48px; }
@@ -1583,7 +1592,6 @@ body.photo-lightbox-open { overflow: hidden; }
   .day-chip { padding: 6px 9px; }
 
   .landing { padding: 32px 18px 44px; }
-  .landing-tagline { font-size: 14px; }
   .landing-cta { padding: 14px 26px; font-size: 16px; }
   .landing-learn { margin-top: 30px; }
   .landing-learn-panel { padding: 22px 18px; border-radius: 18px; }
