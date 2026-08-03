@@ -26,12 +26,27 @@ export function distanceMeters(a: GpsPoint, b: GpsPoint): number {
 }
 
 /**
- * Greedy nearest-cluster assignment: each geotagged photo joins the closest
- * cluster within `radiusMeters`, or starts a new one. Same shape as the
- * reference, but distance-based and order-stable (photos arrive sorted by time,
- * so clusters form along the day's actual path).
+ * Default grouping distance for one map pin.
+ *
+ * A 250 m radius was much too broad in dense city centres: it combined
+ * Tsukiji Hongan-ji with Tsukiji Outer Market and averaged restaurant photos
+ * together with nearby street photography. Landmark and dining lookup then
+ * started from a coordinate where none of those places actually were.
+ * Eighty metres still absorbs ordinary phone GPS drift and keeps a burst of
+ * photos at one venue together without merging distinct blocks.
  */
-export function clusterPhotos(photos: Photo[], radiusMeters = 250): PlaceCluster[] {
+export const DEFAULT_CLUSTER_RADIUS_M = 80;
+
+/**
+ * Greedy nearest-cluster assignment: each geotagged photo joins the closest
+ * cluster within `radiusMeters`, or starts a new one. It is distance-based and
+ * order-stable (photos arrive sorted by time, so clusters form along the day's
+ * actual path).
+ */
+export function clusterPhotos(
+  photos: Photo[],
+  radiusMeters = DEFAULT_CLUSTER_RADIUS_M,
+): PlaceCluster[] {
   const clusters: PlaceCluster[] = [];
 
   const geotagged = photos

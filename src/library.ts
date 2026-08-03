@@ -2,7 +2,9 @@ import type { DayGroup, MapRegion, Photo, PlaceCluster } from './types';
 import { clusterPhotos, splitIntoRegions } from './geo/cluster';
 import { centerOf, fitZoom } from './geo/mercator';
 import { formatCoords, googleMapsUrl, type Geocoder } from './geo/geocode';
-import { cachedDining, cachedLandmark, type LandmarkFinder } from './geo/landmark';
+import {
+  cachedDining, cachedLandmark, landmarkCacheKey, type LandmarkFinder,
+} from './geo/landmark';
 import { UNDATED_KEY, formatDayLabel } from './meta/datetime';
 import { MetadataDescriber, type DescriptionProvider } from './meta/describe';
 
@@ -117,14 +119,20 @@ export async function enrichLandmarks(
 ): Promise<boolean> {
   const pending = days
     .flatMap((day) => day.regions.flatMap((region) => region.clusters))
-    .filter((cluster) => !cluster.landmark && !cluster.nearbyDining);
+    .filter((cluster) => !cluster.landmark || !cluster.nearbyDining);
 
   if (pending.length === 0) return false;
 
   // One batched round trip for the whole library, rather than one per place.
   const found = await finder.findMany(pending.map(({ lat, lon }) => ({ lat, lon })));
 
-  return [...found.values()].some(({ landmark, dining }) => Boolean(landmark || dining));
+  return pending.some((cluster) => {
+    const enrichment = found.get(landmarkCacheKey(cluster.lat, cluster.lon));
+    return Boolean(
+      (!cluster.landmark && enrichment?.landmark) ||
+      (!cluster.nearbyDining && enrichment?.dining),
+    );
+  });
 }
 
 function toMapRegion(clusters: PlaceCluster[], index: number): MapRegion {

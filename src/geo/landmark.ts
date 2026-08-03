@@ -48,7 +48,7 @@ const RETRY_BACKOFF_MS = 1500;
  *
  * Capped so a very large library still sends bounded queries.
  */
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 5;
 
 /** Courtesy gap between batches, which most imports never reach. */
 const MIN_REQUEST_SPACING_MS = 2000;
@@ -105,6 +105,10 @@ const NEARBY_RADIUS_M = 220;
  * normal drift without returning to the overly broad original 120 m search.
  */
 const DINING_RADIUS_M = 30;
+/** Empty/partial results are retried because map data and transiently empty
+ * Overpass responses must not turn into permanent generic ward labels. */
+const INCOMPLETE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const COMPLETE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DINING_AMENITIES = new Set(['restaurant', 'cafe', 'fast_food', 'food_court']);
 
 export interface GeoPoint {
@@ -245,10 +249,8 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
     const misses: Array<{ key: string; point: GeoPoint }> = [];
 
     for (const [key, point] of wanted) {
-      // A cached miss is stored as an empty name, so a place with no landmark
-      // is only ever asked about once.
       const cached = await getCachedLandmark(key).catch(() => undefined);
-      if (cached) {
+      if (cached && isFreshCacheEntry(cached)) {
         resolved.set(key, {
           landmark: cached.name
             ? { name: cached.name, kind: cached.kind, near: cached.near === true }
@@ -351,6 +353,7 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
         diningDistanceMeters: dining?.distanceMeters ?? 0,
         diningLat: dining?.lat,
         diningLon: dining?.lon,
+        checkedAt: Date.now(),
       }).catch(() => undefined);
     }
 
@@ -389,6 +392,20 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     return null;
   }
+}
+
+/**
+ * Successful map matches are stable, while misses need a short retry window.
+ * Records created before timestamps were introduced are intentionally stale.
+ */
+export function isFreshCacheEntry(
+  cached: { name: string; diningName?: string; checkedAt?: number },
+  now = Date.now(),
+): boolean {
+  if (!cached.checkedAt) return false;
+  const complete = Boolean(cached.name && cached.diningName);
+  const ttl = complete ? COMPLETE_CACHE_TTL_MS : INCOMPLETE_CACHE_TTL_MS;
+  return now - cached.checkedAt < ttl;
 }
 
 /** Picks the nearest named food venue inside the deliberately small radius. */

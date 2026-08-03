@@ -21,9 +21,11 @@ import { strFromU8, unzipSync } from 'fflate';
 import sharp from 'sharp';
 
 import { screenPosition, fitZoom, centerOf, mercatorY, latitudeFromMercator } from '../src/geo/mercator.ts';
-import { distanceMeters, clusterPhotos, splitIntoRegions } from '../src/geo/cluster.ts';
 import {
-  landmarkCacheKey, nearbyLandmarkQuery, pickLandmark, pickNearest,
+  DEFAULT_CLUSTER_RADIUS_M, distanceMeters, clusterPhotos, splitIntoRegions,
+} from '../src/geo/cluster.ts';
+import {
+  isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickLandmark, pickNearest,
   pickNearbyDining, splitOnCountMarkers,
 } from '../src/geo/landmark.ts';
 import {
@@ -118,6 +120,16 @@ function near(name, actual, expected, tolerance) {
   check('cluster: merged cluster holds both photos',
     clusters.some((c) => c.photoIds.length === 2));
 
+  // Regression from Jun 13: the old 250 m default averaged separate Tokyo
+  // destinations into one lookup point. These coordinates are representative
+  // rather than copied from a user's private photo metadata.
+  const denseCity = clusterPhotos([
+    photo('temple', 35.6670, 139.7720, 1),
+    photo('market', 35.6660, 139.7705, 2),
+  ]);
+  check('cluster: distinct city-block destinations stay separate', denseCity.length === 2,
+    `got ${denseCity.length} with ${DEFAULT_CLUSTER_RADIUS_M} m radius`);
+
   // A day spanning the Pacific must yield two maps, not one useless one.
   const regions = splitIntoRegions(clusters.concat(clusterPhotos([
     photo('d', 21.30694, -157.85833, 4),
@@ -178,6 +190,13 @@ function near(name, actual, expected, tolerance) {
   check('landmark: second group correct', groups[1].length === 2);
 
   check('landmark: enclosing results are not marked as guesses', picked?.near === false);
+
+  check('landmark cache: legacy untimestamped misses are retried',
+    !isFreshCacheEntry({ name: '', diningName: '' }));
+  check('landmark cache: recent incomplete results avoid immediate repeat requests',
+    isFreshCacheEntry({ name: '', diningName: '', checkedAt: 1_000 }, 1_001));
+  check('landmark cache: incomplete results expire for retry',
+    !isFreshCacheEntry({ name: '', diningName: '', checkedAt: 1_000 }, 7 * 60 * 60 * 1000));
 }
 
 // ── Nearby landmarks ─────────────────────────────────────────────────────────

@@ -17,9 +17,11 @@ const DB_NAME = 'picturepicture';
  * cache precision; v7 allows a moderate amount of indoor GPS drift; v8 allows
  * dining cache records to retain the matched venue position for detail links;
  * v9 refreshes misses after expanding nearby landmark feature coverage; v10
- * refreshes matches after adding named districts and notability-based ranking.
+ * refreshes matches after adding named districts and notability-based ranking;
+ * v11 refreshes results after correcting overly broad photo clustering and
+ * adds lookup timestamps so incomplete results can be retried.
  */
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
 /** A cached Overpass answer. An empty name records "asked, nothing there". */
 export interface CachedLandmark {
@@ -33,6 +35,8 @@ export interface CachedLandmark {
   diningDistanceMeters?: number;
   diningLat?: number;
   diningLon?: number;
+  /** When Overpass last completed this lookup. */
+  checkedAt?: number;
 }
 
 /** Runtime-only fields are stripped before persisting. */
@@ -118,6 +122,11 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
         // v9 ranked a small gallery above every district regardless of context.
         // Re-run disposable lookups so street photos can resolve to a notable
         // district such as Ginza while major attractions remain preferred.
+        transaction.objectStore('landmarks').clear();
+      }
+      if (oldVersion < 11 && oldVersion >= 2) {
+        // Old 250 m cluster centroids could sit between distinct destinations
+        // and cached those misses forever. Re-run from the corrected points.
         transaction.objectStore('landmarks').clear();
       }
     },
