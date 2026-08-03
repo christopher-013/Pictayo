@@ -106,6 +106,51 @@ async function makeTransparent(pipeline) {
     if (y < height - 1) stack.push(index + width);
   }
 
+  // The border fill cannot reach counters enclosed by letter strokes. Limit a
+  // second component pass to the wordmark band so the holes in both `p` and
+  // both `e` letters become transparent without touching the mascot, photo,
+  // map, or pin artwork above it.
+  const WORDMARK_TOP = Math.floor(height * 0.74);
+  const MIN_COUNTER_PIXELS = 50;
+  const visited = new Uint8Array(width * height);
+
+  for (let start = WORDMARK_TOP * width; start < background.length; start++) {
+    if (background[start] || visited[start] || brightnessAt(start) < FILL_THRESHOLD) continue;
+
+    const component = [];
+    const componentStack = [start];
+    visited[start] = 1;
+    let touchesBandEdge = false;
+
+    while (componentStack.length > 0) {
+      const index = componentStack.pop();
+      if (background[index] || brightnessAt(index) < FILL_THRESHOLD) continue;
+
+      component.push(index);
+      const x = index % width;
+      const y = (index / width) | 0;
+      if (x === 0 || x === width - 1 || y === WORDMARK_TOP || y === height - 1) {
+        touchesBandEdge = true;
+      }
+
+      const neighbours = [];
+      if (x > 0) neighbours.push(index - 1);
+      if (x < width - 1) neighbours.push(index + 1);
+      if (y > WORDMARK_TOP) neighbours.push(index - width);
+      if (y < height - 1) neighbours.push(index + width);
+
+      for (const neighbour of neighbours) {
+        if (visited[neighbour]) continue;
+        visited[neighbour] = 1;
+        componentStack.push(neighbour);
+      }
+    }
+
+    if (!touchesBandEdge && component.length >= MIN_COUNTER_PIXELS) {
+      for (const index of component) background[index] = 1;
+    }
+  }
+
   for (let index = 0; index < background.length; index++) {
     if (background[index]) {
       data[index * channels + 3] = 0;

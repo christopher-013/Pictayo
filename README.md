@@ -121,6 +121,9 @@ Two things that script handles which are easy to get wrong by hand:
   invisible alone but draws a faint rectangle around the logo on a white card,
   and no encoder setting fixes it — even lossless WebP preserves the 254
   faithfully. The pixels are normalised to `#ffffff` before encoding.
+- Transparency is flood-filled from the outside, with a wordmark-only enclosed
+  component pass for the counters inside the `p` and `e` letters. Restricting
+  that pass to the text preserves the mascot's intentional white artwork.
 - The mascot crop was picked by rendering candidates *at favicon size*. Framings
   that included the whole photo-and-map composition turned to mush at 40px.
 

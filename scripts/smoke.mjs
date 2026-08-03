@@ -18,6 +18,7 @@ import './dom-shims.mjs';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
+import sharp from 'sharp';
 
 import { screenPosition, fitZoom, centerOf, mercatorY, latitudeFromMercator } from '../src/geo/mercator.ts';
 import { distanceMeters, clusterPhotos, splitIntoRegions } from '../src/geo/cluster.ts';
@@ -768,6 +769,16 @@ if (!existsSync(dist)) {
     'robots.txt', 'sitemap.xml', 'site.webmanifest', 'privacy.html', 'privacy.css']) {
     check(`build: ships ${required}`, existsSync(join(dist, required)));
   }
+
+  const logoRaw = await sharp(join(dist, 'logo.webp'))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const alphaAt = (x, y) =>
+    logoRaw.data[(y * logoRaw.info.width + x) * logoRaw.info.channels + 3];
+  check('brand: wordmark p/e counters are transparent',
+    [[40, 396], [348, 384], [418, 396], [725, 384]].every(([x, y]) => alphaAt(x, y) === 0));
+  check('brand: mascot whites remain opaque', alphaAt(380, 100) > 250);
 
   const assets = readdirSync(join(dist, 'assets'));
   check('build: emits the ingest worker', assets.some((f) => f.startsWith('ingest.worker')));
