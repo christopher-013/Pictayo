@@ -913,6 +913,9 @@ if (!existsSync(dist)) {
     html.includes('id="action-dialog"') && html.includes('action-dialog-note'));
   check('build: includes the Everywhere navigation page',
     appBundle.includes('Show all photo locations') && appBundle.includes('#everywhere'));
+  check('build: Show All includes every item in oldest-to-newest date groups',
+    appBundle.includes('All photos by date · oldest to newest') &&
+      appBundle.includes('everywhere-day-group'));
   check('build: includes interactive map zoom controls',
     appBundle.includes('data-map-zoom-in') && appBundle.includes('mapUserZoom'));
   check('build: uses the custom modal confirmation flow', appBundle.includes('showModal'));
@@ -973,6 +976,9 @@ if (!existsSync(dist)) {
     exportedCss.includes('flex:0 0 var(--day-chip-width);width:var(--day-chip-width)'));
   check('export: Everywhere page contains the world map and a day link',
     everywherePage.includes('World map of all photo locations') && everywherePage.includes('href="index.html"'));
+  check('export: Everywhere page includes the date-sorted photo timeline',
+    everywherePage.includes('All photos by date &middot; oldest to newest') &&
+      everywherePage.includes('everywhere-day-group'));
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────

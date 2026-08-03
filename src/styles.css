@@ -596,6 +596,17 @@ button, a, input { font: inherit; }
 
 .day-section { display: flex; flex-direction: column; gap: 12px; }
 
+.everywhere-timeline { margin-top: 8px; gap: 20px; }
+.everywhere-day-group { display: flex; flex-direction: column; gap: 9px; }
+.everywhere-day-heading {
+  margin: 0;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(10, 124, 130, 0.18);
+  color: var(--ink2);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
 .sec-label {
   font-size: 15px;
   font-weight: 800;

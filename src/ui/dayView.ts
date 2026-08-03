@@ -1,8 +1,9 @@
 import type { DayGroup, MapRegion, Photo, PlaceCluster } from '../types';
 import { escapeAttr } from '../util/escape';
 import { formatCaptured } from '../meta/datetime';
-import { chipParts, placesFor } from './dayChip';
+import { chipParts, dayHeading, placesFor } from './dayChip';
 import { clearDayFilter, dayGroupHtml, filterDayByCluster, type LightboxCollector } from './dayGroup';
+import { photoCardHtml } from './photoCard';
 import {
   mapRegionHtml,
   observeMaps,
@@ -141,6 +142,7 @@ function renderPage(day: DayGroup): void {
 
 function renderEverywherePage(): void {
   const clusters: PlaceCluster[] = [];
+  const collector = new Collector();
   everywhereClusterDays = new Map();
 
   for (const day of days) {
@@ -152,14 +154,16 @@ function renderEverywherePage(): void {
   }
 
   page.setAttribute('aria-labelledby', 'day-tab-everywhere');
-  setLightboxItems([]);
+  const timeline = everywhereTimelineHtml(collector);
+  setLightboxItems(collector.items);
 
   if (clusters.length === 0) {
     page.innerHTML =
       '<section class="day-section everywhere-section">' +
       '<div class="sec-label">🌍 Everywhere I Have Been</div>' +
       '<div class="photo-empty">None of the imported photos carry location data yet.</div>' +
-      '</section>';
+      '</section>' +
+      timeline;
     return;
   }
 
@@ -190,11 +194,56 @@ function renderEverywherePage(): void {
     (untagged > 0
       ? `<div class="photo-map-note">📍 ${untagged} item${untagged === 1 ? '' : 's'} without location data ${untagged === 1 ? 'is' : 'are'} not shown.</div>`
       : '') +
-    '</section>';
+    '</section>' +
+    timeline;
 
   refreshMapPins(page);
   requestAnimationFrame(() => refreshMapPins(page));
   observeMaps(page);
+}
+
+/** The complete library, grouped by date and ordered from oldest to newest. */
+function everywhereTimelineHtml(collector: Collector): string {
+  const sortedDays = [...days].sort((a, b) => {
+    const aTime = earliestTime(a);
+    const bTime = earliestTime(b);
+    return aTime - bTime || a.dayKey.localeCompare(b.dayKey);
+  });
+
+  const groups = sortedDays
+    .map((day) => {
+      const photos = [...day.photos].sort((a, b) => {
+        const aTime = a.meta.takenAt ?? Number.MAX_SAFE_INTEGER;
+        const bTime = b.meta.takenAt ?? Number.MAX_SAFE_INTEGER;
+        return aTime - bTime || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+      });
+      const cards = photos
+        .map((photo) => photoCardHtml({ photo, lightboxIndex: collector.add(photo) }))
+        .join('');
+
+      return (
+        `<section class="everywhere-day-group" data-day="${escapeAttr(day.dayKey)}">` +
+        `<h3 class="everywhere-day-heading">${escapeAttr(dayHeading(day))}</h3>` +
+        `<div class="photo-grid">${cards}</div>` +
+        '</section>'
+      );
+    })
+    .join('');
+
+  return (
+    '<section class="day-section everywhere-timeline" aria-labelledby="everywhere-timeline-title">' +
+    '<h2 class="sec-label" id="everywhere-timeline-title">All photos by date · oldest to newest</h2>' +
+    groups +
+    '</section>'
+  );
+}
+
+function earliestTime(day: DayGroup): number {
+  let earliest = Number.MAX_SAFE_INTEGER;
+  for (const photo of day.photos) {
+    if (photo.meta.takenAt != null && photo.meta.takenAt < earliest) earliest = photo.meta.takenAt;
+  }
+  return earliest;
 }
 
 function renderNav(): void {

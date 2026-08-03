@@ -1,5 +1,5 @@
 import { zip, type Zippable } from 'fflate';
-import type { DayGroup, MapRegion } from '../types';
+import type { DayGroup, MapRegion, Photo } from '../types';
 import { escapeAttr } from '../util/escape';
 import { formatCaptured } from '../meta/datetime';
 import { embedUrl, interactiveUrl } from '../ui/photoMap';
@@ -96,7 +96,7 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
     ];
   });
   files['everywhere.html'] = [
-    encode(buildEverywherePage(days, title, Boolean(logo))),
+    encode(buildEverywherePage(days, title, photoPaths, posterPaths, Boolean(logo))),
     DEFLATE,
   ];
 
@@ -180,84 +180,7 @@ function buildDayPage(context: PageContext): string {
 
   const lightboxItems: string[] = [];
 
-  const cards = day.photos
-    .map((photo) => {
-      const path = photoPaths.get(photo.id);
-      const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
-      const caption = photo.caption;
-
-      // Photos and videos share one lightbox list, so its arrows step through
-      // the day in order rather than skipping the clips.
-      const entry = () =>
-        lightboxItems.push(
-          scriptSafeJson({
-            src: path,
-            kind: photo.kind,
-            title: photo.name,
-            location: caption?.location ?? '',
-            dining: caption?.dining ?? '',
-            diningUrl: caption?.diningUrl ?? '',
-            infoLabel: caption?.infoLabel ?? '',
-            infoUrl: caption?.infoUrl ?? '',
-            desc: caption?.desc ?? '',
-            mapsUrl: caption?.mapsUrl ?? '',
-            captured,
-          }),
-        ) - 1;
-
-      let media: string;
-
-      if (!path) {
-        const icon = photo.kind === 'video' ? '🎬' : '🖼️';
-        media = `<div class="photo-nopreview"><span aria-hidden="true">${icon}</span>No preview available</div>`;
-      } else if (photo.kind === 'video') {
-        // A poster frame with a play badge, as in the app — clicking opens the
-        // lightbox rather than playing here.
-        const poster = posterPaths.get(photo.id);
-        media =
-          `<button class="photo-full-link photo-video-wrap" type="button" data-i="${entry()}" title="Play video">` +
-          (poster
-            ? `<img src="${escapeAttr(poster)}" alt="${escapeAttr(photo.name)}" loading="lazy">`
-            : '<div class="photo-nopreview"><span aria-hidden="true">🎬</span>Video</div>') +
-          '<span class="photo-video-play" aria-hidden="true">▶</span>' +
-          '</button>';
-      } else {
-        media =
-          `<button class="photo-full-link" type="button" data-i="${entry()}">` +
-          `<img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`;
-      }
-
-      const location = caption?.location
-        ? `<div class="photo-location">📍 <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener noreferrer">${escapeAttr(caption.location)}</a></div>`
-        : '';
-      const dining = caption?.dining
-        ? `<div class="photo-dining">🍽️ ${
-            caption.diningUrl
-              ? `<a href="${escapeAttr(caption.diningUrl)}" target="_blank" rel="noopener noreferrer" title="View restaurant details in Google Maps">${escapeAttr(caption.dining)}</a>`
-              : escapeAttr(caption.dining)
-          }</div>`
-        : '';
-      const description = caption?.desc
-        ? `<div class="photo-desc">${escapeAttr(caption.desc)}${
-            caption.infoUrl && caption.infoLabel
-              ? ` <a href="${escapeAttr(caption.infoUrl)}" target="_blank" rel="noopener noreferrer" title="Read about ${escapeAttr(caption.infoLabel)}">Learn about ${escapeAttr(caption.infoLabel)}</a>`
-              : ''
-          }</div>`
-        : '';
-
-      return (
-        `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
-        media +
-        '<div class="photo-meta">' +
-        `<div class="photo-kind">${photo.kind === 'video' ? (photo.meta.gps ? 'Video' : 'Video · no GPS') : photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
-        location +
-        dining +
-        description +
-        (captured ? `<div class="photo-captured">🕒 ${escapeAttr(captured)}</div>` : '') +
-        '</div></div>'
-      );
-    })
-    .join('');
+  const cards = exportedCardsHtml(day.photos, photoPaths, posterPaths, lightboxItems);
 
   const maps = day.regions.map((region, i) => staticMapHtml(region, i, day.regions.length)).join('');
   const untagged = day.photos.length - day.taggedCount;
@@ -330,6 +253,86 @@ ${untagged > 0 && maps ? untaggedNoticeHtml(untagged) : ''}
 </html>`;
 }
 
+function exportedCardsHtml(
+  photos: Photo[],
+  photoPaths: Map<string, string>,
+  posterPaths: Map<string, string>,
+  lightboxItems: string[],
+): string {
+  return photos
+    .map((photo) => {
+      const path = photoPaths.get(photo.id);
+      const captured = formatCaptured(photo.meta.takenAt, photo.meta.tzOffsetMinutes);
+      const caption = photo.caption;
+      const index = path
+        ? lightboxItems.push(
+            scriptSafeJson({
+              src: path,
+              kind: photo.kind,
+              title: photo.name,
+              location: caption?.location ?? '',
+              dining: caption?.dining ?? '',
+              diningUrl: caption?.diningUrl ?? '',
+              infoLabel: caption?.infoLabel ?? '',
+              infoUrl: caption?.infoUrl ?? '',
+              desc: caption?.desc ?? '',
+              mapsUrl: caption?.mapsUrl ?? '',
+              captured,
+            }),
+          ) - 1
+        : -1;
+
+      let media: string;
+      if (!path) {
+        const icon = photo.kind === 'video' ? '&#127916;' : '&#128444;&#65039;';
+        media = `<div class="photo-nopreview"><span aria-hidden="true">${icon}</span>No preview available</div>`;
+      } else if (photo.kind === 'video') {
+        const poster = posterPaths.get(photo.id);
+        media =
+          `<button class="photo-full-link photo-video-wrap" type="button" data-i="${index}" title="Play video">` +
+          (poster
+            ? `<img src="${escapeAttr(poster)}" alt="${escapeAttr(photo.name)}" loading="lazy">`
+            : '<div class="photo-nopreview"><span aria-hidden="true">&#127916;</span>Video</div>') +
+          '<span class="photo-video-play" aria-hidden="true">&#9654;</span></button>';
+      } else {
+        media =
+          `<button class="photo-full-link" type="button" data-i="${index}">` +
+          `<img src="${escapeAttr(path)}" alt="${escapeAttr(photo.name)}" loading="lazy"></button>`;
+      }
+
+      const location = caption?.location
+        ? `<div class="photo-location">&#128205; <a href="${escapeAttr(caption.mapsUrl)}" target="_blank" rel="noopener noreferrer">${escapeAttr(caption.location)}</a></div>`
+        : '';
+      const dining = caption?.dining
+        ? `<div class="photo-dining">&#127869;&#65039; ${
+            caption.diningUrl
+              ? `<a href="${escapeAttr(caption.diningUrl)}" target="_blank" rel="noopener noreferrer" title="View restaurant details in Google Maps">${escapeAttr(caption.dining)}</a>`
+              : escapeAttr(caption.dining)
+          }</div>`
+        : '';
+      const description = caption?.desc
+        ? `<div class="photo-desc">${escapeAttr(caption.desc)}${
+            caption.infoUrl && caption.infoLabel
+              ? ` <a href="${escapeAttr(caption.infoUrl)}" target="_blank" rel="noopener noreferrer" title="Read about ${escapeAttr(caption.infoLabel)}">Learn about ${escapeAttr(caption.infoLabel)}</a>`
+              : ''
+          }</div>`
+        : '';
+
+      return (
+        `<div class="photo-card"${photo.clusterId ? ` data-cluster="${escapeAttr(photo.clusterId)}"` : ''}>` +
+        media +
+        '<div class="photo-meta">' +
+        `<div class="photo-kind">${photo.kind === 'video' ? (photo.meta.gps ? 'Video' : 'Video &middot; no GPS') : photo.meta.gps ? 'Photo' : 'No GPS'}</div>` +
+        location +
+        dining +
+        description +
+        (captured ? `<div class="photo-captured">&#128338; ${escapeAttr(captured)}</div>` : '') +
+        '</div></div>'
+      );
+    })
+    .join('');
+}
+
 function navChipHtml(day: DayGroup, index: number, active: boolean): string {
   const parts = chipParts(day);
   const places = placesFor(day);
@@ -360,7 +363,13 @@ function everywhereNavChipHtml(active: boolean): string {
   );
 }
 
-function buildEverywherePage(days: DayGroup[], title: string, hasLogo: boolean): string {
+function buildEverywherePage(
+  days: DayGroup[],
+  title: string,
+  photoPaths: Map<string, string>,
+  posterPaths: Map<string, string>,
+  hasLogo: boolean,
+): string {
   const clusters = days.flatMap((day) =>
     day.regions.flatMap((region) =>
       region.clusters.map((cluster) => ({ ...cluster, id: `${day.dayKey}-${cluster.id}` })),
@@ -368,6 +377,25 @@ function buildEverywherePage(days: DayGroup[], title: string, hasLogo: boolean):
   );
   const totalItems = days.reduce((sum, day) => sum + day.photos.length, 0);
   const tagged = clusters.reduce((sum, cluster) => sum + cluster.photoIds.length, 0);
+  const lightboxItems: string[] = [];
+  const timeline = [...days]
+    .sort((a, b) => earliestTime(a) - earliestTime(b) || a.dayKey.localeCompare(b.dayKey))
+    .map((day) => {
+      const photos = [...day.photos].sort(
+        (a, b) =>
+          (a.meta.takenAt ?? Number.MAX_SAFE_INTEGER) -
+            (b.meta.takenAt ?? Number.MAX_SAFE_INTEGER) ||
+          a.name.localeCompare(b.name) ||
+          a.id.localeCompare(b.id),
+      );
+      return (
+        '<section class="everywhere-day-group">' +
+        `<h3 class="everywhere-day-heading">${escapeAttr(dayHeading(day))}</h3>` +
+        `<div class="photo-grid">${exportedCardsHtml(photos, photoPaths, posterPaths, lightboxItems)}</div>` +
+        '</section>'
+      );
+    })
+    .join('');
 
   let content: string;
   if (clusters.length === 0) {
@@ -429,16 +457,42 @@ ${everywhereNavChipHtml(true)}
 <main><section class="day-section everywhere-section">
 <div class="sec-label">🌍 Everywhere I Have Been</div>
 ${content}
+<section class="everywhere-timeline">
+<div class="sec-label">All photos by date &middot; oldest to newest</div>
+${timeline || '<div class="photo-empty">No photos have been added yet.</div>'}
+</section>
 </section></main>
-<div class="photo-lightbox" id="lb" aria-hidden="true"><div class="photo-lightbox-dialog">
-<div class="photo-lightbox-stage"><button id="lb-close"></button><button id="lb-prev"></button>
-<img id="lb-img" alt=""><video id="lb-video"></video><button id="lb-next"></button>
-<div id="lb-zoom"><button id="lb-zoom-out"></button><button id="lb-zoom-reset"></button><button id="lb-zoom-in"></button></div></div>
-<div><span id="lb-title"></span><span id="lb-count"></span><span id="lb-loc"></span>
-<span id="lb-dining"></span><span id="lb-desc"></span><span id="lb-cap"></span></div></div></div>
-<script type="application/json" id="lb-data">[]</script><script src="assets/site.js"></script>
+<div class="photo-lightbox" id="lb" aria-hidden="true" role="dialog" aria-modal="true"
+ aria-labelledby="lb-title" aria-describedby="lb-dining lb-desc"><div class="photo-lightbox-dialog">
+<div class="photo-lightbox-stage">
+<button class="photo-lightbox-close" id="lb-close" aria-label="Close">&times;</button>
+<button class="photo-lightbox-nav prev" id="lb-prev" aria-label="Previous">&lsaquo;</button>
+<img class="photo-lightbox-media" id="lb-img" alt="">
+<video class="photo-lightbox-media" id="lb-video" controls playsinline hidden></video>
+<button class="photo-lightbox-nav next" id="lb-next" aria-label="Next">&rsaquo;</button>
+<div class="photo-lightbox-zoom" id="lb-zoom" role="group" aria-label="Image zoom controls">
+<button id="lb-zoom-out" aria-label="Zoom out">&minus;</button>
+<button class="photo-lightbox-zoom-reset" id="lb-zoom-reset" aria-label="Reset zoom">100%</button>
+<button id="lb-zoom-in" aria-label="Zoom in">+</button>
+</div></div>
+<div class="photo-lightbox-info">
+<div class="photo-lightbox-info-top"><div class="photo-lightbox-title" id="lb-title"></div>
+<div class="photo-lightbox-count" id="lb-count"></div></div>
+<div class="photo-lightbox-location" id="lb-loc"></div>
+<div class="photo-lightbox-dining" id="lb-dining"></div>
+<div class="photo-lightbox-desc" id="lb-desc"></div>
+<div class="photo-lightbox-captured" id="lb-cap"></div>
+</div></div></div>
+<script type="application/json" id="lb-data">[${lightboxItems.join(',')}]</script><script src="assets/site.js"></script>
 </body>
 </html>`;
+}
+
+function earliestTime(day: DayGroup): number {
+  return day.photos.reduce(
+    (earliest, photo) => Math.min(earliest, photo.meta.takenAt ?? Number.MAX_SAFE_INTEGER),
+    Number.MAX_SAFE_INTEGER,
+  );
 }
 
 function noMapNoticeHtml(day: DayGroup): string {
@@ -632,6 +686,9 @@ button,a{font:inherit}
 main{max-width:1400px;margin:0 auto;padding:16px 18px 60px}
 .day-section{display:flex;flex-direction:column;gap:12px}
 .sec-label{font-size:15px;font-weight:800;letter-spacing:.4px;color:var(--ink3)}
+.everywhere-timeline{display:flex;flex-direction:column;gap:20px;margin-top:8px}
+.everywhere-day-group{display:flex;flex-direction:column;gap:9px}
+.everywhere-day-heading{margin:0;padding-bottom:7px;border-bottom:1px solid rgba(10,124,130,.18);color:var(--ink2);font-size:15px;line-height:1.35}
 .photo-day-map{position:relative;overflow:hidden;border:1px solid #b6d9dc;border-radius:15px;background:#dcf4f5;box-shadow:0 5px 18px rgba(17,56,68,.12)}
 .photo-day-map-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;padding:12px 13px 9px;border:0;background:linear-gradient(135deg,#fffdf4,#e9f8f9);border-bottom:1px solid rgba(10,124,130,.15);text-align:left;cursor:pointer}
 .photo-day-map-head:hover{background:linear-gradient(135deg,#fffbe8,#dff4f6)}
