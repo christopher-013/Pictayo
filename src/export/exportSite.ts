@@ -436,7 +436,7 @@ function buildEverywherePage(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeAttr(`${title} — Everywhere I Have Been`)}</title>
+<title>${escapeAttr(`${title} — All photo locations`)}</title>
 <meta name="theme-color" content="#019aa0">
 <meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="assets/favicon.png">
@@ -455,7 +455,6 @@ ${everywhereNavChipHtml(true)}
 </div>
 </nav>
 <main><section class="day-section everywhere-section">
-<div class="sec-label">🌍 Everywhere I Have Been</div>
 ${content}
 <section class="everywhere-timeline">
 <div class="sec-label">All photos by date &middot; oldest to newest</div>

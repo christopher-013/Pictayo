@@ -160,7 +160,6 @@ function renderEverywherePage(): void {
   if (clusters.length === 0) {
     page.innerHTML =
       '<section class="day-section everywhere-section">' +
-      '<div class="sec-label">🌍 Everywhere I Have Been</div>' +
       '<div class="photo-empty">None of the imported photos carry location data yet.</div>' +
       '</section>' +
       timeline;
@@ -183,7 +182,6 @@ function renderEverywherePage(): void {
 
   page.innerHTML =
     '<section class="day-section everywhere-section">' +
-    '<div class="sec-label">🌍 Everywhere I Have Been</div>' +
     mapRegionHtml(region, 0, 1, {
       collapsed: false,
       idPrefix: EVERYWHERE_KEY,

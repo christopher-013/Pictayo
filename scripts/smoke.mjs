@@ -980,6 +980,8 @@ if (!existsSync(dist)) {
   check('build: Show All includes every item in oldest-to-newest date groups',
     appBundle.includes('All photos by date · oldest to newest') &&
       appBundle.includes('everywhere-day-group'));
+  check('build: Show All omits the redundant Everywhere I Have Been heading',
+    !appBundle.includes('Everywhere I Have Been'));
   check('build: includes interactive map zoom controls',
     appBundle.includes('data-map-zoom-in') && appBundle.includes('mapUserZoom'));
   check('build: uses the custom modal confirmation flow', appBundle.includes('showModal'));
@@ -1043,6 +1045,8 @@ if (!existsSync(dist)) {
   check('export: Everywhere page includes the date-sorted photo timeline',
     everywherePage.includes('All photos by date &middot; oldest to newest') &&
       everywherePage.includes('everywhere-day-group'));
+  check('export: Show All omits the redundant Everywhere I Have Been heading',
+    !everywherePage.includes('Everywhere I Have Been'));
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────
