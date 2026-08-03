@@ -439,7 +439,7 @@ button, a, input { font: inherit; }
 
 .site-footer-line { margin: 0; }
 .site-footer .footer-link { color: var(--teal-deep); }
-.site-footer .landing-learn { margin: 5px auto 0; }
+.site-footer .landing-learn { margin: 0; width: auto; }
 
 /* ── Import ────────────────────────────────────────────────────────────── */
 

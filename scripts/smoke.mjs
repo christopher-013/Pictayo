@@ -951,9 +951,10 @@ if (!existsSync(dist)) {
   check('build: landing keeps one tagline and opens details from Learn More',
     html.includes('<h1 class="landing-tagline">') &&
       !html.includes('class="landing-heading"') &&
-      html.includes('class="landing-learn" id="landing-learn"') &&
+      html.includes('<span class="landing-learn" id="landing-learn">') &&
       html.includes('data-open-info="learn-more"') &&
-      html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"'));
+      html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"') &&
+      !html.includes('Learn More <span aria-hidden="true">↗</span>'));
   check('build: informational content uses native modal dialogs',
     html.includes('id="learn-more-dialog"') && html.includes('id="privacy-dialog"'));
   const privacyStyle = readFileSync(join('src', 'styles.css'), 'utf8');
