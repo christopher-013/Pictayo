@@ -118,6 +118,7 @@ async function handleFiles(files: File[]): Promise<void> {
   if (busy) return;
   busy = true;
   el.landingNote.textContent = LANDING_PRIVACY;
+  el.landingNote.hidden = true;
   setProgress(0, files.length, 'Reading photos…');
 
   const pending: PhotoRecord[] = [];
@@ -402,7 +403,10 @@ function hideProgress(): void {
 
 /** Puts a message wherever the user is currently looking. */
 function setNotice(text: string): void {
-  if (!el.landing.hidden) el.landingNote.textContent = text;
+  if (!el.landing.hidden) {
+    el.landingNote.hidden = false;
+    el.landingNote.textContent = text;
+  }
   else {
     el.summary.hidden = false;
     el.summary.textContent = text;

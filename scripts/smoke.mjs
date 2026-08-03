@@ -838,6 +838,11 @@ if (!existsSync(dist)) {
       html.includes('id="feedback-dialog"'));
   check('build: footer links to the public privacy page',
     html.includes('class="site-footer"') && html.includes('href="./privacy.html"'));
+  check('build: landing keeps one tagline and hides details behind Learn More',
+    html.includes('<h1 class="landing-tagline">') &&
+      !html.includes('class="landing-heading"') &&
+      html.includes('<details class="landing-learn">') &&
+      html.includes('<summary>Learn More'));
   const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
   check('build: privacy page documents local media and external location services',
     privacyHtml.includes('does not upload your library') &&

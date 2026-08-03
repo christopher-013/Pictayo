@@ -89,7 +89,7 @@ button, a, input { font: inherit; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 18px;
   padding: 40px 22px 56px;
   background: var(--brand-gradient);
   background-attachment: fixed;
@@ -107,22 +107,12 @@ button, a, input { font: inherit; }
 /* Transparent artwork, so the gradient runs behind it rather than round it. */
 .landing-logo {
   display: block;
-  width: min(430px, 84%);
+  width: min(380px, 82%);
   height: auto;
   filter: drop-shadow(0 10px 26px rgba(12, 81, 87, 0.16));
   animation: landing-logo-float 6s ease-in-out infinite;
   /* Promotes the layer so the loop stays smooth rather than repainting. */
   will-change: transform;
-}
-
-.landing-heading {
-  max-width: 720px;
-  margin: 8px 0 0;
-  color: var(--teal-deep);
-  font-size: clamp(22px, 3vw, 34px);
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  text-wrap: balance;
 }
 
 @keyframes landing-logo-float {
@@ -133,10 +123,12 @@ button, a, input { font: inherit; }
 .landing-tagline {
   /* No max-width: the copy is meant to sit on one line, and .landing-inner
    * caps it. It still wraps naturally once the screen is narrower than that. */
-  margin: 6px 0 0;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.45;
+  max-width: 850px;
+  margin: 14px 0 0;
+  font-size: clamp(15px, 1.7vw, 18px);
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
   color: var(--teal-deep);
   text-wrap: pretty;
 }
@@ -146,7 +138,7 @@ button, a, input { font: inherit; }
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 32px;
 }
 
 .landing-cta {
@@ -182,14 +174,106 @@ button, a, input { font: inherit; }
 
 .landing-alt:hover { background: #fff; border-color: var(--teal); }
 
-/* One line under the buttons, same reasoning as the tagline. */
 .landing-note {
-  margin: 26px 0 0;
+  max-width: 620px;
+  margin: 18px 0 0;
+  padding: 9px 13px;
+  border: 1px solid rgba(10, 124, 130, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
   font-size: 12px;
   line-height: 1.5;
   color: #5b7773;
   text-wrap: pretty;
 }
+
+.landing-learn {
+  width: min(980px, 100%);
+  margin-top: clamp(34px, 7vh, 78px);
+}
+
+.landing-learn summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: var(--teal-deep);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.landing-learn summary::-webkit-details-marker { display: none; }
+.landing-learn summary:hover { background: rgba(255, 255, 255, 0.62); }
+.landing-learn summary:focus-visible { outline: 3px solid rgba(1, 154, 160, 0.3); outline-offset: 3px; }
+.landing-learn summary span { transition: transform 180ms ease; }
+.landing-learn[open] summary span { transform: rotate(180deg); }
+
+.landing-learn-panel {
+  margin-top: 14px;
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid rgba(10, 124, 130, 0.18);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 20px 52px rgba(25, 75, 73, 0.12);
+  backdrop-filter: blur(10px);
+  text-align: left;
+}
+
+.landing-learn-intro { max-width: 720px; }
+.landing-learn-eyebrow {
+  margin: 0 0 8px;
+  color: #bd4c3c;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+.landing-learn-intro h2 {
+  margin: 0;
+  color: var(--teal-deep);
+  font-size: clamp(23px, 3vw, 34px);
+  line-height: 1.16;
+  text-wrap: balance;
+}
+.landing-learn-intro > p:last-child { margin: 12px 0 0; color: #526b68; }
+
+.landing-learn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 28px;
+}
+.landing-learn-grid article {
+  padding: 18px;
+  border: 1px solid rgba(10, 124, 130, 0.13);
+  border-radius: 16px;
+  background: rgba(250, 255, 254, 0.78);
+}
+.landing-learn-grid article > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-teal);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+.landing-learn-grid h3 { margin: 12px 0 5px; color: var(--teal-deep); font-size: 15px; }
+.landing-learn-grid p { margin: 0; color: #5a706e; font-size: 13px; line-height: 1.5; }
+.landing-learn-privacy {
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(10, 124, 130, 0.16);
+  color: #607572;
+  font-size: 12px;
+}
+.landing-learn-privacy a { color: var(--teal); font-weight: 800; }
 
 .footer-link {
   padding: 0;
@@ -1499,9 +1583,12 @@ body.photo-lightbox-open { overflow: hidden; }
   .day-chip { padding: 6px 9px; }
 
   .landing { padding: 32px 18px 44px; }
-  .landing-heading { font-size: 23px; }
   .landing-tagline { font-size: 14px; }
   .landing-cta { padding: 14px 26px; font-size: 16px; }
+  .landing-learn { margin-top: 30px; }
+  .landing-learn-panel { padding: 22px 18px; border-radius: 18px; }
+  .landing-learn-grid { grid-template-columns: 1fr; gap: 10px; margin-top: 20px; }
+  .landing-learn-grid article { padding: 15px; }
   .site-footer { padding: 9px 12px; font-size: 11px; }
 
   .photo-day-map-canvas { aspect-ratio: 4 / 3; min-height: 210px; }

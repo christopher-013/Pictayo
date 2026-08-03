@@ -74,11 +74,10 @@
   <div class="landing-inner">
     <img class="landing-logo" src="/logo.webp" alt="PicturePicture" width="760" height="456" fetchpriority="high">
 
-    <h1 class="landing-heading">A private photo map and travel timeline</h1>
-    <p class="landing-tagline">
+    <h1 class="landing-tagline">
       Sort your photos and videos by when they were taken and where they were shot —
       free, in your browser
-    </p>
+    </h1>
 
     <div class="landing-menu">
       <button type="button" class="landing-cta" id="btn-add">
@@ -88,9 +87,7 @@
       <button type="button" class="landing-alt" id="btn-add-folder">Add a folder instead</button>
     </div>
 
-    <p class="landing-note">
-      <span id="landing-note">Media stays on this device. Location coordinates are shared with map and place-name services when geotags are available.</span>
-    </p>
+    <p class="landing-note" id="landing-note" role="status" aria-live="polite" hidden></p>
   </div>
 
   <div class="landing-progress" id="landing-progress" role="status" aria-live="polite" hidden>
@@ -100,6 +97,37 @@
     </div>
     <div class="progress-label" id="landing-progress-label">Reading photos…</div>
   </div>
+
+  <details class="landing-learn">
+    <summary>Learn More <span aria-hidden="true">⌄</span></summary>
+    <div class="landing-learn-panel">
+      <div class="landing-learn-intro">
+        <p class="landing-learn-eyebrow">YOUR PHOTOS, ORGANIZED</p>
+        <h2>Turn a camera roll into a trip you can revisit.</h2>
+        <p>PicturePicture reads the date and location already stored in your media, then builds a visual timeline with maps and useful place names.</p>
+      </div>
+      <div class="landing-learn-grid">
+        <article>
+          <span aria-hidden="true">1</span>
+          <h3>Add your media</h3>
+          <p>Choose photos and videos, or import a whole folder at once.</p>
+        </article>
+        <article>
+          <span aria-hidden="true">2</span>
+          <h3>Explore your story</h3>
+          <p>Browse days, maps, landmarks, nearby places, and translated text found in photos.</p>
+        </article>
+        <article>
+          <span aria-hidden="true">3</span>
+          <h3>Keep or share it</h3>
+          <p>Your library stays in this browser, and you can export a standalone site whenever you are ready.</p>
+        </article>
+      </div>
+      <p class="landing-learn-privacy">
+        No account needed. Your media remains on this device. Location coordinates are shared only with the map and place-name services described in our <a href="./privacy.html">Privacy notice</a>.
+      </p>
+    </div>
+  </details>
 </section>
 
 <header class="app-header" id="app-header" hidden>
