@@ -941,11 +941,19 @@ if (!existsSync(dist)) {
     html.includes('property="og:url"') && html.includes('name="twitter:image"'));
   check('build: structured data describes the web application',
     html.includes('application/ld+json') && html.includes('PhotographyApplication'));
+  const appStyle = readFileSync(join('src', 'styles.css'), 'utf8');
   check('build: feedback has a top-right bubble, footer link, and in-app dialog',
     html.includes('class="btn btn-feedback header-feedback"') &&
       html.includes('class="footer-link" data-open-feedback') &&
       (html.match(/data-open-feedback/g) || []).length === 2 &&
       html.includes('id="feedback-dialog"'));
+  check('build: mobile header uses compact actions without folder or feedback clutter',
+    html.includes('<span class="mobile-action-label">Add</span>') &&
+      html.includes('<span class="mobile-action-label">Export</span>') &&
+      appStyle.includes('#btn-add-folder-more,') &&
+      appStyle.includes('.header-feedback,') &&
+      appStyle.includes('.desktop-action-label { display: none; }') &&
+      appStyle.includes('.mobile-action-label { display: inline; }'));
   check('build: footer opens the in-app privacy dialog',
     html.includes('class="site-footer"') && html.includes('data-open-info="privacy"'));
   check('build: landing keeps one tagline and opens details from Learn More',
@@ -957,11 +965,10 @@ if (!existsSync(dist)) {
       !html.includes('Learn More <span aria-hidden="true">↗</span>'));
   check('build: informational content uses native modal dialogs',
     html.includes('id="learn-more-dialog"') && html.includes('id="privacy-dialog"'));
-  const privacyStyle = readFileSync(join('src', 'styles.css'), 'utf8');
   check('build: privacy dialog uses a compact non-scrolling desktop flow',
     html.includes('privacy-dialog-grid') &&
-      privacyStyle.includes('.privacy-dialog-grid { display: block; }') &&
-      privacyStyle.includes('overflow-y: visible'));
+      appStyle.includes('.privacy-dialog-grid { display: block; }') &&
+      appStyle.includes('overflow-y: visible'));
   const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
   check('build: privacy page documents local media and external location services',
     privacyHtml.includes('does not upload your library') &&

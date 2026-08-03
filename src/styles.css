@@ -366,7 +366,7 @@ button, a, input { font: inherit; }
   flex-wrap: nowrap;
 }
 
-.mobile-label-break { display: none; }
+.mobile-action-label { display: none; }
 
 .btn {
   padding: 9px 14px;
@@ -1740,27 +1740,29 @@ body.photo-lightbox-open { overflow: hidden; }
 
   .app-logo img { width: 44px; }
   .app-header-inner {
-    grid-template-columns: 44px minmax(0, 1fr) 52px;
-    gap: 5px;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px;
     padding: 5px 8px;
   }
   .app-actions {
-    width: 100%;
+    width: min(100%, 260px);
+    justify-self: center;
     display: grid;
-    grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
-    gap: 3px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
   }
   .app-actions .btn {
     width: 100%;
     min-width: 0;
-    padding: 7px 1px;
-    font-size: 10px;
+    padding: 8px 4px;
+    font-size: 12px;
     line-height: 1.15;
     white-space: nowrap;
   }
-  .app-actions .btn-primary { white-space: normal; }
-  .header-feedback { padding: 7px 5px; font-size: 10px; }
-  .mobile-label-break { display: inline; }
+  #btn-add-folder-more,
+  .header-feedback,
+  .desktop-action-label { display: none; }
+  .mobile-action-label { display: inline; }
   .day-nav-scroll { --day-chip-width: 104px; padding: 8px 12px; }
   .day-chip { padding: 6px 9px; }
 
@@ -1824,9 +1826,8 @@ body.photo-lightbox-open { overflow: hidden; }
 
 @media (max-width: 360px) {
   .app-logo img { width: 36px; }
-  .app-header-inner { grid-template-columns: 36px minmax(0, 1fr) 48px; }
-  .app-actions .btn { font-size: 8.5px; }
-  .header-feedback { padding-inline: 3px; font-size: 9px; }
+  .app-header-inner { grid-template-columns: 36px minmax(0, 1fr); }
+  .app-actions .btn { font-size: 11px; }
 }
 
 @media (max-height: 720px) {
