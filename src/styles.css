@@ -12,17 +12,29 @@
 :root {
   color-scheme: light;
 
-  --ink: #1a1a1a;
-  --ink2: #3d3d3d;
-  --ink3: #787878;
+  --pictayo-navy: #0b326b;
+  --pictayo-navy-dark: #082652;
+  --pictayo-teal: #10b8b5;
+  --pictayo-teal-dark: #079b9a;
+  --pictayo-red: #ed2f32;
+  --pictayo-yellow: #ffb000;
+  --pictayo-text: #172033;
+  --pictayo-muted: #667085;
+  --pictayo-surface: #f7fafc;
+  --pictayo-white: #ffffff;
+  --pictayo-border: #e4e9f0;
+
+  --ink: var(--pictayo-text);
+  --ink2: #344054;
+  --ink3: var(--pictayo-muted);
   --ink4: #b0b0b0;
 
-  --bg: #f5f2ee;
+  --bg: var(--pictayo-surface);
   --bg2: #ede9e3;
-  --bg3: #ffffff;
+  --bg3: var(--pictayo-white);
 
   /*
-   * Brand colours, sampled from brand/logo-source.png.
+   * Pictayo production colours, derived from the approved mascot wordmark.
    *
    * The logo's teal is #01a5ab, which only reaches 2.7:1 against the pale
    * header gradient — under the 3:1 that even large text needs. --brand-teal is
@@ -30,17 +42,17 @@
    * indistinguishable beside the logo. The purple is used exactly as sampled;
    * it already clears 4.6:1.
    */
-  --brand-teal: #019aa0;
-  --brand-purple: #6559e9;
+  --brand-teal: var(--pictayo-teal-dark);
+  --brand-purple: var(--pictayo-navy);
 
   /* Functional teals: dark enough to carry body text and white-on-colour. */
-  --teal: #0a7c82;
-  --teal-deep: #0c5157;
+  --teal: #087f80;
+  --teal-deep: var(--pictayo-navy-dark);
   --teal-bg: #d6f2f4;
-  --pin: #e5484d;
-  --pin-soft: #ef5d55;
+  --pin: var(--pictayo-red);
+  --pin-soft: #f0575a;
 
-  --border: rgba(0, 0, 0, 0.09);
+  --border: var(--pictayo-border);
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
   --r: 14px;
   --r-sm: 8px;
@@ -52,10 +64,10 @@
    * brand teal and purple from the logo, plus a touch of the pin red.
    */
   --brand-gradient:
-    radial-gradient(circle at 84% 16%, rgba(1, 165, 171, 0.30), transparent 34%),
-    radial-gradient(circle at 12% 86%, rgba(101, 89, 233, 0.24), transparent 42%),
-    radial-gradient(circle at 92% 88%, rgba(229, 72, 77, 0.13), transparent 46%),
-    linear-gradient(150deg, #fffdf4 0%, #fdf4e4 26%, #e2f5f3 62%, #e9e6ff 100%);
+    radial-gradient(circle at 84% 16%, rgba(16, 184, 181, 0.26), transparent 34%),
+    radial-gradient(circle at 12% 86%, rgba(11, 50, 107, 0.17), transparent 42%),
+    radial-gradient(circle at 92% 88%, rgba(237, 47, 50, 0.11), transparent 46%),
+    linear-gradient(150deg, #fffdf5 0%, #fff6e5 26%, #e6f9f8 62%, #e8eff9 100%);
 }
 
 * { box-sizing: border-box; }
@@ -268,6 +280,16 @@ button, a, input { font: inherit; }
   font-size: 12px;
 }
 .landing-learn-privacy .footer-link { color: var(--teal); font-weight: 800; }
+
+.pictayo-brand-story {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid rgba(16, 184, 181, 0.28);
+  border-radius: var(--r-sm);
+  background: linear-gradient(120deg, rgba(11, 50, 107, 0.05), rgba(16, 184, 181, 0.09));
+}
+.pictayo-brand-story h3 { margin: 0 0 5px; color: var(--pictayo-navy); font-size: 15px; }
+.pictayo-brand-story p { margin: 0; color: var(--pictayo-muted); font-size: 13px; line-height: 1.55; }
 
 .footer-link {
   padding: 0;
@@ -1479,6 +1501,31 @@ button, a, input { font: inherit; }
 .learn-more-dialog-card .landing-learn-grid { margin-top: 20px; }
 
 @media (min-width: 700px) and (min-height: 680px) {
+  #learn-more-dialog { width: min(900px, calc(100vw - 48px)); }
+  .learn-more-dialog-card { padding: 18px 30px 16px; }
+  .learn-more-dialog-card .info-dialog-icon {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 7px;
+    font-size: 20px;
+  }
+  .learn-more-dialog-card .info-dialog-eyebrow { margin-bottom: 3px; }
+  .learn-more-dialog-card .info-dialog-body {
+    margin-top: 8px;
+    overflow-y: visible;
+    padding-right: 0;
+    font-size: 13px;
+    line-height: 1.42;
+  }
+  .learn-more-dialog-card .landing-learn-intro h2 { font-size: 29px; }
+  .learn-more-dialog-card .landing-learn-intro > p:last-child { margin-top: 6px; }
+  .learn-more-dialog-card .pictayo-brand-story { margin-top: 10px; padding: 10px 14px; }
+  .learn-more-dialog-card .pictayo-brand-story h3 { margin-bottom: 2px; }
+  .learn-more-dialog-card .landing-learn-grid { margin-top: 10px; gap: 10px; }
+  .learn-more-dialog-card .landing-learn-grid article { padding: 11px 13px; }
+  .learn-more-dialog-card .landing-learn-grid h3 { margin-top: 6px; }
+  .learn-more-dialog-card .landing-learn-privacy { margin-top: 10px; padding-top: 9px; }
+
   #privacy-dialog { width: min(960px, calc(100vw - 48px)); }
   .privacy-dialog-card { padding: 22px 32px 20px; }
   .privacy-dialog-card .info-dialog-icon {

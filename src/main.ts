@@ -273,7 +273,7 @@ async function handleExport(): Promise<void> {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'picturepicture-site.zip';
+    link.download = 'pictayo-site.zip';
     link.click();
     // Revoke on the next turn so the download has taken the reference.
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
@@ -293,9 +293,9 @@ async function handleClear(): Promise<void> {
 
   const confirmed = await confirmAction({
     eyebrow: 'LOCAL LIBRARY',
-    title: 'Clear PicturePicture?',
+    title: 'Clear Pictayo?',
     message: `Remove all ${photos.size} imported item${photos.size === 1 ? '' : 's'} from this device?`,
-    note: 'Your original files are untouched. This only clears the copies PicturePicture has stored in this browser.',
+    note: 'Your original files are untouched. This only clears the copies Pictayo has stored in this browser.',
     confirmLabel: 'Clear imported items',
     icon: '🧹',
   });
@@ -322,8 +322,8 @@ async function handleRemovePhoto(photoId: string): Promise<void> {
     eyebrow: 'REMOVE IMPORT',
     title: 'Remove this item?',
     message: photo.name,
-    note: 'Your original file will not be deleted. You can add it to PicturePicture again later.',
-    confirmLabel: 'Remove from PicturePicture',
+    note: 'Your original file will not be deleted. You can add it to Pictayo again later.',
+    confirmLabel: 'Remove from Pictayo',
     icon: photo.kind === 'video' ? '🎬' : '🖼️',
   });
   if (!confirmed) return;
@@ -337,7 +337,7 @@ async function handleRemovePhoto(photoId: string): Promise<void> {
     await refresh();
   } catch (error) {
     console.warn('Could not remove imported media', error);
-    setNotice('Could not remove that item from PicturePicture. Please try again.');
+    setNotice('Could not remove that item from Pictayo. Please try again.');
   } finally {
     busy = false;
   }

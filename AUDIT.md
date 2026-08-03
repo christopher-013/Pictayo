@@ -1,7 +1,8 @@
-# Public-beta readiness audit
+# Pictayo 1.0 release-readiness audit
 
-Audit date: 2026-07-31  
-Release reviewed: `0.2.0-beta.1`
+Audit date: 2026-08-02
+
+Release reviewed: `1.0.0`
 
 ## Result
 

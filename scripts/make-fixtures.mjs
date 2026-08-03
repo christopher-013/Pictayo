@@ -286,7 +286,7 @@ function buildTiff({ ifd0 = [], exif = [], gps = [] }) {
 
 function buildApp1(spec) {
   const ifd0 = [
-    { tag: 0x010f, type: TYPE_ASCII, count: 0, data: ascii('PicturePicture') },
+    { tag: 0x010f, type: TYPE_ASCII, count: 0, data: ascii('Pictayo') },
     { tag: 0x0110, type: TYPE_ASCII, count: 0, data: ascii('Fixture Camera') },
   ];
 

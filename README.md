@@ -1,4 +1,4 @@
-# PicturePicture
+# Pictayo
 
 Import your photos; the site organizes them by the day they were taken and plots
 where each one was shot on a Google Map overlay.
@@ -6,6 +6,10 @@ where each one was shot on a Google Map overlay.
 Everything runs in the browser and media files are never uploaded. Geotag
 coordinates are shared with map and place-name services as described in
 [Privacy](#privacy).
+
+The name is inspired by the Filipino and Taglish invitation “Pic tayo” —
+“Let’s take a picture.” The approved white Maltipoo mascot is the primary
+Pictayo brand character.
 
 ![grouped by day, pinned to a map](https://img.shields.io/badge/runs-entirely%20client--side-0f766e)
 
@@ -45,7 +49,7 @@ coordinates are shared with map and place-name services as described in
 11. **Export** — a self-contained static site you can publish anywhere, including
     the all-locations map as `everywhere.html`.
 
-On a fresh upload, PicturePicture renders the photos and dates immediately from
+On a fresh upload, Pictayo renders the photos and dates immediately from
 local data. If place, landmark, and nearby-dining recognition takes longer than
 a moment, the gallery shows a location-processing status and updates captions
 automatically when recognition finishes. This keeps the library usable while
@@ -77,7 +81,7 @@ with no EXIF date at all.
 Other scripts: `npm run build` (typecheck + production build), `npm run typecheck`.
 
 For release scrutiny, see [SECURITY.md](SECURITY.md) for the threat model and
-reporting process, [AUDIT.md](AUDIT.md) for the latest public-beta audit, and
+reporting process, [AUDIT.md](AUDIT.md) for the latest release audit, and
 [CLAUDE.md](CLAUDE.md) for automated-review invariants and priorities.
 
 ## Releasing
@@ -150,7 +154,7 @@ place prevents custom pins from drifting away from their Google Maps locations.
 This technique is borrowed from the Tokyo2026 trip site, which is also where the
 visual design comes from. The difference is that Tokyo2026's metadata was all
 hand-authored — an 89KB literal table of capture times, hardcoded coordinates,
-manually verified place names, fixed Tokyo map bounds. PicturePicture derives
+manually verified place names, fixed Tokyo map bounds. Pictayo derives
 every one of those from the files themselves, and works anywhere on Earth.
 
 ## Videos
@@ -279,7 +283,7 @@ a 320px thumbnail for the grid and a 1600px version for the lightbox and export
 
 Your library therefore survives a refresh and comes back on your next visit to
 the same browser. **To get true full-resolution files back, re-import them** —
-PicturePicture is a viewer for your photos, not a home for them. Your originals
+Pictayo is a viewer for your photos, not a home for them. Your originals
 are never modified or moved. The trash button on a card removes only that
 browser-stored copy and its derivatives; the source file remains untouched and
 can be imported again later.
@@ -347,14 +351,21 @@ Pin positions are baked into the HTML as percentages, so the maps are correct
 with JavaScript off entirely. The script only powers filtering, the lightbox,
 and collapsing the map.
 
+## Brand assets
+
+The approved source artwork is stored at `brand/pictayo-logo-source.png`.
+Run `npm run brand` to regenerate the optimized full logo, compact mascot,
+favicon, Apple touch icon, 192×192 and 512×512 app icons, and social preview.
+Production assets are written to `public/` and `public/assets/branding/`.
+
 ## Deploying
 
 The gallery build is a static browser bundle with no media backend or API key.
-Anything that serves static files will host it. Public-beta feedback is the one
+Anything that serves static files will host it. Feedback is the one
 optional server component and is isolated in the Cloudflare Worker described
 below.
 
-### Public-beta readiness
+### Release readiness
 
 The main page includes a canonical URL, complete Open Graph and Twitter cards,
 WebApplication/WebSite structured data, a web manifest, `robots.txt`, and a
@@ -362,7 +373,7 @@ sitemap. Keep the canonical and sitemap URLs synchronized if the production
 domain changes.
 
 The **Send feedback** links on both the start screen and library open an in-app
-public-beta form. The form posts to a Cloudflare Worker, which creates the public
+in-app form. The form posts to a Cloudflare Worker, which creates the public
 GitHub issue server-side; visitors never see a GitHub dialog and do not need an
 account. The browser never receives the GitHub credential. See
 [`FEEDBACK-WORKER-SETUP.md`](FEEDBACK-WORKER-SETUP.md) for the one-time encrypted

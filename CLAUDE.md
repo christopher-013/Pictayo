@@ -1,4 +1,4 @@
-# PicturePicture reviewer guide
+# Pictayo reviewer guide
 
 This file is for Claude Code and other automated reviewers. Read `README.md`,
 `SECURITY.md`, and `AUDIT.md` before changing behavior.
@@ -43,7 +43,7 @@ are build artifacts and are not committed.
    server-side. Never fall back to a GitHub redirect.
 7. Keep the GitHub token Issues-only and repository-scoped in Cloudflare's
    encrypted secret store.
-8. Destructive controls remove only PicturePicture's browser copies, never the
+8. Destructive controls remove only Pictayo's browser copies, never the
    user's original files.
 
 ## Performance invariants
@@ -67,4 +67,4 @@ phone touch/pinch behavior for every new interaction.
 Pushes to `master` run `.github/workflows/deploy.yml` and publish `dist/` to
 GitHub Pages. The feedback Worker is deployed separately with Wrangler; see
 `FEEDBACK-WORKER-SETUP.md`. A Pages success does not prove the Worker secret is
-configured, so validate feedback independently before declaring beta fully live.
+configured, so validate feedback independently before declaring a release live.

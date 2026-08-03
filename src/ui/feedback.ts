@@ -7,7 +7,7 @@ type FeedbackResponse = {
   error?: string;
 };
 
-/** Opens and submits the public-beta feedback form without leaving the app. */
+/** Opens and submits the Pictayo feedback form without leaving the app. */
 export function initFeedback(): void {
   const dialog = must<HTMLDialogElement>('feedback-dialog');
   const form = must<HTMLFormElement>('feedback-form');
@@ -68,7 +68,7 @@ export function initFeedback(): void {
           page: `${location.pathname}${location.hash}`,
           viewport: `${window.innerWidth}x${window.innerHeight}`,
           version:
-            document.querySelector<HTMLMetaElement>('meta[name="picturepicture-version"]')
+            document.querySelector<HTMLMetaElement>('meta[name="pictayo-version"]')
               ?.content ?? '',
           userAgent: navigator.userAgent,
         }),

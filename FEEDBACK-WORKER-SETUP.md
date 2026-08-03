@@ -1,9 +1,9 @@
-# Public-beta feedback setup
+# Pictayo feedback setup
 
-PicturePicture's in-app form posts to
+Pictayo's in-app form posts to
 `https://picturepicture-feedback.cch13.workers.dev/api/feedback`. The Cloudflare
 Worker in `feedback-worker.js` creates a public issue in
-`christopher-013/PicturePicture`, so visitors stay inside PicturePicture and do
+`christopher-013/PicturePicture`, so visitors stay inside Pictayo and do
 not need a GitHub account.
 
 The GitHub credential must remain an encrypted Cloudflare secret. Never put it

@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PicturePicture — Private Photo Map &amp; Travel Timeline</title>
+<title>Pictayo — Private Photo Map &amp; Travel Timeline</title>
 <meta name="description" content="Turn photos and videos into a private travel timeline organized by date and location. Explore every trip on interactive maps, directly in your browser.">
-<meta name="author" content="PicturePicture">
-<meta name="application-name" content="PicturePicture">
+<meta name="author" content="Pictayo">
+<meta name="application-name" content="Pictayo">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://api.bigdatacloud.net https://overpass-api.de https://overpass.kumi.systems https://overpass.private.coffee https://en.wikipedia.org https://picturepicture-feedback.cch13.workers.dev; frame-src https://maps.google.com https://www.google.com">
@@ -14,23 +14,23 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="#019aa0">
+<meta name="theme-color" content="#0b326b">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="PicturePicture">
+<meta property="og:site_name" content="Pictayo">
 <meta property="og:locale" content="en_US">
-<meta property="og:title" content="PicturePicture — Private Photo Map &amp; Travel Timeline">
+<meta property="og:title" content="Pictayo — Private Photo Map &amp; Travel Timeline">
 <meta property="og:description" content="Organize photos and videos by when and where they were taken, then explore every trip on interactive maps. Your media stays on your device.">
 <meta property="og:url" content="https://christopher-013.github.io/PicturePicture/">
 <meta property="og:image" content="https://christopher-013.github.io/PicturePicture/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="PicturePicture private photo map and travel timeline">
+<meta property="og:image:alt" content="Pictayo logo featuring a white Maltipoo taking a travel photo">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="PicturePicture — Private Photo Map &amp; Travel Timeline">
+<meta name="twitter:title" content="Pictayo — Private Photo Map &amp; Travel Timeline">
 <meta name="twitter:description" content="Organize photos and videos by when and where they were taken, with interactive maps in your browser.">
 <meta name="twitter:image" content="https://christopher-013.github.io/PicturePicture/og-image.png">
-<meta name="twitter:image:alt" content="PicturePicture private photo map and travel timeline">
-<meta name="picturepicture-version" content="0.2.0-beta.1">
+<meta name="twitter:image:alt" content="Pictayo logo featuring a white Maltipoo taking a travel photo">
+<meta name="pictayo-version" content="1.0.0">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -38,7 +38,7 @@
     {
       "@type": "WebApplication",
       "@id": "https://christopher-013.github.io/PicturePicture/#app",
-      "name": "PicturePicture",
+      "name": "Pictayo",
       "url": "https://christopher-013.github.io/PicturePicture/",
       "description": "Turn photos and videos into a private travel timeline organized by date and location, with interactive maps.",
       "applicationCategory": "PhotographyApplication",
@@ -57,7 +57,7 @@
     {
       "@type": "WebSite",
       "@id": "https://christopher-013.github.io/PicturePicture/#website",
-      "name": "PicturePicture",
+      "name": "Pictayo",
       "url": "https://christopher-013.github.io/PicturePicture/",
       "description": "A private photo map and travel timeline that runs in your browser.",
       "inLanguage": "en",
@@ -72,7 +72,7 @@
 <!-- Start screen. Replaced by the library view as soon as photos are imported. -->
 <section class="landing" id="landing">
   <div class="landing-inner">
-    <img class="landing-logo" src="/logo.webp" alt="PicturePicture" width="760" height="456" fetchpriority="high">
+    <img class="landing-logo" src="/logo.webp" alt="Pictayo logo featuring a white Maltipoo taking a photo beside a travel picture, map, and location pin" width="760" height="456" fetchpriority="high">
 
     <h1 class="landing-tagline">
       Sort your photos and videos — free, in your browser
@@ -102,7 +102,7 @@
 <header class="app-header" id="app-header" hidden>
   <div class="app-header-inner">
     <h1 class="app-logo">
-      <img src="/logo.webp" alt="PicturePicture" width="760" height="456" decoding="async">
+      <img src="/logo.webp" alt="Pictayo" width="760" height="456" decoding="async">
     </h1>
     <div class="app-actions">
       <button type="button" class="btn btn-primary" id="btn-add-more">Add photos<span class="mobile-label-break"><br></span> &amp; videos</button>
@@ -137,7 +137,7 @@
 
 <footer class="site-footer">
   <p class="site-footer-line">No account needed. Your library stays in this browser. <span aria-hidden="true">·</span>
-    Public beta — <button type="button" class="footer-link" data-open-feedback>Send feedback</button>
+    <button type="button" class="footer-link" data-open-feedback>Send feedback</button>
     <span aria-hidden="true">·</span> <button type="button" class="footer-link" data-open-info="privacy">Privacy</button>.
   </p>
   <div class="landing-learn" id="landing-learn">
@@ -153,8 +153,12 @@
     <div class="info-dialog-body">
       <div class="landing-learn-intro">
         <h2 id="learn-more-dialog-title">Turn a camera roll into a trip you can revisit.</h2>
-        <p>PicturePicture reads the date and location already stored in your media, then builds a visual timeline with maps and useful place names.</p>
+        <p>Pictayo reads the date and location already stored in your media, then builds a visual timeline with maps and useful place names.</p>
       </div>
+      <section class="pictayo-brand-story" aria-labelledby="pictayo-brand-story-title">
+        <h3 id="pictayo-brand-story-title">Why Pictayo?</h3>
+        <p>Pictayo is inspired by the Filipino and Taglish invitation “Pic tayo” — “Let’s take a picture.” Our Maltipoo mascot brings that friendly, travel-ready spirit to every photo story.</p>
+      </section>
       <div class="landing-learn-grid">
         <article>
           <span aria-hidden="true">1</span>
@@ -183,29 +187,29 @@
   <article class="info-dialog-card privacy-dialog-card">
     <button class="info-dialog-close" type="button" data-close-info aria-label="Close Privacy dialog">×</button>
     <div class="info-dialog-icon" aria-hidden="true">🔒</div>
-    <div class="info-dialog-eyebrow">PUBLIC BETA</div>
+    <div class="info-dialog-eyebrow">YOUR PRIVACY</div>
     <h2 id="privacy-dialog-title">Privacy</h2>
     <div class="info-dialog-body privacy-dialog-body">
-      <p class="info-dialog-lead">Your photos and videos stay in your browser. PicturePicture has no media backend and does not upload your library.</p>
+      <p class="info-dialog-lead">Your photos and videos stay in your browser. Pictayo has no media backend and does not upload your library.</p>
       <div class="privacy-dialog-grid">
         <section>
           <h3>What stays on this device</h3>
-          <p>Imported media, derived previews, filenames, captions, and capture timestamps are stored locally in your browser. Browser storage is not encrypted by PicturePicture, so protect your browser profile and clear imported items on a shared device.</p>
+          <p>Imported media, derived previews, filenames, captions, and capture timestamps are stored locally in your browser. Browser storage is not encrypted by Pictayo, so protect your browser profile and clear imported items on a shared device.</p>
         </section>
         <section>
           <h3>Location services</h3>
-          <p>When a file contains GPS coordinates, PicturePicture shares coordinates—but never the photo or video—with BigDataCloud for place names, OpenStreetMap Overpass services for nearby landmarks and dining suggestions, and Google Maps when a map is displayed or opened. These providers also receive normal connection information such as your IP address, and their own privacy policies apply.</p>
+          <p>When a file contains GPS coordinates, Pictayo shares coordinates—but never the photo or video—with BigDataCloud for place names, OpenStreetMap Overpass services for nearby landmarks and dining suggestions, and Google Maps when a map is displayed or opened. These providers also receive normal connection information such as your IP address, and their own privacy policies apply.</p>
         </section>
         <section>
-          <h3>Public-beta feedback</h3>
+          <h3>Feedback</h3>
           <p>Feedback sends the category, text you enter, current page, viewport size, app version, and browser information to a dedicated feedback service. It creates a public issue, so do not include personal information, private photo details, email addresses, passwords, or links. Photos are never attached.</p>
         </section>
         <section>
           <h3>Your controls</h3>
-          <p>Removing one item or clearing PicturePicture deletes only the browser-stored copies. Your original files are never changed, moved, or deleted.</p>
+          <p>Removing one item or clearing Pictayo deletes only the browser-stored copies. Your original files are never changed, moved, or deleted.</p>
         </section>
       </div>
-      <p class="info-dialog-updated">Last updated July 31, 2026.</p>
+      <p class="info-dialog-updated">Last updated August 2, 2026.</p>
     </div>
   </article>
 </dialog>
@@ -246,9 +250,9 @@
   <form class="feedback-dialog-card" id="feedback-form">
     <button class="feedback-dialog-close" id="feedback-dialog-close" type="button" aria-label="Close feedback dialog">×</button>
     <div class="feedback-dialog-icon" aria-hidden="true">💬</div>
-    <div class="feedback-dialog-eyebrow">PUBLIC BETA</div>
+    <div class="feedback-dialog-eyebrow">PICTAYO</div>
     <h2 id="feedback-dialog-title">Send feedback</h2>
-    <p id="feedback-dialog-intro">Tell us what worked or what broke. Your note is sent directly from PicturePicture — no GitHub account, dialog, or sign-in needed.</p>
+    <p id="feedback-dialog-intro">Tell us what worked or what broke. Your note is sent directly from Pictayo — no GitHub account, dialog, or sign-in needed.</p>
     <p class="feedback-dialog-privacy" id="feedback-dialog-privacy"><strong>Public tracker:</strong> Your summary and details will be publicly visible. Do not include passwords, private photo details, email addresses, links, or other personal information.</p>
 
     <fieldset class="feedback-category" aria-label="Feedback type">

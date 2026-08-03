@@ -516,7 +516,7 @@ function near(name, actual, expected, tolerance) {
   check('photo card: includes a local-remove control',
     card.includes('data-remove-photo="p"'));
   check('photo card: remove control has an escaped accessible name',
-    card.includes('aria-label="Remove &lt;temple&gt;.jpg from PicturePicture"'));
+    card.includes('aria-label="Remove &lt;temple&gt;.jpg from Pictayo"'));
   check('photo card: remove control sits in the date footer',
     card.indexOf('photo-card-footer') < card.indexOf('data-remove-photo'));
   check('photo card: remove control uses a monochrome SVG icon',
@@ -837,7 +837,9 @@ if (!existsSync(dist)) {
   const absolute = refs.filter((r) => r.startsWith('/'));
   check('build: all asset paths relative', absolute.length === 0, absolute.join(', '));
 
-  for (const required of ['favicon.png', 'apple-touch-icon.png', 'logo.webp', 'mark.webp',
+  for (const required of ['favicon.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png',
+    'logo.webp', 'mark.webp', 'assets/branding/pictayo-logo.png',
+    'assets/branding/pictayo-mascot.png',
     'robots.txt', 'sitemap.xml', 'site.webmanifest', 'privacy.html', 'privacy.css']) {
     check(`build: ships ${required}`, existsSync(join(dist, required)));
   }
@@ -846,11 +848,12 @@ if (!existsSync(dist)) {
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const alphaAt = (x, y) =>
-    logoRaw.data[(y * logoRaw.info.width + x) * logoRaw.info.channels + 3];
-  check('brand: wordmark p/e counters are transparent',
-    [[40, 396], [348, 384], [418, 396], [725, 384]].every(([x, y]) => alphaAt(x, y) === 0));
-  check('brand: mascot whites remain opaque', alphaAt(380, 100) > 250);
+  const alphaValues = [];
+  for (let i = 3; i < logoRaw.data.length; i += logoRaw.info.channels) alphaValues.push(logoRaw.data[i]);
+  check('brand: transparent logo background is preserved',
+    alphaValues.filter((alpha) => alpha === 0).length > alphaValues.length * 0.25);
+  const alphaAt = (x, y) => logoRaw.data[(y * logoRaw.info.width + x) * logoRaw.info.channels + 3];
+  check('brand: mascot whites remain opaque', alphaAt(380, 120) > 250);
 
   const assets = readdirSync(join(dist, 'assets'));
   check('build: emits the ingest worker', assets.some((f) => f.startsWith('ingest.worker')));
@@ -860,6 +863,8 @@ if (!existsSync(dist)) {
   const appBundle = appBundleName ? readFileSync(join(dist, 'assets', appBundleName), 'utf8') : '';
 
   check('build: title present', /<title>[^<]+<\/title>/.test(html));
+  check('build: Pictayo public-release brand is present',
+    html.includes('<title>Pictayo') && html.includes('name="pictayo-version" content="1.0.0"'));
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
     html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));

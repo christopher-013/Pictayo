@@ -1,5 +1,5 @@
 /**
- * Generates the site's brand assets from `brand/logo-source.png`.
+ * Generates Pictayo's production assets from the approved source artwork.
  *
  * The source is a 1536x1024 PNG weighing 1.25MB — an order of magnitude larger
  * than the entire app bundle — so nothing references it directly. This script
@@ -16,14 +16,15 @@ import sharp from 'sharp';
 import { mkdir } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 
-const SRC = 'brand/logo-source.png';
+const SRC = 'brand/pictayo-logo-source.png';
 const OUT = 'public';
+const BRAND_OUT = `${OUT}/assets/branding`;
 
 /** Mascot head plus the camera it's holding. */
-const MASCOT = { left: 600, top: 140, width: 450, height: 450 };
+const MASCOT = { left: 365, top: 160, width: 570, height: 570 };
 
 /** Full composition, trimmed of the generous whitespace around it. */
-const FULL = { left: 172, top: 122, width: 1216, height: 730 };
+const FULL = { left: 58, top: 165, width: 1138, height: 910 };
 
 /** Anything at least this bright in every channel counts as background. */
 const WHITE_SNAP_THRESHOLD = 250;
@@ -110,7 +111,7 @@ async function makeTransparent(pipeline) {
   // second component pass to the wordmark band so the holes in both `p` and
   // both `e` letters become transparent without touching the mascot, photo,
   // map, or pin artwork above it.
-  const WORDMARK_TOP = Math.floor(height * 0.74);
+  const WORDMARK_TOP = Math.floor(height * 0.58);
   const MIN_COUNTER_PIXELS = 50;
   const visited = new Uint8Array(width * height);
 
@@ -178,7 +179,7 @@ async function makeTransparent(pipeline) {
   return sharp(data, { raw: { width, height, channels } });
 }
 
-await mkdir(OUT, { recursive: true });
+await mkdir(BRAND_OUT, { recursive: true });
 
 const mascotAt = (size) =>
   snapWhite(sharp(SRC).extract(MASCOT).flatten({ background: '#ffffff' }).resize(size, size));
@@ -186,11 +187,14 @@ const mascotAt = (size) =>
 // Header brand mark. 192px covers a ~48px slot at 4x, and doubles as the
 // mark inlined into exported albums.
 await (await mascotAt(192)).webp({ quality: 90 }).toFile(`${OUT}/mark.webp`);
+await (await mascotAt(512)).png({ compressionLevel: 9 }).toFile(`${BRAND_OUT}/pictayo-mascot.png`);
 
 // Favicons stay PNG: still the safest bet for tab icons, and Apple's
 // home-screen icon wants an opaque background rather than transparency.
 await (await mascotAt(48)).png({ compressionLevel: 9 }).toFile(`${OUT}/favicon.png`);
 await (await mascotAt(180)).png({ compressionLevel: 9 }).toFile(`${OUT}/apple-touch-icon.png`);
+await (await mascotAt(192)).png({ compressionLevel: 9 }).toFile(`${OUT}/icon-192.png`);
+await (await mascotAt(512)).png({ compressionLevel: 9 }).toFile(`${OUT}/icon-512.png`);
 
 // The full logo, on a transparent background so it can sit on the landing
 // gradient and the app header without carrying a white rectangle around.
@@ -202,6 +206,10 @@ await (await mascotAt(180)).png({ compressionLevel: 9 }).toFile(`${OUT}/apple-to
 await (await makeTransparent(sharp(SRC).extract(FULL).resize(760)))
   .webp({ quality: 82, alphaQuality: 100 })
   .toFile(`${OUT}/logo.webp`);
+
+await (await makeTransparent(sharp(SRC).extract(FULL).resize(1000)))
+  .png({ compressionLevel: 9 })
+  .toFile(`${BRAND_OUT}/pictayo-logo.png`);
 
 // Open Graph / link previews want a wide, opaque, absolutely-sized image.
 await (
@@ -215,6 +223,16 @@ await (
   .png({ compressionLevel: 9, palette: true })
   .toFile(`${OUT}/og-image.png`);
 
-for (const f of ['mark.webp', 'favicon.png', 'apple-touch-icon.png', 'logo.webp', 'og-image.png']) {
+for (const f of [
+  'mark.webp',
+  'favicon.png',
+  'apple-touch-icon.png',
+  'icon-192.png',
+  'icon-512.png',
+  'logo.webp',
+  'assets/branding/pictayo-logo.png',
+  'assets/branding/pictayo-mascot.png',
+  'og-image.png',
+]) {
   console.log(`${f.padEnd(22)} ${(statSync(`${OUT}/${f}`).size / 1024).toFixed(1)} KB`);
 }

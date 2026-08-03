@@ -2,22 +2,22 @@
 
 ## Supported release
 
-Security fixes are applied to the current `master` branch and the public beta
+Security fixes are applied to the current `master` branch and the public
 deployed from it.
 
 ## Reporting a vulnerability
 
 Do not put security reports, private photo details, credentials, or personal
 information in the public feedback form or a public GitHub issue. Use GitHub's
-private vulnerability reporting for the PicturePicture repository when it is
+private vulnerability reporting for the Pictayo repository when it is
 available, and include only the minimum reproduction data required. Never attach
 a personal photo library.
 
 ## Trust boundaries
 
-PicturePicture has no user accounts and no media backend. Imported photos,
+Pictayo has no user accounts and no media backend. Imported photos,
 derived previews, and original videos are stored in the browser's IndexedDB.
-They are not sent to PicturePicture or its feedback service. Local browser data
+They are not sent to Pictayo or its feedback service. Local browser data
 is not encrypted by the application; anyone with access to the browser profile
 may be able to read it.
 
@@ -31,7 +31,7 @@ When a file contains GPS coordinates, only coordinates are shared with:
 Those services receive normal connection data such as an IP address. Filenames,
 photo bytes, captions, and timestamps are not included in location lookups.
 
-Public-beta feedback sends the selected category, user-entered text, current app
+Feedback sends the selected category, user-entered text, current app
 route, viewport, app version, and browser user agent to a dedicated Cloudflare
 Worker. The Worker creates a public GitHub issue. It never receives photos or a
 contact email.

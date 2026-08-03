@@ -10,7 +10,7 @@ import { getCachedPlace, putCachedPlace } from '../store/db';
  *
  * BigDataCloud's reverse-geocode-client endpoint is used because it needs no API
  * key, sets permissive CORS headers, and is explicitly intended for calls made
- * directly from the browser — so PicturePicture needs no backend and no secrets.
+ * directly from the browser — so Pictayo needs no backend and no secrets.
  *
  * The request carries a coordinate and nothing else: no image data, filenames,
  * or timestamps. Google Maps embeds and optional Overpass landmark enrichment
@@ -57,7 +57,7 @@ export function googleMapsVenueUrl(name: string, area?: string): string {
   const query = [name.trim(), area?.trim()].filter(Boolean).join(', ');
   return (
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` +
-    '&utm_source=picturepicture&utm_campaign=nearby_place'
+    '&utm_source=pictayo&utm_campaign=nearby_place'
   );
 }
 

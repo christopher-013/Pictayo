@@ -1,5 +1,5 @@
 /**
- * Public-beta feedback API for PicturePicture.
+ * Feedback API for Pictayo.
  *
  * The browser posts here and this Worker creates a public GitHub issue using a
  * narrowly scoped secret. The credential is never embedded in the website.
@@ -127,7 +127,7 @@ export default {
       `**Version:** ${version || '—'}`,
       `**User agent:** ${userAgent || '—'}`,
       '',
-      '_Filed automatically from the PicturePicture in-app public-beta feedback form._',
+      '_Filed automatically from the Pictayo in-app feedback form._',
     ].join('\n');
 
     let response;
@@ -139,7 +139,7 @@ export default {
           Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json',
-          'User-Agent': 'PicturePicture-Feedback-Worker',
+          'User-Agent': 'Pictayo-Feedback-Worker',
         },
         body: JSON.stringify({ title: `[${typeLabel}] ${summary}`, body: issueBody }),
         redirect: 'error',

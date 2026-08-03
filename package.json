@@ -1,9 +1,9 @@
 {
-  "name": "picturepicture",
-  "version": "0.2.0-beta.1",
+  "name": "pictayo",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Import your photos and let their metadata organize them — grouped by date, plotted on a map.",
+  "description": "Private, browser-based photo and video organization by date and location.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

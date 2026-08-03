@@ -49,8 +49,8 @@ export function photoCardHtml({ photo, lightboxIndex }: CardOptions): string {
     : '';
   const remove =
     `<button class="photo-remove" type="button" data-remove-photo="${escapeAttr(photo.id)}"` +
-    ` aria-label="Remove ${escapeAttr(photo.name)} from PicturePicture"` +
-    ' title="Remove from PicturePicture">' +
+    ` aria-label="Remove ${escapeAttr(photo.name)} from Pictayo"` +
+    ' title="Remove from Pictayo">' +
     '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/>' +
     '</svg></button>';

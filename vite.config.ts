@@ -17,7 +17,7 @@ import { defineConfig, type Plugin } from 'vite';
  */
 function devStylePolicy(): Plugin {
   return {
-    name: 'picturepicture:dev-style-policy',
+    name: 'pictayo:dev-style-policy',
     apply: 'serve',
     transformIndexHtml(html) {
       return html.replace(/style-src 'self'/, "style-src 'self' 'unsafe-inline'");

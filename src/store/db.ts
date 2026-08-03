@@ -10,6 +10,8 @@ import type { Photo, Place } from '../types';
  * fetched one at a time, only when the lightbox opens.
  */
 
+// Keep the original database key so the Pictayo rebrand does not strand an
+// existing user's locally imported library.
 const DB_NAME = 'picturepicture';
 /**
  * v2 added the landmark cache; v3 discards it so nearby landmarks get found;
@@ -46,7 +48,7 @@ export type PersistedPhoto = Omit<
   'thumbUrl' | 'displayUrl' | 'videoUrl' | 'caption' | 'clusterId'
 >;
 
-interface PicturePictureDB extends DBSchema {
+interface PictayoDB extends DBSchema {
   photos: { key: string; value: PersistedPhoto };
   thumbs: { key: string; value: Blob };
   displays: { key: string; value: Blob };
@@ -60,7 +62,7 @@ interface PicturePictureDB extends DBSchema {
   videos: { key: string; value: Blob };
 }
 
-let dbPromise: Promise<IDBPDatabase<PicturePictureDB>> | null = null;
+let dbPromise: Promise<IDBPDatabase<PictayoDB>> | null = null;
 
 /**
  * A version upgrade blocked by another connection never resolves *and never
@@ -70,13 +72,13 @@ let dbPromise: Promise<IDBPDatabase<PicturePictureDB>> | null = null;
  */
 const OPEN_TIMEOUT_MS = 10_000;
 
-function getDB(): Promise<IDBPDatabase<PicturePictureDB>> {
+function getDB(): Promise<IDBPDatabase<PictayoDB>> {
   dbPromise ??= openWithDeadline();
   return dbPromise;
 }
 
-function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
-  const open = openDB<PicturePictureDB>(DB_NAME, DB_VERSION, {
+function openWithDeadline(): Promise<IDBPDatabase<PictayoDB>> {
+  const open = openDB<PictayoDB>(DB_NAME, DB_VERSION, {
     // Guarded per version so an existing v1 library upgrades in place rather
     // than failing on stores that already exist.
     upgrade(db, oldVersion, _newVersion, transaction) {
@@ -142,8 +144,8 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
      */
     blocked(currentVersion, blockedVersion) {
       console.warn(
-        `PicturePicture: upgrade from v${currentVersion} to v${blockedVersion} is blocked ` +
-          'by another tab. Close other PicturePicture tabs and reload.',
+        `Pictayo: upgrade from v${currentVersion} to v${blockedVersion} is blocked ` +
+          'by another tab. Close other Pictayo tabs and reload.',
       );
     },
 
@@ -153,7 +155,7 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
      * this one would have been.
      */
     blocking(_currentVersion, _blockedVersion, event) {
-      (event.target as IDBPDatabase<PicturePictureDB>).close();
+      (event.target as IDBPDatabase<PictayoDB>).close();
       dbPromise = null;
     },
 
@@ -169,7 +171,7 @@ function openWithDeadline(): Promise<IDBPDatabase<PicturePictureDB>> {
         () =>
           reject(
             new Error(
-              'Timed out opening the local database. Another PicturePicture tab may be ' +
+              'Timed out opening the local database. Another Pictayo tab may be ' +
                 'holding an older version open — close it and reload.',
             ),
           ),
