@@ -17,6 +17,13 @@ import { getCachedPlace, putCachedPlace } from '../store/db';
  * also receive coordinates; see the README privacy section.
  */
 
+/**
+ * BigDataCloud answers this path with a 307 to `api-bdc.io`, so both origins
+ * have to be in the page's connect-src — a redirect to an unlisted origin is
+ * blocked, and every place silently degrades to raw coordinates. The documented
+ * host stays the entry point rather than hardcoding the redirect target, which
+ * would break again the next time they move it.
+ */
 const ENDPOINT = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
 const REQUEST_TIMEOUT_MS = 8000;
 const MIN_REQUEST_SPACING_MS = 120;

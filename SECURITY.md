@@ -23,7 +23,8 @@ may be able to read it.
 
 When a file contains GPS coordinates, only coordinates are shared with:
 
-- BigDataCloud for reverse geocoding;
+- BigDataCloud for reverse geocoding, which redirects to its `api-bdc.io`
+  endpoint, so both origins are allowlisted;
 - OpenStreetMap Overpass mirrors for landmarks and nearby dining;
 - Google Maps when a map is displayed; and
 - Wikipedia or Google Maps only after the user follows an information link.

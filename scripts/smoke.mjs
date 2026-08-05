@@ -943,8 +943,15 @@ if (!existsSync(dist)) {
     !/<style[\s>]/i.test(html) && !/\sstyle="/i.test(html));
   check('build: CSP allowlists every application network service',
     ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
-      'overpass.private.coffee', 'picturepicture-feedback.cch13.workers.dev']
+      'overpass.private.coffee', 'en.wikipedia.org',
+      'picturepicture-feedback.cch13.workers.dev']
       .every((host) => html.includes(host)));
+  // Reverse geocoding 307s from the documented host to api-bdc.io. A redirect
+  // to an unlisted origin is blocked outright, which silently turns every
+  // place name back into raw coordinates — so the target has to be allowed too.
+  check('build: CSP allows the reverse-geocode redirect target',
+    html.includes('https://api-bdc.io'),
+    'api.bigdatacloud.net redirects to api-bdc.io; both origins must be listed');
   check('build: social preview metadata is complete',
     html.includes('property="og:url"') && html.includes('name="twitter:image"'));
   check('build: structured data describes the web application',
