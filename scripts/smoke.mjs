@@ -25,8 +25,8 @@ import {
   DEFAULT_CLUSTER_RADIUS_M, distanceMeters, clusterPhotos, splitIntoRegions,
 } from '../src/geo/cluster.ts';
 import {
-  isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickLandmark, pickNearest,
-  pickNearbyDining, pickNotableWikipediaPlace, splitOnCountMarkers,
+  isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickBestLandmark, pickLandmark,
+  pickNearest, pickNearbyDining, pickNotableWikipediaPlace, splitOnCountMarkers,
 } from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
@@ -330,6 +330,85 @@ function near(name, actual, expected, tolerance) {
     fameVsDistance?.name === 'Local Shrine', fameVsDistance?.name);
 }
 
+// ── Observation decks and the buildings underneath them ──────────────────────
+// Photos taken on the Shibuya Sky deck resolved to "Near Kihachiro Kawamoto
+// Doll Gallery", a small municipal museum 130m away. Three things conspired:
+// a viewpoint scored below a museum, distance barely counted, and the 47-storey
+// tower the photographer was standing in was discarded for being building=retail.
+
+{
+  // Real tags and offsets, transcribed from Overpass around 35.65837,139.70222.
+  const SHIBUYA_SKY = {
+    type: 'node', lat: 35.658374, lon: 139.702242,
+    tags: { name: 'Shibuya Sky', 'name:en': 'Shibuya Sky', tourism: 'viewpoint',
+            fee: 'yes', wikidata: 'Q116281743', wikipedia: 'ja:SHIBUYA SKY' },
+  };
+  const STATION_FRONT = {
+    type: 'node', lat: 35.65655, lon: 139.70155, // ~202m away
+    tags: { name: 'front of Shibuya station', tourism: 'attraction', wikidata: 'Q123' },
+  };
+  const DOLL_GALLERY = {
+    type: 'node', lat: 35.659079, lon: 139.7032057, // ~130m away
+    tags: { name: '川本喜八郎人形ギャラリー', 'name:en': 'Kihachiro Kawamoto Doll Gallery',
+            tourism: 'museum', museum: 'dolls' },
+  };
+  const SCRAMBLE_SQUARE = {
+    type: 'way',
+    tags: { name: '渋谷スクランブルスクエア', 'name:en': 'Shibuya Scramble Square',
+            building: 'retail', height: '229.706', wikidata: 'Q64026922' },
+  };
+  const ADMIN_AREAS = [
+    { type: 'relation', tags: { name: '日本', 'name:en': 'Japan', boundary: 'administrative',
+                                admin_level: '2', wikidata: 'Q17' } },
+    { type: 'relation', tags: { name: '渋谷区', 'name:en': 'Shibuya', boundary: 'administrative',
+                                admin_level: '7', wikidata: 'Q308891' } },
+  ];
+  const deck = { lat: 35.6583652, lon: 139.7022229 };
+
+  const picked = pickBestLandmark([...ADMIN_AREAS, SCRAMBLE_SQUARE],
+    [SHIBUYA_SKY, STATION_FRONT, DOLL_GALLERY], deck);
+  check('deck: a named viewpoint beats a museum 130m away',
+    picked?.name === 'Shibuya Sky', picked?.name);
+  check('deck: the viewpoint is reported as a nearby guess',
+    picked?.kind === 'tourism=viewpoint' && picked?.near === true, JSON.stringify(picked));
+
+  // Without the deck mapped, the tower overhead should answer rather than a
+  // node 200m away that happens to be tagged as an attraction.
+  const fallback = pickBestLandmark([...ADMIN_AREAS, SCRAMBLE_SQUARE],
+    [STATION_FRONT, DOLL_GALLERY], deck);
+  check('deck: a notable building you are inside beats a distant attraction',
+    fallback?.name === 'Shibuya Scramble Square', fallback?.name);
+  check('deck: being inside a building is stated, not hedged as nearby',
+    fallback?.near === false, JSON.stringify(fallback));
+
+  // Every administrative area carries a name and a Wikidata id, so notability
+  // on its own would confidently answer "Japan".
+  const adminOnly = pickBestLandmark(ADMIN_AREAS, [], deck);
+  check('deck: administrative areas are never used as a building',
+    adminOnly === null, JSON.stringify(adminOnly));
+
+  const unnotable = pickBestLandmark(
+    [{ type: 'way', tags: { name: 'Some Apartments', building: 'residential' } }], [], deck);
+  check('deck: an ordinary building is not a landmark',
+    unnotable === null, JSON.stringify(unnotable));
+
+  // Containment in a mapped landmark is not a guess, so it still wins outright.
+  const contained = pickBestLandmark(
+    [{ type: 'way', tags: { name: 'Tokyo Dome', leisure: 'stadium' } }, SCRAMBLE_SQUARE],
+    [SHIBUYA_SKY], deck);
+  check('deck: containment in a real landmark still wins outright',
+    contained?.name === 'Tokyo Dome' && contained?.near === false, JSON.stringify(contained));
+
+  // Distance has to separate two features of the same category.
+  const near = { type: 'node', lat: 35.65845, lon: 139.70222,
+    tags: { name: 'Close Museum', tourism: 'museum' } };
+  const far = { type: 'node', lat: 35.65657, lon: 139.70222,
+    tags: { name: 'Far Museum', tourism: 'museum' } };
+  const byDistance = pickNearest([far, near], deck);
+  check('deck: distance decides between equally ranked features',
+    byDistance?.name === 'Close Museum', byDistance?.name);
+}
+
 // ── Overpass outage handling ─────────────────────────────────────────────────
 // A transient Overpass failure used to fall straight through to the Wikipedia
 // guess and cache it, so one 429 could bake a wrong landmark in for six hours.
@@ -379,6 +458,46 @@ function near(name, actual, expected, tolerance) {
     entry?.landmark?.name === 'Kabukichō', JSON.stringify(entry?.landmark));
   check('outage: the fallback is consulted once, not per retry',
     wikipediaCalls === 1, `made ${wikipediaCalls} calls`);
+}
+
+{
+  // Retrying assumes failure is cheap. A busy mirror answers 504 after about
+  // nine seconds instead, so counting attempts alone would leave someone
+  // looking at raw coordinates for a minute and a half.
+  const { OverpassLandmarkFinder } = await import('../src/geo/landmark.ts');
+
+  const realFetch = globalThis.fetch;
+  const realSetTimeout = globalThis.setTimeout;
+  const realNow = Date.now;
+  globalThis.setTimeout = (fn) => realSetTimeout(fn, 0);
+
+  let clock = realNow();
+  let slowAttempts = 0;
+  Date.now = () => clock;
+
+  globalThis.fetch = async (url) => {
+    const target = String(url?.url ?? url);
+    if (target.includes('/api/interpreter')) {
+      slowAttempts += 1;
+      clock += 9_000; // Each mirror sits on the request, then returns 504.
+      throw new Error('simulated slow gateway timeout');
+    }
+    if (target.includes('wikipedia.org')) {
+      return new Response(JSON.stringify({ query: { pages: [] } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(url);
+  };
+
+  await new OverpassLandmarkFinder().findMany([{ lat: 35.6949, lon: 139.7025 }]);
+
+  globalThis.fetch = realFetch;
+  globalThis.setTimeout = realSetTimeout;
+  Date.now = realNow;
+
+  // One full pass over the mirrors, then the budget is spent.
+  check('outage: slow failures do not multiply into a long wait',
+    slowAttempts === 3, `made ${slowAttempts} attempts`);
 }
 
 // ── Nearby landmarks ─────────────────────────────────────────────────────────

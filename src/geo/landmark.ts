@@ -128,6 +128,20 @@ const WIKIPEDIA_TIMEOUT_MS = 8_000;
 const OVERPASS_RETRY_LIMIT = 2;
 
 /**
+ * Total time the retries above may consume before the guess is allowed in.
+ *
+ * The retry count alone assumes failures are cheap. They are not: a busy
+ * Overpass mirror answers 504 after about nine seconds rather than refusing
+ * immediately, so three passes over three mirrors can take a minute and a half
+ * — a long time to sit looking at raw coordinates.
+ *
+ * The first pass always runs, preserving the original behaviour; further passes
+ * only start while there is budget left. Retries therefore happen when failure
+ * is fast and cheap, and are skipped when the network is merely slow.
+ */
+const OVERPASS_RETRY_BUDGET_MS = 20_000;
+
+/**
  * Ceiling on how much sheer popularity can contribute to a Wikipedia guess.
  *
  * Fame is evidence that a subject is recognizable, not that it is the place
@@ -360,9 +374,13 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
     // making every later batch relearn that would add minutes to a large
     // import for an answer that is not coming.
     const retries = this.consecutiveFailures === 0 ? OVERPASS_RETRY_LIMIT : 0;
+    const retryDeadline = Date.now() + OVERPASS_RETRY_BUDGET_MS;
     let elements: OverpassElement[] | null = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+      if (attempt > 0) {
+        if (Date.now() >= retryDeadline) break;
+        await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+      }
       elements = await this.fetchWithFallback(overpassQl);
       if (elements) break;
     }
@@ -377,7 +395,7 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
       const enclosing = groups[index * 2] ?? [];
       const nearby = groups[index * 2 + 1] ?? [];
       return {
-        landmark: pickLandmark(enclosing) ?? pickNearest(nearby, point),
+        landmark: pickBestLandmark(enclosing, nearby, point),
         // Same elements: pickNearbyDining applies its own tighter radius.
         dining: pickNearbyDining(nearby, point),
       };
@@ -674,6 +692,18 @@ export function pickNearest(
   from: GeoPoint,
   radiusMeters = NEARBY_RADIUS_M,
 ): Landmark | null {
+  return bestNearbyCandidate(elements, from, radiusMeters)?.landmark ?? null;
+}
+
+/**
+ * The nearby winner together with its score, so other sources of a name can be
+ * compared against it rather than merely ordered ahead of or behind it.
+ */
+function bestNearbyCandidate(
+  elements: OverpassElement[],
+  from: GeoPoint,
+  radiusMeters = NEARBY_RADIUS_M,
+): { landmark: Landmark; score: number; distance: number } | null {
   let best: { landmark: Landmark; score: number; distance: number } | null = null;
 
   for (const element of elements) {
@@ -715,7 +745,69 @@ export function pickNearest(
     };
   }
 
-  return best?.landmark ?? null;
+  return best;
+}
+
+/**
+ * The most recognizable building the point sits inside.
+ *
+ * `is_in` returns the whole administrative stack — country, prefecture, ward —
+ * and every one of those is named and carries a Wikidata id, so notability
+ * alone would confidently answer "Japan". Requiring a `building` tag keeps
+ * this to structures; requiring Wikipedia or Wikidata keeps it to the ones
+ * people have heard of, rather than naming an arbitrary apartment block.
+ *
+ * `pickLandmark` deliberately still refuses these: its whitelist encodes
+ * "you are inside a landmark", and `building=retail` does not mean that on its
+ * own. Shibuya Scramble Square is 47 storeys, 229 m tall and tagged exactly
+ * that way, so the whitelist alone discarded it entirely.
+ */
+function bestEnclosingBuilding(
+  elements: OverpassElement[],
+): { landmark: Landmark; score: number } | null {
+  let best: { landmark: Landmark; score: number } | null = null;
+
+  for (const element of elements) {
+    const tags = element.tags;
+    if (!tags?.building) continue;
+    if (!tags.wikipedia && !tags.wikidata) continue;
+
+    const name = (tags['name:en'] ?? tags.name ?? '').trim();
+    if (!name) continue;
+
+    // Standing inside it, so there is no distance to penalize.
+    const score = nearbyLandmarkScore(tags, 'building', tags.building, 0, NEARBY_RADIUS_M);
+    if (best && score <= best.score) continue;
+
+    best = { landmark: { name, kind: `building=${tags.building}`, near: false }, score };
+  }
+
+  return best;
+}
+
+/**
+ * Picks the best name available for a point from both Overpass lookups.
+ *
+ * Containment inside a mapped landmark wins outright — being inside Tokyo Dome
+ * is not a guess. Failing that, the neighbourhood and the building overhead are
+ * scored the same way and the stronger one answers, so a well-known tower is
+ * used when nothing nearby is more specific, but a named viewpoint a few metres
+ * away still beats it.
+ */
+export function pickBestLandmark(
+  enclosing: OverpassElement[],
+  nearby: OverpassElement[],
+  point: GeoPoint,
+): Landmark | null {
+  const contained = pickLandmark(enclosing);
+  if (contained) return contained;
+
+  const nearest = bestNearbyCandidate(nearby, point);
+  const inside = bestEnclosingBuilding(enclosing);
+
+  if (!inside) return nearest?.landmark ?? null;
+  if (!nearest || inside.score >= nearest.score) return inside.landmark;
+  return nearest.landmark;
 }
 
 /**
@@ -754,8 +846,12 @@ function nearbyLandmarkScore(
   let base = baseByKey[key] ?? 0;
 
   if (key === 'tourism') {
-    if (['attraction', 'theme_park', 'zoo', 'aquarium', 'museum'].includes(value)) base = 120;
-    else if (value === 'viewpoint') base = 85;
+    // A named viewpoint is a destination, not scenery. Shibuya Sky sits 10 m
+    // from a photo taken on its deck, tagged with a fee, opening hours and a
+    // Wikipedia article — and at base 85 it lost to a node called "front of
+    // Shibuya station" 202 m away, purely because that one is tagged
+    // `attraction`. Observation decks are exactly what people photograph.
+    if (['attraction', 'theme_park', 'zoo', 'aquarium', 'museum', 'viewpoint'].includes(value)) base = 120;
     else if (value === 'gallery') base = 55;
   } else if (key === 'amenity' && value === 'place_of_worship') {
     base = 100;
@@ -774,7 +870,19 @@ function nearbyLandmarkScore(
   }
 
   const documentedNotability = tags.wikipedia || tags.wikidata ? 15 : 0;
-  const maximumDistancePenalty = key === 'place' ? 8 : 25;
+  /**
+   * Distance has to actually count. At 25 across the whole radius, being 192 m
+   * closer was worth only 22 points — less than the gap between two tourism
+   * values — so category noise decided every match and a feature 10 m away
+   * routinely lost to one 200 m away.
+   *
+   * Districts keep a gentler penalty because their mapped centre is arbitrary:
+   * a photo can be well inside one and still be far from its centroid. Only
+   * gentler, though, not exempt. At 8 they were effectively immune to distance,
+   * and a photo inside the Pokémon Center resolved to "Udagawachō" rather than
+   * to Shibuya Parco, the building around it.
+   */
+  const maximumDistancePenalty = key === 'place' ? 20 : 60;
   const distancePenalty = Math.min(1, distance / Math.max(1, radiusMeters)) * maximumDistancePenalty;
   return base + documentedNotability - distancePenalty;
 }
