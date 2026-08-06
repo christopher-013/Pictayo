@@ -3,7 +3,7 @@
 Pictayo's in-app form posts to
 `https://picturepicture-feedback.cch13.workers.dev/api/feedback`. The Cloudflare
 Worker in `feedback-worker.js` creates a public issue in
-`christopher-013/PicturePicture`, so visitors stay inside Pictayo and do
+`christopher-013/Pictayo`, so visitors stay inside Pictayo and do
 not need a GitHub account.
 
 The GitHub credential must remain an encrypted Cloudflare secret. Never put it
@@ -13,7 +13,7 @@ documentation.
 ## One-time activation
 
 1. Create a fine-grained GitHub personal access token.
-2. Limit repository access to **PicturePicture** only.
+2. Limit repository access to **Pictayo** only.
 3. Grant **Issues: Read and write** and no other write permission.
 4. From an authenticated terminal, run:
 

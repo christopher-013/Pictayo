@@ -398,7 +398,7 @@ Project sites serve from `<user>.github.io/<repo>/`, and a sub-path is where
 static builds usually break. This one doesn't: `vite.config.ts` sets
 `base: './'`, and the ingest worker is loaded via `new URL(…, import.meta.url)`,
 so both resolve against wherever the app is actually mounted. Verified by
-serving a production build from a `/PicturePicture/` prefix and running a full
+serving a production build from a `/Pictayo/` prefix and running a full
 import against it.
 
 No `.nojekyll` is needed — nothing in `dist/` is underscore-prefixed. The

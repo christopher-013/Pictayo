@@ -26,7 +26,7 @@ function devStylePolicy(): Plugin {
 }
 
 // `base` is relative so a build can be dropped into a GitHub Pages project
-// subpath (e.g. /PicturePicture/) without rewriting asset URLs.
+// subpath (e.g. /Pictayo/) without rewriting asset URLs.
 export default defineConfig({
   base: './',
   plugins: [devStylePolicy()],

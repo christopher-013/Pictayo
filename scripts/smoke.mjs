@@ -969,7 +969,7 @@ if (!existsSync(dist)) {
       html.includes('Your private photo map'));
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
-    html.includes('content="https://christopher-013.github.io/PicturePicture/og-image.png"'));
+    html.includes('content="https://christopher-013.github.io/Pictayo/og-image.png"'));
   check('build: canonical URL and crawl directives are present',
     html.includes('rel="canonical"') && html.includes('name="robots"'));
   check('build: restrictive CSP excludes unsafe script execution',

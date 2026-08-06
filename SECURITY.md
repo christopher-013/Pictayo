@@ -68,4 +68,4 @@ those headers. The feedback Worker already sends its own defensive headers.
 Never commit or paste `GITHUB_TOKEN`, Cloudflare credentials, or any other secret
 into browser code, HTML, logs, documentation, issues, or chat. Follow
 `FEEDBACK-WORKER-SETUP.md`; the intended token has access only to
-`christopher-013/PicturePicture` and only **Issues: Read and write**.
+`christopher-013/Pictayo` and only **Issues: Read and write**.

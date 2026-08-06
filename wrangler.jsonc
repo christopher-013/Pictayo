@@ -5,7 +5,7 @@
   "main": "./feedback-worker.js",
   "observability": { "enabled": true },
   "vars": {
-    "GITHUB_REPO": "christopher-013/PicturePicture",
+    "GITHUB_REPO": "christopher-013/Pictayo",
     "ALLOWED_ORIGINS": "https://christopher-013.github.io,https://picturepicture-feedback.cch13.workers.dev,http://127.0.0.1:5276,http://127.0.0.1:5273,http://localhost:5276,http://localhost:5273"
   },
   "ratelimits": [

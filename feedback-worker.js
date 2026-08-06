@@ -6,7 +6,14 @@
  */
 
 const API_PATH = '/api/feedback';
-const DEFAULT_REPO = 'christopher-013/PicturePicture';
+/**
+ * Must track the repository's current name. GitHub answers a renamed repo with
+ * a 301, and fetch rewrites a redirected POST into a GET — so a stale name here
+ * reads the issue list, returns 200, and reports success without filing
+ * anything. The Worker hostname below is deliberately not renamed: it is the
+ * live endpoint the site and its CSP already point at.
+ */
+const DEFAULT_REPO = 'christopher-013/Pictayo';
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://christopher-013.github.io',
   'https://picturepicture-feedback.cch13.workers.dev',

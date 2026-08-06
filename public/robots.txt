@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://christopher-013.github.io/PicturePicture/sitemap.xml
+Sitemap: https://christopher-013.github.io/Pictayo/sitemap.xml
