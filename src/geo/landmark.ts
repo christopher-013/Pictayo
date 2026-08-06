@@ -41,14 +41,18 @@ const RETRY_BACKOFF_MS = 1500;
 /**
  * How many places go into one request.
  *
- * Overpass accepts many `is_in` lookups in a single query, and `out count`
- * between them delimits the results — so a whole trip usually needs one round
- * trip instead of one per place. Measured at ~1.9s for three places, which is
- * why this batches rather than throttling a queue of individual calls.
+ * Overpass accepts many lookups in a single query, and `out count` between them
+ * delimits the results — so a trip usually needs one round trip rather than one
+ * per place.
  *
- * Capped so a very large library still sends bounded queries.
+ * This had to sit at five while the nearby lookup ran twelve filtered scans per
+ * point, because six points was already enough to draw a 504. With a single
+ * scan per point (see `nearbyLandmarkQuery`) the same six points answer in
+ * 3.7s, so a larger batch trades a slightly longer request for materially fewer
+ * round trips and fewer courtesy gaps: thirty places go from six batches to
+ * three. Still capped so a very large library sends bounded queries.
  */
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 10;
 
 /** Courtesy gap between batches, which most imports never reach. */
 const MIN_REQUEST_SPACING_MS = 2000;
@@ -156,25 +160,30 @@ const LANDMARK_RULES: readonly LandmarkRule[] = [
 ];
 
 /**
- * Builds the focused nearby-landmark lookup for one point.
+ * Fetches everything named around a point, in one spatial scan.
  *
- * Keep the requested values derived from `LANDMARK_RULES`. The old query only
- * requested a hand-maintained subset of tag keys, so `pickNearest` knew how to
- * recognize `amenity=place_of_worship` and `building=temple` but Overpass never
- * sent those features to it. That is why photos inside Sensō-ji could fall back
- * to "Taito, Tokyo" when the enclosing building outline itself had no name.
- * Value filters also avoid downloading every named amenity in a dense city.
+ * The obvious query asks Overpass for exactly the tags `LANDMARK_RULES` cares
+ * about — one `around` selector per key. That turned out to be both slower and
+ * more fragile than fetching the neighbourhood wholesale:
+ *
+ *  - **Slower.** Twelve filtered scans per point make Overpass intersect a
+ *    spatial index with a tag index twelve times. Measured over six points, the
+ *    filtered form took 22.1s and this one 3.7s — six times quicker — and the
+ *    filtered form outright timed out with 504s as the batch grew, which is why
+ *    batches had to stay small. The saving is worth the larger response, since
+ *    each place is looked up once and then cached.
+ *
+ *  - **More fragile.** The query and the scorer had to be kept in step by hand,
+ *    and drifted: `pickNearest` recognised `amenity=place_of_worship` while the
+ *    query never asked for it, so photos inside Sensō-ji fell back to "Taito,
+ *    Tokyo". Fetching everything named and filtering in `pickNearest` makes that
+ *    class of bug impossible — the rules are applied in exactly one place.
+ *
+ * Verified to pick identical landmarks to the filtered query across six test
+ * locations, including the dense-street and node-mapped cases.
  */
 export function nearbyLandmarkQuery(point: GeoPoint): string {
-  const selectors = LANDMARK_RULES.map(({ key, values }) => {
-    const pattern = [...values].join('|');
-    return (
-      `nwr(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})` +
-      `["${key}"~"^(${pattern})$"][name];`
-    );
-  }).join('');
-
-  return `(${selectors});`;
+  return `nwr(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[name];`;
 }
 
 interface OverpassElement {
@@ -290,36 +299,29 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
   ): Promise<Map<string, LocationEnrichment>> {
     const results = new Map<string, LocationEnrichment>();
 
-    // Three lookups per point, in one request.
+    // Two lookups per point, in one request.
     //
     // `is_in` finds areas the point sits inside — but it can only ever find
     // *areas*. Plenty of landmarks are mapped as a single node with no
     // footprint (teamLab Planets is `tourism=museum` on a node), and those are
-    // structurally invisible to it. The first `around` pass catches them, and
-    // its result is marked as a guess rather than a claim. The final pass finds
-    // the nearest named place to eat within a deliberately tight radius.
+    // structurally invisible to it. The `around` pass catches them, and its
+    // result is marked as a guess rather than a claim.
+    //
+    // Nearby dining comes out of that same `around` result rather than a scan
+    // of its own: it looks within 30m, the neighbourhood fetch already covers
+    // 220m, so a third spatial query would only re-read a subset of what is
+    // already in hand.
     //
     // `pivot` turns each enclosing area back into the way or relation it came
     // from, so the original tags come back with it. `out count` after each
     // lookup emits a marker element, which is what makes the groups separable.
-    // A union of plain `[key][name]` filters, one per tag of interest.
-    //
-    // The compact key-regex form — `[~"^(tourism|leisure|…)$"~"."]` — is valid
-    // Overpass QL but is rejected outright by the main instance with a 406, so
-    // it is not usable in practice. This spells the same thing out longhand
-    // using only syntax the servers actually accept.
-    const dining = (point: GeoPoint) =>
-      `nwr(around:${DINING_RADIUS_M},${point.lat},${point.lon})` +
-      '["amenity"~"^(restaurant|cafe|fast_food|food_court)$"][name];';
-
     const overpassQl =
       '[out:json][timeout:90];' +
       batch
         .map(
           ({ point }) =>
             `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;` +
-            `${nearbyLandmarkQuery(point)}out tags center;out count;` +
-            `${dining(point)}out tags center;out count;`,
+            `${nearbyLandmarkQuery(point)}out tags center;out count;`,
         )
         .join('');
 
@@ -330,13 +332,13 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     const groups = splitOnCountMarkers(elements ?? []);
     const preliminary = batch.map(({ point }, index) => {
-      // Three groups per point, in the order the query emitted them.
-      const enclosing = groups[index * 3] ?? [];
-      const nearby = groups[index * 3 + 1] ?? [];
-      const diningCandidates = groups[index * 3 + 2] ?? [];
+      // Two groups per point, in the order the query emitted them.
+      const enclosing = groups[index * 2] ?? [];
+      const nearby = groups[index * 2 + 1] ?? [];
       return {
         landmark: pickLandmark(enclosing) ?? pickNearest(nearby, point),
-        dining: pickNearbyDining(diningCandidates, point),
+        // Same elements: pickNearbyDining applies its own tighter radius.
+        dining: pickNearbyDining(nearby, point),
       };
     });
 

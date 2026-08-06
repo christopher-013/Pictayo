@@ -26,8 +26,18 @@ import { getCachedPlace, putCachedPlace } from '../store/db';
  */
 const ENDPOINT = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
 const REQUEST_TIMEOUT_MS = 8000;
-const MIN_REQUEST_SPACING_MS = 120;
 const NETWORK_RETRY_AFTER_MS = 30_000;
+
+/**
+ * How many lookups may be in flight together.
+ *
+ * These used to run strictly one at a time with a gap between them, which cost
+ * about a second for six places — all of it spent waiting rather than working,
+ * since each request itself takes ~50ms. A handful of concurrent requests is
+ * still a well-behaved client for an endpoint built for browser use, and it is
+ * bounded so a large import cannot open a connection per cluster.
+ */
+const MAX_CONCURRENT_REQUESTS = 4;
 
 export interface Geocoder {
   lookup(lat: number, lon: number): Promise<Place | null>;
@@ -78,7 +88,8 @@ interface BigDataCloudResponse {
 export class CachedGeocoder implements Geocoder {
   /** De-duplicates concurrent lookups of the same key within one import. */
   private inFlight = new Map<string, Promise<Place | null>>();
-  private queue: Promise<unknown> = Promise.resolve();
+  private active = 0;
+  private waiting: Array<() => void> = [];
   private failedUntil = 0;
 
   async lookup(lat: number, lon: number): Promise<Place | null> {
@@ -104,13 +115,19 @@ export class CachedGeocoder implements Geocoder {
     }
   }
 
-  /** Serializes requests with a small gap, to stay a well-behaved client. */
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const result = this.queue.then(task);
-    this.queue = result
-      .catch(() => undefined)
-      .then(() => new Promise((r) => setTimeout(r, MIN_REQUEST_SPACING_MS)));
-    return result;
+  /** Runs a task once a concurrency slot is free. */
+  private async enqueue<T>(task: () => Promise<T>): Promise<T> {
+    if (this.active >= MAX_CONCURRENT_REQUESTS) {
+      await new Promise<void>((resolve) => this.waiting.push(resolve));
+    }
+
+    this.active += 1;
+    try {
+      return await task();
+    } finally {
+      this.active -= 1;
+      this.waiting.shift()?.();
+    }
   }
 
   private async fetchPlace(key: string, lat: number, lon: number): Promise<Place | null> {

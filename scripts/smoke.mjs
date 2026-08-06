@@ -139,6 +139,45 @@ function near(name, actual, expected, tolerance) {
     splitIntoRegions(clusters).length === 1);
 }
 
+// ── Reverse geocoding ────────────────────────────────────────────────────────
+// Lookups run a few at a time rather than one after another. Unbounded would
+// open a connection per cluster on a large import; serial cost about a second
+// for six places, nearly all of it spent waiting.
+
+{
+  const { CachedGeocoder } = await import('../src/geo/geocode.ts');
+
+  const realFetch = globalThis.fetch;
+  let active = 0;
+  let peak = 0;
+  let calls = 0;
+
+  globalThis.fetch = async (url) => {
+    if (!String(url).includes('bigdatacloud')) return realFetch(url);
+    calls += 1;
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((r) => setTimeout(r, 20));
+    active -= 1;
+    return new Response(JSON.stringify({ locality: 'Testville', countryName: 'Testland' }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  // Distinct coordinates so nothing is de-duplicated by cache key.
+  const geocoder = new CachedGeocoder();
+  const points = Array.from({ length: 10 }, (_, i) => ({ lat: 35 + i * 0.01, lon: 139 + i * 0.01 }));
+  const results = await Promise.all(points.map((p) => geocoder.lookup(p.lat, p.lon)));
+
+  globalThis.fetch = realFetch;
+
+  check('geocode: resolves every point', results.every((r) => r?.name?.includes('Testville')),
+    `got ${results.filter(Boolean).length}/10`);
+  check('geocode: runs lookups concurrently', peak > 1, `peak concurrency ${peak}`);
+  check('geocode: bounds concurrency', peak <= 4, `peak concurrency ${peak}`);
+  check('geocode: one request per distinct point', calls === 10, `made ${calls} requests`);
+}
+
 // ── Landmark selection ───────────────────────────────────────────────────────
 
 {
@@ -274,16 +313,21 @@ function near(name, actual, expected, tolerance) {
   // supported temple tags, but the Overpass proximity query omitted them, so
   // the real feature could never reach the picker when its enclosing outline
   // was unnamed.
+  //
+  // The query now fetches everything named nearby and lets `pickNearest` apply
+  // the rules, so the two cannot drift apart again. These assert that shape
+  // rather than a list of tags to keep in sync by hand.
   const sensoJiQuery = nearbyLandmarkQuery({
     lat: 35.714644444444446,
     lon: 139.79649444444445,
   });
-  check('nearby query: requests places of worship',
-    sensoJiQuery.includes('amenity') && sensoJiQuery.includes('place_of_worship'));
-  check('nearby query: requests temple buildings',
-    sensoJiQuery.includes('building') && sensoJiQuery.includes('temple'));
-  check('nearby query: filters amenity values instead of fetching every amenity',
-    !sensoJiQuery.includes('[amenity][name]'));
+  check('nearby query: one spatial scan per point',
+    (sensoJiQuery.match(/around:/g) || []).length === 1, sensoJiQuery);
+  check('nearby query: asks only for named features',
+    sensoJiQuery.includes('[name]'));
+  check('nearby query: cannot omit a tag the picker understands',
+    !/\[["~]?(amenity|tourism|building|place|leisure)/.test(sensoJiQuery),
+    'a tag filter here would reintroduce query/scorer drift');
 
   const sensoJiNode = {
     type: 'node', lat: 35.71475, lon: 139.79655,
@@ -309,9 +353,6 @@ function near(name, actual, expected, tolerance) {
     type: 'node', lat: 35.6717, lon: 139.7649,
     tags: { place: 'quarter', name: '銀座', 'name:en': 'Ginza', wikipedia: 'en:Ginza' },
   };
-  check('nearby query: requests named districts',
-    nearbyLandmarkQuery(ginzaPoint).includes('place') &&
-      nearbyLandmarkQuery(ginzaPoint).includes('quarter'));
   check('nearby: notable district beats a small nearby gallery',
     pickNearest([leForum, ginza], ginzaPoint)?.name === 'Ginza');
 
