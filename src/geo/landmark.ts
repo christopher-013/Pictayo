@@ -112,6 +112,32 @@ const DINING_RADIUS_M = 30;
 const NOTABLE_PLACE_RADIUS_M = 350;
 const WIKIPEDIA_ENDPOINT = 'https://en.wikipedia.org/w/api.php';
 const WIKIPEDIA_TIMEOUT_MS = 8_000;
+
+/**
+ * How many extra times a batch is re-sent when Overpass does not answer.
+ *
+ * Overpass is the accurate source; Wikipedia is a guess about what is famous
+ * nearby. Falling back the moment a request fails let a transient 429 or 504
+ * put a guess on the card and into the cache. Each attempt already walks every
+ * mirror, so this multiplies that: a batch gets three full passes over the
+ * mirror list before Pictayo settles for the guess.
+ *
+ * Bounded rather than unlimited, because a name now beats an unnamed place
+ * forever — the retries buy accuracy a fair chance, they do not insist on it.
+ */
+const OVERPASS_RETRY_LIMIT = 2;
+
+/**
+ * Ceiling on how much sheer popularity can contribute to a Wikipedia guess.
+ *
+ * Fame is evidence that a subject is recognizable, not that it is the place
+ * the photo was taken. Uncapped, an article read a hundred thousand times a
+ * month outscored every closer candidate no matter how far away it sat, so the
+ * most-read article within 350 m effectively always won. Capping it keeps
+ * distance meaningful: the cap is worth about as much as 145 m of separation.
+ */
+const MAX_FAME_SCORE = 50;
+const FAME_PER_DECADE = 12;
 /** Empty/partial results are retried because map data and transiently empty
  * Overpass responses must not turn into permanent generic ward labels. */
 const INCOMPLETE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -325,9 +351,24 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
         )
         .join('');
 
-    const elements = await this.fetchWithFallback(overpassQl);
+    // Give the accurate source its retries before settling for a guess. Each
+    // pass walks every mirror, so a batch only reaches Wikipedia after Overpass
+    // has failed on all of them, repeatedly.
+    //
+    // Only the first failure is worth pressing on: once a batch has already
+    // exhausted its retries, Overpass is down rather than briefly busy, and
+    // making every later batch relearn that would add minutes to a large
+    // import for an answer that is not coming.
+    const retries = this.consecutiveFailures === 0 ? OVERPASS_RETRY_LIMIT : 0;
+    let elements: OverpassElement[] | null = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+      elements = await this.fetchWithFallback(overpassQl);
+      if (elements) break;
+    }
 
-    if (!elements) this.consecutiveFailures += 1;
+    const overpassAnswered = elements !== null;
+    if (!overpassAnswered) this.consecutiveFailures += 1;
     else this.consecutiveFailures = 0;
 
     const groups = splitOnCountMarkers(elements ?? []);
@@ -354,6 +395,11 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
       const landmark = preliminary[index]!.landmark ?? notableFallbacks[index] ?? null;
       const dining = preliminary[index]!.dining;
       results.set(key, { landmark, dining });
+
+      // Show the guess now, but do not persist it: nothing here was checked
+      // against map data, and caching it would keep the fallback's answer long
+      // after Overpass recovered. The next run re-resolves the point properly.
+      if (!overpassAnswered) continue;
 
       await putCachedLandmark({
         key,
@@ -464,13 +510,16 @@ export function pickNotableWikipediaPlace(
     const distance = roughDistanceMeters(from, { lat: position.lat, lon: position.lon });
     if (distance > radiusMeters) continue;
 
+    const description = page.terms?.description?.[0] ?? '';
+    const boost = notableDescriptionBoost(description);
+    if (boost === null) continue; // Not a place, or nothing saying it is one.
+
     const views = Object.values(page.pageviews ?? {}).reduce<number>(
       (sum, value) => sum + (typeof value === 'number' ? value : 0),
       0,
     );
-    const description = page.terms?.description?.[0] ?? '';
-    const score =
-      Math.log10(views + 1) * 25 + notableDescriptionBoost(description) - distance / 4;
+    const fame = Math.min(Math.log10(views + 1) * FAME_PER_DECADE, MAX_FAME_SCORE);
+    const score = fame + boost - distance / 4;
     const name = parentPlaceName(title);
 
     if (best && (score < best.score || (score === best.score && distance >= best.distance))) continue;
@@ -481,14 +530,58 @@ export function pickNotableWikipediaPlace(
   return { name: best.name, kind: 'wikipedia=nearby', near: best.distance > 75 };
 }
 
-function notableDescriptionBoost(description: string): number {
-  if (/\b(temple|shrine|castle|museum|stadium|market|park|monument|landmark|tourist attraction)\b/i.test(description)) {
-    return 38;
+/**
+ * Subjects that are not somewhere a photo can be taken.
+ *
+ * Wikipedia geotags an event at the place it happened, so a 1936 coup attempt
+ * sits on the map exactly like a museum does. "February 26 incident" is tagged
+ * 218 m from Shibuya PARCO and read 11,000 times a month, which was enough to
+ * beat every real venue around it and caption a photo of a Pokémon store.
+ * People, works and organizations get geotagged the same way.
+ */
+const NON_PLACE_DESCRIPTION =
+  /\b(incident|coup|rebellion|revolt|uprising|riot|battle|siege|massacre|bombing|shooting|earthquake|tsunami|typhoon|disaster|fire|crash|accident|election|treaty|protest|attack|assassination|scandal|epidemic|pandemic|tournament|championship|olympics|cup|match|race|series|season|film|movie|album|song|single|novel|manga|anime|video game|band|musician|singer|actor|actress|writer|author|painter|politician|emperor|philosopher|clan|dynasty|company|corporation|conglomerate|manufacturer|publisher|airline|broadcaster|chain|brand|store|shop|office)\b/i;
+
+/**
+ * Vocabulary that positively identifies a place, most specific tier first.
+ *
+ * A description has to land in one of these to be usable. The old scorer only
+ * *boosted* place words and returned a neutral zero for anything it did not
+ * recognize, which meant an unrecognized subject was treated as no worse than
+ * an unremarkable building — so anything sufficiently famous sailed through.
+ */
+const PLACE_DESCRIPTION_TIERS: ReadonlyArray<{ pattern: RegExp; boost: number }> = [
+  {
+    pattern: /\b(temple|shrine|castle|palace|museum|stadium|market|park|monument|memorial|landmark|tourist attraction|aquarium|zoo|theme park|amusement park|cathedral|church|mosque|pagoda|observatory)\b/i,
+    boost: 38,
+  },
+  {
+    pattern: /\b(district|neighbou?rhood|quarter|town|village|ward|suburb|borough)\b/i,
+    boost: 32,
+  },
+  {
+    pattern: /\b(station|airport|bridge|tower|garden|gallery|theatre|theater|university|college|school|library|hospital|hall|arena|venue|hotel|complex|building|mall|shopping cent(?:re|er)|plaza|square|street|avenue|crossing|campus|port|harbou?r|island|mountain|lake|river|waterfall|beach|forest|cemetery|zoo)\b/i,
+    boost: 18,
+  },
+];
+
+/**
+ * Scores how strongly a description reads as a place, or rejects it outright.
+ *
+ * Returns null when the subject is not a place, or when nothing in the text
+ * says that it is. Refusing is the right answer here: this is a fallback, and
+ * leaving a photo labelled with its reverse-geocoded city beats labelling it
+ * with a confident, specific, wrong name.
+ */
+export function notableDescriptionBoost(description: string): number | null {
+  if (!description.trim()) return null;
+  if (NON_PLACE_DESCRIPTION.test(description)) return null;
+
+  for (const tier of PLACE_DESCRIPTION_TIERS) {
+    if (tier.pattern.test(description)) return tier.boost;
   }
-  if (/\b(district|neighbou?rhood|quarter|area|town|village)\b/i.test(description)) return 32;
-  if (/\b(station|bridge|tower|garden|gallery|theatre|university)\b/i.test(description)) return 18;
-  if (/\b(company|store|shop|brand|office)\b/i.test(description)) return -18;
-  return 0;
+
+  return null;
 }
 
 /** "Main Hall (Sensō-ji)" should describe the location as Sensō-ji. */

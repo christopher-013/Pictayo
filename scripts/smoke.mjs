@@ -266,6 +266,119 @@ function near(name, actual, expected, tolerance) {
     pickNotableWikipediaPlace([{
       title: 'Far Away', coordinates: [{ lat: 35.8, lon: 139.9 }], pageviews: { a: 1_000_000 },
     }], { lat: 35.7, lon: 139.7 }) === null);
+
+  // Wikipedia geotags an event where it happened, so a coup or a fatal fire
+  // sits on the map exactly like a museum. Both of these really were returned
+  // for real photo coordinates: "February 26 incident" captioned a photo taken
+  // inside the Pokémon Center in Shibuya PARCO, and "Myojo 56 building fire"
+  // was the pick for Kabukichō. Fame alone must never name a place.
+  const shibuyaPages = [
+    {
+      title: 'February 26 incident',
+      coordinates: [{ lat: 35.66405, lon: 139.69845 }],
+      pageviews: { a: 11_332 },
+      terms: { description: ["failed 1936 coup d'état in Japan"] },
+    },
+    {
+      title: 'Shibuya Public Hall',
+      coordinates: [{ lat: 35.66425, lon: 139.69766 }],
+      pageviews: { a: 259 },
+      terms: { description: ['music venue in Udagawachō, Japan'] },
+    },
+  ];
+  check('notable place: a famous event is not a place',
+    pickNotableWikipediaPlace(shibuyaPages, { lat: 35.6624, lon: 139.698 }) === null,
+    'an event geotagged nearby must never caption a photo');
+  check('notable place: a fatal fire is not a place',
+    pickNotableWikipediaPlace([{
+      title: 'Myojo 56 building fire',
+      coordinates: [{ lat: 35.6949, lon: 139.7025 }],
+      pageviews: { a: 9_000 },
+      terms: { description: ['2001 building fire in Tokyo, Japan'] },
+    }], { lat: 35.6937, lon: 139.7005 }) === null);
+  check('notable place: an organization is not a place',
+    pickNotableWikipediaPlace([{
+      title: 'Hawaii Senate',
+      coordinates: [{ lat: 21.3079, lon: -157.8574 }],
+      pageviews: { a: 4_000 },
+      terms: { description: ['upper house of the Hawaii State Legislature'] },
+    }], { lat: 21.30694, lon: -157.85833 }) === null);
+  check('notable place: an unexplained subject is refused, not assumed',
+    pickNotableWikipediaPlace([{
+      title: 'Something Famous', coordinates: [{ lat: 35.7001, lon: 139.7001 }],
+      pageviews: { a: 500_000 },
+    }], { lat: 35.7, lon: 139.7 }) === null,
+    'no description means no evidence it is somewhere you can stand');
+
+  // Fame is evidence of recognition, not of proximity. Uncapped, the most-read
+  // article inside the radius won regardless of how much closer a rival sat.
+  const fameVsDistance = pickNotableWikipediaPlace([
+    {
+      title: 'World Famous Tower',
+      coordinates: [{ lat: 35.70279, lon: 139.7 }], // ~310m
+      pageviews: { a: 2_000_000 },
+      terms: { description: ['observation tower in Tokyo, Japan'] },
+    },
+    {
+      title: 'Local Shrine',
+      coordinates: [{ lat: 35.70018, lon: 139.7 }], // ~20m
+      pageviews: { a: 300 },
+      terms: { description: ['Shinto shrine in Tokyo, Japan'] },
+    },
+  ], { lat: 35.7, lon: 139.7 });
+  check('notable place: fame cannot outrun a much closer landmark',
+    fameVsDistance?.name === 'Local Shrine', fameVsDistance?.name);
+}
+
+// ── Overpass outage handling ─────────────────────────────────────────────────
+// A transient Overpass failure used to fall straight through to the Wikipedia
+// guess and cache it, so one 429 could bake a wrong landmark in for six hours.
+// Overpass now gets retried first, and a guess made during an outage is shown
+// but never persisted.
+
+{
+  const { OverpassLandmarkFinder } = await import('../src/geo/landmark.ts');
+
+  const realFetch = globalThis.fetch;
+  // The retry backoffs are real seconds; the test cares about the sequence of
+  // attempts, not about waiting them out.
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn) => realSetTimeout(fn, 0);
+
+  let overpassAttempts = 0;
+  let wikipediaCalls = 0;
+
+  globalThis.fetch = async (url) => {
+    const target = String(url?.url ?? url);
+    if (target.includes('/api/interpreter')) {
+      overpassAttempts += 1;
+      throw new Error('simulated Overpass outage');
+    }
+    if (target.includes('wikipedia.org')) {
+      wikipediaCalls += 1;
+      return new Response(JSON.stringify({ query: { pages: [{
+        title: 'Kabukichō',
+        coordinates: [{ lat: 35.6949, lon: 139.7025 }],
+        pageviews: { a: 5_000 },
+        terms: { description: ['entertainment district in Shinjuku, Tokyo'] },
+      }] } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(url);
+  };
+
+  const finder = new OverpassLandmarkFinder();
+  const resolved = await finder.findMany([{ lat: 35.6949, lon: 139.7025 }]);
+  globalThis.fetch = realFetch;
+  globalThis.setTimeout = realSetTimeout;
+
+  const entry = [...resolved.values()][0];
+  // Three passes over three mirrors before the guess is allowed to speak.
+  check('outage: Overpass is retried before falling back',
+    overpassAttempts === 9, `made ${overpassAttempts} attempts`);
+  check('outage: the fallback still answers rather than leaving it blank',
+    entry?.landmark?.name === 'Kabukichō', JSON.stringify(entry?.landmark));
+  check('outage: the fallback is consulted once, not per retry',
+    wikipediaCalls === 1, `made ${wikipediaCalls} calls`);
 }
 
 // ── Nearby landmarks ─────────────────────────────────────────────────────────
