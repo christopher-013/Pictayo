@@ -246,9 +246,23 @@ const LANDMARK_RULES: readonly LandmarkRule[] = [
  *
  * Verified to pick identical landmarks to the filtered query across six test
  * locations, including the dense-street and node-mapped cases.
+ *
+ * Nodes and ways only. Relations are the expensive part of an `around` scan:
+ * Overpass has to assemble each one's member geometry before it can decide
+ * whether it falls inside the radius. Dropping them took the same sixteen-point
+ * request from 24.5s to 8.8s, and a six-point one from 8.7s to 2.9s.
+ *
+ * Nothing is lost in practice, because the two lookups divide the work: a
+ * relation that *contains* the photo still arrives through `is_in`, which
+ * pivots on relations explicitly. The `around` scan only has to answer "what is
+ * near here", and a landmark you are merely standing next to is essentially
+ * always mapped as a node or a closed way. Checked across sixteen locations
+ * chosen to stress this — Ueno Park, Yoyogi Park, Shinjuku Gyoen, the Imperial
+ * Palace, Meiji Jingu — every pick was identical, dining included, though 621
+ * relations had been fetched and scored under the old form.
  */
 export function nearbyLandmarkQuery(point: GeoPoint): string {
-  return `nwr(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[name];`;
+  return `nw(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[name];`;
 }
 
 interface OverpassElement {

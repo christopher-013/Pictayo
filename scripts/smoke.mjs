@@ -665,6 +665,14 @@ function near(name, actual, expected, tolerance) {
     !/\[["~]?(amenity|tourism|building|place|leisure)/.test(sensoJiQuery),
     'a tag filter here would reintroduce query/scorer drift');
 
+  // Relations are what makes an `around` scan expensive: Overpass has to
+  // assemble member geometry before it can test the radius. Sixteen points went
+  // from 24.5s to 8.8s without them, and every pick stayed identical because a
+  // relation that contains the photo still arrives through `is_in`.
+  check('nearby query: nodes and ways only, so relations stay out of the scan',
+    sensoJiQuery.startsWith('nw(around:'),
+    `${sensoJiQuery} — nwr here costs roughly 3x for no change in picks`);
+
   const sensoJiNode = {
     type: 'node', lat: 35.71475, lon: 139.79655,
     tags: { amenity: 'place_of_worship', name: '浅草寺', 'name:en': 'Sensō-ji' },
