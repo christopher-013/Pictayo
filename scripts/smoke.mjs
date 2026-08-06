@@ -26,7 +26,7 @@ import {
 } from '../src/geo/cluster.ts';
 import {
   isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickBestLandmark, pickLandmark,
-  pickNearest, pickNearbyDining, pickNotableWikipediaPlace, splitOnCountMarkers,
+  pickNearest, pickNearbyDining, pickNotableWikipediaPlace, QUERY_BUDGET, splitOnCountMarkers,
 } from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
@@ -409,6 +409,28 @@ function near(name, actual, expected, tolerance) {
     byDistance?.name === 'Close Museum', byDistance?.name);
 }
 
+// ── Overpass resource budget ─────────────────────────────────────────────────
+// Overpass refuses a request that does not fit in roughly half of what the
+// server has free, and charges the full 512 MiB default to any query that
+// declares no maxsize. Measured on overpass-api.de within one minute, the same
+// ten-point batch was refused with a 504 under [timeout:90] alone and returned
+// all 4,449 elements once a maxsize was added.
+
+{
+  const maxsize = QUERY_BUDGET.match(/maxsize:(\d+)(Ki|Mi|Gi)/);
+  check('budget: every query declares a maxsize', Boolean(maxsize), QUERY_BUDGET);
+  check('budget: the declared memory stays far below the 512Mi default',
+    maxsize && (maxsize[2] === 'Ki' || (maxsize[2] === 'Mi' && Number(maxsize[1]) <= 64)),
+    `${QUERY_BUDGET} would be charged the default and refused under load`);
+
+  const timeout = QUERY_BUDGET.match(/timeout:(\d+)/);
+  check('budget: the timeout is bounded', Boolean(timeout), QUERY_BUDGET);
+  check('budget: the timeout leaves headroom without hoarding resources',
+    timeout && Number(timeout[1]) >= 30 && Number(timeout[1]) <= 60,
+    `timeout:${timeout?.[1]} — slowest observed run is 17s`);
+  check('budget: results are still requested as JSON', QUERY_BUDGET.includes('[out:json]'));
+}
+
 // ── Overpass outage handling ─────────────────────────────────────────────────
 // A transient Overpass failure used to fall straight through to the Wikipedia
 // guess and cache it, so one 429 could bake a wrong landmark in for six hours.
@@ -498,6 +520,88 @@ function near(name, actual, expected, tolerance) {
   // One full pass over the mirrors, then the budget is spent.
   check('outage: slow failures do not multiply into a long wait',
     slowAttempts === 3, `made ${slowAttempts} attempts`);
+}
+
+{
+  // Overpass reports a query that ran out of memory or time as HTTP 200 with a
+  // `remark` and no elements. Read naively that is "answered, found nothing" —
+  // which would skip the retries and cache the emptiness.
+  const { OverpassLandmarkFinder } = await import('../src/geo/landmark.ts');
+
+  const realFetch = globalThis.fetch;
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn) => realSetTimeout(fn, 0);
+
+  let attempts = 0;
+  let sawFallback = false;
+  globalThis.fetch = async (url) => {
+    const target = String(url?.url ?? url);
+    if (target.includes('/api/interpreter')) {
+      attempts += 1;
+      return new Response(JSON.stringify({
+        version: 0.6,
+        remark: 'runtime error: Query run out of memory in "query" at line 1.',
+        elements: [],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (target.includes('wikipedia.org')) {
+      sawFallback = true;
+      return new Response(JSON.stringify({ query: { pages: [] } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(url);
+  };
+
+  await new OverpassLandmarkFinder().findMany([{ lat: 35.6949, lon: 139.7025 }]);
+  globalThis.fetch = realFetch;
+  globalThis.setTimeout = realSetTimeout;
+
+  check('remark: an out-of-memory reply counts as a failure, not an empty answer',
+    attempts === 9, `made ${attempts} attempts`);
+  check('remark: the fallback still gets its turn', sawFallback);
+}
+
+{
+  // A 429 means this server has no slot for us. The quota is per server, so
+  // sleeping before trying a different mirror wastes the user's time.
+  const { OverpassLandmarkFinder } = await import('../src/geo/landmark.ts');
+
+  const realFetch = globalThis.fetch;
+  const realSetTimeout = globalThis.setTimeout;
+
+  const backoffs = [];
+  globalThis.setTimeout = (fn, ms) => { if (ms > 0) backoffs.push(ms); return realSetTimeout(fn, 0); };
+
+  const respond = async (status) => {
+    globalThis.fetch = async (url) => {
+      const target = String(url?.url ?? url);
+      if (target.includes('/api/interpreter')) return new Response('', { status });
+      if (target.includes('wikipedia.org')) {
+        return new Response(JSON.stringify({ query: { pages: [] } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return realFetch(url);
+    };
+    backoffs.length = 0;
+    await new OverpassLandmarkFinder().findMany([{ lat: 35.6949, lon: 139.7025 }]);
+    return backoffs.filter((ms) => ms >= 1000).length;
+  };
+
+  const rateLimitedSleeps = await respond(429);
+  const serverErrorSleeps = await respond(500);
+
+  globalThis.fetch = realFetch;
+  globalThis.setTimeout = realSetTimeout;
+
+  // Both shapes still pause between whole retry passes; the difference is that
+  // a 429 adds no pause between one mirror and the next.
+  check('429: switching mirrors costs no extra waiting',
+    rateLimitedSleeps < serverErrorSleeps,
+    `429 slept ${rateLimitedSleeps}, plain failure slept ${serverErrorSleeps}`);
+  check('429: only the between-pass backoff remains',
+    rateLimitedSleeps <= 2, `slept ${rateLimitedSleeps} times`);
+  check('429: other failures still back off between mirrors',
+    serverErrorSleeps > 2, `slept ${serverErrorSleeps} times`);
 }
 
 // ── Nearby landmarks ─────────────────────────────────────────────────────────

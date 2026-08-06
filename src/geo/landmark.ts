@@ -125,6 +125,31 @@ const WIKIPEDIA_TIMEOUT_MS = 8_000;
  * Bounded rather than unlimited, because a name now beats an unnamed place
  * forever — the retries buy accuracy a fair chance, they do not insist on it.
  */
+/**
+ * The resource budget declared on every Overpass query.
+ *
+ * Overpass rejects a request unless it fits in about half of what the server
+ * currently has free, and a query that declares no `maxsize` is charged the
+ * full 512 MiB default. That is what produced the HTTP 504s: not a busy
+ * server, but a query reserving half a gigabyte to read a few hundred metres
+ * of map. The server waits 15 s to see whether resources free up before
+ * refusing, which is why the failures were slow as well as frequent.
+ *
+ * Measured against overpass-api.de within the same minute, this ten-point
+ * batch: `[timeout:90]` alone was refused with a 504 after 13 s, while adding
+ * a `maxsize` returned all 4,449 elements. Every value from 2 Mi to 16 Mi
+ * returned byte-identical results, so the real footprint is well under the
+ * smallest of them; 8 Mi keeps generous headroom for a dense city and is still
+ * sixty-four times smaller than the default.
+ *
+ * The timeout is the other half of the estimate. Ninety seconds was far more
+ * than this query has ever needed — the slowest observed run is 17 s — and
+ * asking for less makes acceptance likelier.
+ *
+ * See https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
+ */
+export const QUERY_BUDGET = '[out:json][timeout:60][maxsize:8Mi];';
+
 const OVERPASS_RETRY_LIMIT = 2;
 
 /**
@@ -356,7 +381,7 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
     // from, so the original tags come back with it. `out count` after each
     // lookup emits a marker element, which is what makes the groups separable.
     const overpassQl =
-      '[out:json][timeout:90];' +
+      QUERY_BUDGET +
       batch
         .map(
           ({ point }) =>
@@ -440,6 +465,7 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
   private async fetchWithFallback(overpassQl: string): Promise<OverpassElement[] | null> {
     for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
       const endpoint = ENDPOINTS[(this.endpointIndex + attempt) % ENDPOINTS.length]!;
+      let rateLimited = false;
 
       try {
         const response = await fetch(endpoint, {
@@ -451,17 +477,33 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
           credentials: 'omit',
         });
 
+        // 429 means this server has no slot for us. Waiting will not help, and
+        // the quota is per server, so move to the next mirror immediately.
+        rateLimited = response.status === 429;
+
         if (response.ok) {
+          const data = (await response.json()) as {
+            elements?: OverpassElement[];
+            remark?: string;
+          };
+
+          // Overpass reports a query that ran out of memory or time as HTTP 200
+          // with a `remark` and no elements. Treating that as "answered, found
+          // nothing" would cache an empty result and skip the retries, so it
+          // has to count as a failure.
+          if (data.remark && /error|exceeded|out of memory/i.test(data.remark)) {
+            continue;
+          }
+
           // Stay on whatever answered, rather than going back to a busy one.
           this.endpointIndex = (this.endpointIndex + attempt) % ENDPOINTS.length;
-          const data = (await response.json()) as { elements?: OverpassElement[] };
           return data.elements ?? [];
         }
       } catch {
         // Timeout or network error — fall through to the next mirror.
       }
 
-      if (attempt < ENDPOINTS.length - 1) {
+      if (!rateLimited && attempt < ENDPOINTS.length - 1) {
         await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
       }
     }
