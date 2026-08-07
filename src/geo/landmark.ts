@@ -211,7 +211,11 @@ const LANDMARK_RULES: readonly LandmarkRule[] = [
   { key: 'tourism', values: new Set(['attraction', 'theme_park', 'zoo', 'aquarium', 'museum', 'gallery', 'viewpoint']) },
   { key: 'historic', values: new Set(['castle', 'monument', 'memorial', 'ruins', 'archaeological_site', 'fort']) },
   { key: 'leisure', values: new Set(['stadium', 'theme_park', 'water_park', 'sports_centre', 'garden', 'park', 'nature_reserve', 'marina']) },
-  { key: 'amenity', values: new Set(['university', 'college', 'theatre', 'arts_centre', 'place_of_worship', 'marketplace', 'library', 'hospital']) },
+  // `ferry_terminal` earns its place from a real photo: standing on the pier at
+  // Hakone-machi with the Queen Ashinoko tied up alongside, the terminal one
+  // metre away was invisible and the caption read "Near Hakone Ekiden museum",
+  // a relay-race museum 75 m inland.
+  { key: 'amenity', values: new Set(['university', 'college', 'theatre', 'arts_centre', 'place_of_worship', 'marketplace', 'library', 'hospital', 'ferry_terminal']) },
   { key: 'shop', values: new Set(['mall', 'department_store']) },
   { key: 'man_made', values: new Set(['tower', 'lighthouse', 'pier', 'bridge']) },
   { key: 'natural', values: new Set(['beach', 'peak', 'volcano', 'cave_entrance']) },
@@ -713,9 +717,21 @@ export function pickNearbyDining(
   return best;
 }
 
-/** Picks the most specific interesting feature out of everything enclosing a point. */
+/**
+ * Picks the most specific interesting feature out of everything enclosing a point.
+ *
+ * Districts are excluded here even though they are a landmark class, because a
+ * match in this function wins outright. Standing in Odaiba is true of a very
+ * large area, and it short-circuited the search: a photo of the Fuji TV sphere,
+ * with the observation deck 54 m away and outscoring everything else, was
+ * captioned "Daiba" because a `place=quarter` outline happened to contain the
+ * camera. Districts are still used — see {@link bestEnclosingDistrict} — but
+ * they have to win on score rather than by arriving first.
+ */
 export function pickLandmark(elements: OverpassElement[]): Landmark | null {
   for (const rule of LANDMARK_RULES) {
+    if (rule.key === 'place') continue;
+
     for (const element of elements) {
       const tags = element.tags;
       if (!tags) continue;
@@ -842,13 +858,44 @@ function bestEnclosingBuilding(
 }
 
 /**
+ * The district a point sits in, scored rather than taken as given.
+ *
+ * A district is real information — "Ginza" is a fine answer for a street photo
+ * with nothing notable in frame — but it describes a large area, so it should
+ * lose to a specific venue the camera is actually next to.
+ */
+function bestEnclosingDistrict(
+  elements: OverpassElement[],
+): { landmark: Landmark; score: number } | null {
+  const districts = LANDMARK_RULES.find((r) => r.key === 'place')!.values;
+  let best: { landmark: Landmark; score: number } | null = null;
+
+  for (const element of elements) {
+    const tags = element.tags;
+    const value = tags?.place;
+    if (!tags || !value || !districts.has(value)) continue;
+
+    const name = (tags['name:en'] ?? tags.name ?? '').trim();
+    if (!name) continue;
+
+    const score = nearbyLandmarkScore(tags, 'place', value, 0, NEARBY_RADIUS_M);
+    if (best && score <= best.score) continue;
+
+    best = { landmark: { name, kind: `place=${value}`, near: false }, score };
+  }
+
+  return best;
+}
+
+/**
  * Picks the best name available for a point from both Overpass lookups.
  *
  * Containment inside a mapped landmark wins outright — being inside Tokyo Dome
- * is not a guess. Failing that, the neighbourhood and the building overhead are
- * scored the same way and the stronger one answers, so a well-known tower is
- * used when nothing nearby is more specific, but a named viewpoint a few metres
- * away still beats it.
+ * is not a guess. Everything else competes on score at the same table: the
+ * nearby venues, the building overhead, and the district underfoot. So a
+ * well-known tower answers when nothing nearby is more specific, a named
+ * viewpoint a few metres away still beats it, and a district answers only when
+ * it genuinely is the most useful thing to say.
  */
 export function pickBestLandmark(
   enclosing: OverpassElement[],
@@ -858,12 +905,15 @@ export function pickBestLandmark(
   const contained = pickLandmark(enclosing);
   if (contained) return contained;
 
-  const nearest = bestNearbyCandidate(nearby, point);
-  const inside = bestEnclosingBuilding(enclosing);
+  const candidates = [
+    bestNearbyCandidate(nearby, point),
+    bestEnclosingBuilding(enclosing),
+    bestEnclosingDistrict(enclosing),
+  ].filter((c): c is { landmark: Landmark; score: number } => c != null);
 
-  if (!inside) return nearest?.landmark ?? null;
-  if (!nearest || inside.score >= nearest.score) return inside.landmark;
-  return nearest.landmark;
+  if (candidates.length === 0) return null;
+
+  return candidates.reduce((a, b) => (b.score > a.score ? b : a)).landmark;
 }
 
 /**
@@ -911,6 +961,12 @@ function nearbyLandmarkScore(
     else if (value === 'gallery') base = 55;
   } else if (key === 'amenity' && value === 'place_of_worship') {
     base = 100;
+  } else if (key === 'amenity' && value === 'ferry_terminal') {
+    // The maritime equivalent of `aeroway=terminal`, and scored like one. Where
+    // boats matter to visitors the pier is the destination: at Hakone-machi the
+    // terminal is one metre from the photo and the nearest museum is 75 m
+    // inland, so it has to be able to outrank one.
+    base = 105;
   } else if (key === 'place') {
     base = value === 'quarter' ? 85 : value === 'neighbourhood' ? 80 : 75;
   } else if (key === 'historic' && value === 'memorial') {

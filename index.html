@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pictayo — Your Memories, Mapped by Time and Place</title>
-<meta name="description" content="Organize your personal photos by date and explore their locations on an interactive map. Pictayo turns your camera roll into a private visual timeline of your memories.">
+<meta name="description" content="Organize your photos by date and explore where they were taken on an interactive map. Pictayo turns your camera roll into a private visual timeline.">
 <meta name="keywords" content="photo map, photo timeline, organize photos by date, geotagged photos, travel photo map, private photo organizer, photo metadata viewer, camera roll map, personal photo website, Pictayo">
 <meta name="author" content="Pictayo">
 <meta name="application-name" content="Pictayo">
@@ -37,6 +37,18 @@
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      "@id": "https://christopher-013.github.io/Pictayo/#publisher",
+      "name": "Pictayo",
+      "url": "https://christopher-013.github.io/Pictayo/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://christopher-013.github.io/Pictayo/logo.webp",
+        "width": 760,
+        "height": 608
+      }
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": "https://christopher-013.github.io/Pictayo/#app",
       "name": "Pictayo",
@@ -44,8 +56,14 @@
       "description": "Pictayo organizes personal photos by date and displays available geolocations on an interactive map.",
       "applicationCategory": "PhotographyApplication",
       "operatingSystem": "Web",
+      "browserRequirements": "Requires a modern browser with IndexedDB support",
+      "softwareVersion": "1.0.0",
       "inLanguage": "en",
       "isAccessibleForFree": true,
+      "publisher": { "@id": "https://christopher-013.github.io/Pictayo/#publisher" },
+      "image": "https://christopher-013.github.io/Pictayo/og-image.png",
+      "screenshot": "https://christopher-013.github.io/Pictayo/og-image.png",
+      "privacyPolicy": "https://christopher-013.github.io/Pictayo/privacy.html",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "featureList": [
         "Organize photos and videos by capture date",
@@ -62,7 +80,18 @@
       "url": "https://christopher-013.github.io/Pictayo/",
       "description": "Pictayo is a private photo map and timeline that organizes your pictures by when and where they were taken.",
       "inLanguage": "en",
-      "publisher": { "@id": "https://christopher-013.github.io/Pictayo/#app" }
+      "publisher": { "@id": "https://christopher-013.github.io/Pictayo/#publisher" }
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://christopher-013.github.io/Pictayo/#webpage",
+      "url": "https://christopher-013.github.io/Pictayo/",
+      "name": "Pictayo — Your Memories, Mapped by Time and Place",
+      "description": "Organize your personal photos by date and explore their locations on an interactive map.",
+      "isPartOf": { "@id": "https://christopher-013.github.io/Pictayo/#website" },
+      "about": { "@id": "https://christopher-013.github.io/Pictayo/#app" },
+      "primaryImageOfPage": "https://christopher-013.github.io/Pictayo/og-image.png",
+      "inLanguage": "en"
     }
   ]
 }

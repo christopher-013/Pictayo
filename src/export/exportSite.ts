@@ -132,6 +132,40 @@ function encode(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
+/** Upper bound on fetching a bundled brand asset; see {@link fetchAsset}. */
+const ASSET_TIMEOUT_MS = 10_000;
+
+/**
+ * Content Security Policy for exported album pages.
+ *
+ * The app itself has always shipped one; the albums it generates did not, even
+ * though they carry exactly the same untrusted material — filenames, EXIF
+ * strings, reverse-geocoded and Overpass place names — and are the copy a user
+ * is likely to put on a public host.
+ *
+ * `script-src 'self'` is the load-bearing part, and it costs nothing here
+ * because the album's only script is the separate `assets/site.js`; the
+ * `lb-data` element is `type="application/json"` and never executes. Styles
+ * need `'unsafe-inline'` because map pins are positioned with a `style`
+ * attribute, which the policy would otherwise block — those values are
+ * percentages this file computes itself, never anything read from a photo.
+ *
+ * `frame-ancestors` is deliberately absent: it is ignored in a meta element and
+ * only works as a real header, which a static export cannot set.
+ */
+const EXPORT_CSP = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "form-action 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' blob:",
+  "connect-src 'none'",
+  'frame-src https://maps.google.com https://www.google.com',
+].join('; ');
+
 /**
  * Serializes untrusted metadata for an inert JSON script element.
  * JSON escaping alone does not neutralize `</script>`, because the HTML parser
@@ -146,12 +180,19 @@ export function scriptSafeJson(value: unknown): string {
     .replace(/\u2029/g, '\\u2029');
 }
 
-/** Pulls one of the app's own brand assets to bundle into the export. */
+/**
+ * Pulls one of the app's own brand assets to bundle into the export.
+ *
+ * Bounded, because the export cannot finish until this settles: a stalled
+ * request for the logo would hang the whole download behind a spinner. The
+ * asset is decorative, so timing out and shipping the album without it is
+ * strictly better than not shipping the album.
+ */
 async function fetchAsset(path: string): Promise<Uint8Array | null> {
   try {
     // Relative, so it resolves whether the app is served from a domain root or
     // a project sub-path.
-    const response = await fetch(path);
+    const response = await fetch(path, { signal: AbortSignal.timeout(ASSET_TIMEOUT_MS) });
     if (!response.ok) return null;
     return new Uint8Array(await response.arrayBuffer());
   } catch {
@@ -191,6 +232,7 @@ function buildDayPage(context: PageContext): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${EXPORT_CSP}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeAttr(`${title} — ${day.label}`)}</title>
 <meta name="theme-color" content="#019aa0">
@@ -435,6 +477,7 @@ function buildEverywherePage(
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${EXPORT_CSP}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeAttr(`${title} — All photo locations`)}</title>
 <meta name="theme-color" content="#019aa0">

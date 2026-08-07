@@ -1,6 +1,17 @@
 const FEEDBACK_ENDPOINT =
   'https://picturepicture-feedback.cch13.workers.dev/api/feedback';
 
+/**
+ * How long to wait for the feedback service before giving up.
+ *
+ * Without this the request has no upper bound: a Worker that accepts the
+ * connection and then stalls leaves the submit button disabled and the status
+ * reading "Sending…" indefinitely, with no way to retry short of reloading.
+ * Timing out routes the failure into the existing catch, which re-enables the
+ * button and offers to try again.
+ */
+const SUBMIT_TIMEOUT_MS = 15_000;
+
 type FeedbackResponse = {
   ok?: boolean;
   number?: number | null;
@@ -59,6 +70,7 @@ export function initFeedback(): void {
     try {
       const response = await fetch(FEEDBACK_ENDPOINT, {
         method: 'POST',
+        signal: AbortSignal.timeout(SUBMIT_TIMEOUT_MS),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category,

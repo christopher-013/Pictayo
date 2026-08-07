@@ -409,6 +409,84 @@ function near(name, actual, expected, tolerance) {
     byDistance?.name === 'Close Museum', byDistance?.name);
 }
 
+// ── Every outbound request is bounded ────────────────────────────────────────
+// A request with no timeout has no failure mode, only a hang. The feedback
+// dialog left its submit button disabled and the status reading "Sending…"
+// forever if the Worker accepted the connection and then stalled.
+
+{
+  const sources = {
+    'geo/geocode.ts': readFileSync(join('src', 'geo', 'geocode.ts'), 'utf8'),
+    'geo/landmark.ts': readFileSync(join('src', 'geo', 'landmark.ts'), 'utf8'),
+    'ui/feedback.ts': readFileSync(join('src', 'ui', 'feedback.ts'), 'utf8'),
+    'export/exportSite.ts': readFileSync(join('src', 'export', 'exportSite.ts'), 'utf8'),
+  };
+
+  for (const [file, source] of Object.entries(sources)) {
+    // Count fetch call sites and the abort signals guarding them.
+    const calls = (source.match(/\bfetch\(/g) || []).length;
+    const guards = (source.match(/AbortSignal\.timeout\(/g) || []).length;
+    check(`timeouts: every fetch in ${file} carries one`,
+      calls > 0 && guards >= calls,
+      `${calls} fetch call sites, ${guards} AbortSignal.timeout guards`);
+  }
+}
+
+// ── Places read off this trip's own photographs ──────────────────────────────
+// Both of these come from sampling the Japan 2026 library, identifying what the
+// photograph actually shows, and checking the resolver against it.
+
+{
+  // Standing on the pier at Hakone-machi with the Queen Ashinoko alongside.
+  // The terminal is 1m away; the relay-race museum is 75m inland.
+  const pier = { lat: 35.18999, lon: 139.02450 };
+  const terminal = {
+    type: 'node', lat: 35.18999, lon: 139.02451,
+    tags: { name: '箱根町港', 'name:en': 'Hakone-Machi Pirate Ship Ferry Port', amenity: 'ferry_terminal' },
+  };
+  const museum = {
+    type: 'node', lat: 35.19066, lon: 139.02452,
+    tags: { name: '箱根駅伝ミュージアム', 'name:en': 'Hakone Ekiden museum', tourism: 'museum' },
+  };
+
+  const picked = pickBestLandmark([], [museum, terminal], pier);
+  check('pier: the ferry terminal underfoot beats a museum 75m inland',
+    picked?.name === 'Hakone-Machi Pirate Ship Ferry Port', JSON.stringify(picked));
+  check('pier: a ferry terminal is a landmark class at all',
+    pickNearest([terminal], pier)?.kind === 'amenity=ferry_terminal',
+    'amenity=ferry_terminal was absent from LANDMARK_RULES entirely');
+}
+
+{
+  // A photo of the Fuji TV sphere in Odaiba. The observation deck is 54m away;
+  // the district outline containing the camera covers most of the island.
+  const point = { lat: 35.62670, lon: 139.77420 };
+  const district = { type: 'relation', tags: { name: 'お台場', 'name:en': 'Odaiba', place: 'quarter' } };
+  const sphere = {
+    type: 'node', lat: 35.62719, lon: 139.77420,
+    tags: { name: '球体展望室', tourism: 'viewpoint' },
+  };
+
+  const picked = pickBestLandmark([district], [sphere], point);
+  check('district: a containing district does not short-circuit a nearby landmark',
+    picked?.name === '球体展望室',
+    `${JSON.stringify(picked)} — place matches used to win outright from pickLandmark`);
+
+  // But it must still answer when there is genuinely nothing more specific.
+  const bare = pickBestLandmark([district], [], point);
+  check('district: still used when nothing nearby is more specific',
+    bare?.name === 'Odaiba' && bare?.near === false, JSON.stringify(bare));
+
+  check('district: pickLandmark alone never returns a district',
+    pickLandmark([district]) === null, JSON.stringify(pickLandmark([district])));
+
+  // A genuine enclosing landmark still wins outright over both.
+  const contained = pickBestLandmark(
+    [district, { type: 'way', tags: { name: 'Tokyo Dome', leisure: 'stadium' } }], [sphere], point);
+  check('district: a real enclosing landmark still wins outright',
+    contained?.name === 'Tokyo Dome', JSON.stringify(contained));
+}
+
 // ── Overpass resource budget ─────────────────────────────────────────────────
 // Overpass refuses a request that does not fit in roughly half of what the
 // server has free, and charges the full 512 MiB default to any query that
@@ -1316,6 +1394,54 @@ if (!existsSync(dist)) {
     html.includes('content="https://christopher-013.github.io/Pictayo/og-image.png"'));
   check('build: canonical URL and crawl directives are present',
     html.includes('rel="canonical"') && html.includes('name="robots"'));
+
+  // Structured data is only worth shipping if it is valid and self-consistent;
+  // a dangling @id or a publisher that is not an organisation gets the whole
+  // block discarded rather than half-used.
+  {
+    const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    check('seo: structured data block is present', Boolean(ld));
+    let graph = null;
+    try { graph = ld ? JSON.parse(ld[1]) : null; } catch { graph = null; }
+    check('seo: structured data is valid JSON', Boolean(graph), 'invalid JSON-LD is ignored wholesale');
+
+    const nodes = graph?.['@graph'] ?? (graph ? [graph] : []);
+    const ids = new Set(nodes.map((n) => n['@id']).filter(Boolean));
+    const dangling = [];
+    const walk = (v) => {
+      if (Array.isArray(v)) return v.forEach(walk);
+      if (v && typeof v === 'object') {
+        const keys = Object.keys(v);
+        if (keys.length === 1 && keys[0] === '@id' && !ids.has(v['@id'])) dangling.push(v['@id']);
+        Object.values(v).forEach(walk);
+      }
+    };
+    walk(nodes);
+    check('seo: every @id reference resolves inside the graph',
+      dangling.length === 0, dangling.join(', '));
+
+    const publishers = nodes.filter((n) => n.publisher);
+    check('seo: publisher is an organisation, not the application itself',
+      publishers.length > 0 && publishers.every((n) => {
+        const target = nodes.find((x) => x['@id'] === n.publisher['@id']);
+        return target && ['Organization', 'Person'].includes(target['@type']);
+      }), 'schema.org requires Organization or Person here');
+  }
+
+  // Search results truncate past roughly 158 characters, so an over-long
+  // description loses the end of the sentence rather than reading fully.
+  const description = (html.match(/<meta name="description" content="([^"]*)"/) ?? [])[1] ?? '';
+  check('seo: meta description is present and not truncated',
+    description.length >= 50 && description.length <= 158,
+    `${description.length} characters`);
+
+  const title = (html.match(/<title>([^<]*)<\/title>/) ?? [])[1] ?? '';
+  check('seo: title fits a search result', title.length >= 20 && title.length <= 65,
+    `${title.length} characters`);
+
+  for (const tag of ['og:title', 'og:description', 'og:url', 'og:image:alt', 'twitter:card']) {
+    check(`seo: ${tag} is declared`, html.includes(`"${tag}"`), tag);
+  }
   check('build: restrictive CSP excludes unsafe script execution',
     html.includes('http-equiv="Content-Security-Policy"') &&
       html.includes("object-src 'none'") && html.includes("form-action 'none'") &&
@@ -1455,6 +1581,24 @@ if (!existsSync(dist)) {
   check('export: lightbox metadata is inert JSON',
     dayPage.includes('<script type="application/json" id="lb-data">') &&
       !dayPage.includes('<script>var LB='));
+
+  // An exported album carries the same untrusted material as the app — EXIF
+  // strings, filenames, Overpass place names — and is the copy most likely to
+  // end up on a public host, so it ships its own policy.
+  for (const [label, page] of [['day page', dayPage], ['everywhere page', everywherePage]]) {
+    check(`export: ${label} declares a Content-Security-Policy`,
+      page.includes('http-equiv="Content-Security-Policy"'), label);
+    check(`export: ${label} confines scripts to the bundled file`,
+      /script-src 'self'[;"]/.test(page) && !/script-src[^;"]*unsafe-inline/.test(page),
+      'an injected inline script would execute without this');
+    check(`export: ${label} blocks plugins and form posts`,
+      page.includes("object-src 'none'") && page.includes("form-action 'none'"), label);
+  }
+  check('export: the only executable script is the bundled file',
+    (dayPage.match(/<script(?![^>]*type="application\/json")/g) || [])
+      .every((_, i) => dayPage.split('<script').slice(1)[i]?.includes('src="assets/site.js"')
+        || dayPage.split('<script').slice(1)[i]?.includes('type="application/json"')),
+    'an inline script would be blocked by the policy above');
   const hostileTitle = '</script><script>alert("export injection")</script>&';
   const safeJson = scriptSafeJson({ title: hostileTitle });
   check('export: script-safe JSON contains no HTML delimiters',
