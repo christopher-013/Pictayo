@@ -1795,7 +1795,8 @@ if (!existsSync(dist)) {
   check('build: Pictayo public-release brand is present',
     html.includes('<title>Pictayo — Your Memories, Mapped by Time and Place</title>') &&
       html.includes('name="pictayo-version" content="1.0.0"') &&
-      html.includes('Your memories, mapped by time and place.'));
+      html.includes('Your memories, mapped by time and place.') &&
+      html.includes('Your private photo map'));
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
     html.includes('content="https://pictayo.com/og-image.png"'));
