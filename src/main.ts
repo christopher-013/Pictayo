@@ -23,6 +23,7 @@ import { exportSite } from './export/exportSite';
 import { confirmAction, initConfirmDialog } from './ui/confirmDialog';
 import { initFeedback } from './ui/feedback';
 import { initInfoDialogs } from './ui/infoDialogs';
+import { reportImportCompleted } from './usagePing';
 
 /** Flush to IndexedDB in batches so a large import survives an early tab close. */
 const SAVE_BATCH_SIZE = 24;
@@ -180,6 +181,11 @@ async function handleFiles(files: File[]): Promise<void> {
 
     // Asked only after a real import, when the browser is most likely to grant it.
     void requestPersistence();
+
+    // Counted only once media is actually stored. Reaching here means a file
+    // picker was driven and bytes were decoded, which is the strongest signal
+    // available that a person rather than a crawler is using the app.
+    if (files.length - failures - storageFailures > 0) reportImportCompleted();
 
     setProgress(files.length, files.length, 'Preparing gallery…');
 

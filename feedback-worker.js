@@ -7,6 +7,26 @@
 
 const API_PATH = '/api/feedback';
 /**
+ * Anonymous usage counter.
+ *
+ * The site is served from GitHub Pages, which exposes no logs, so without this
+ * there is no way to tell whether anyone is using the app. It answers exactly
+ * one question — how many browser sessions imported media on a given day — and
+ * is deliberately incapable of answering anything narrower.
+ *
+ * What it stores is a single integer per UTC day. There is no identifier, no
+ * cookie, no per-event row, and the client IP is used only transiently as a
+ * rate-limit key, exactly as feedback already does. Nothing written here can be
+ * traced back to a person, because nothing about the person is ever received.
+ */
+const PING_PATH = '/api/ping';
+/** The only event the counter accepts. Anything else is discarded. */
+const PING_EVENTS = new Set(['import']);
+/** A ping is two short fields; anything larger is not one. */
+const MAX_PING_BYTES = 512;
+/** Roughly 13 months, so a year-over-year digest still has something to read. */
+const COUNT_TTL_SECONDS = 400 * 24 * 60 * 60;
+/**
  * Must track the repository's current name. GitHub answers a renamed repo with
  * a 301, and fetch rewrites a redirected POST into a GET — so a stale name here
  * reads the issue list, returns 200, and reports success without filing
@@ -29,6 +49,7 @@ const UNSAFE_FEEDBACK_ERROR = 'Feedback contains content that cannot be submitte
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === PING_PATH) return handlePing(request, env);
     if (url.pathname !== API_PATH) return new Response('Not found', { status: 404 });
 
     const origin = request.headers.get('Origin') || '';
@@ -163,7 +184,135 @@ export default {
     const issue = await response.json().catch(() => ({}));
     return json({ ok: true, number: Number.isFinite(issue.number) ? issue.number : null }, 201, cors);
   },
+
+  /**
+   * Daily digest. Reads yesterday's totals and posts them to a webhook held in
+   * the encrypted secret store. Only counts are sent; there is nothing else
+   * stored to send.
+   */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(sendDigest(env));
+  },
 };
+
+async function handlePing(request, env) {
+  const origin = request.headers.get('Origin') || '';
+  const allowed = allowedOrigins(env.ALLOWED_ORIGINS).includes(origin);
+  const cors = corsHeaders(allowed ? origin : '');
+
+  if (request.method === 'OPTIONS') {
+    return allowed
+      ? new Response(null, { status: 204, headers: cors })
+      : json({ ok: false, error: 'Origin not allowed' }, 403, cors);
+  }
+  if (!allowed) return json({ ok: false, error: 'Origin not allowed' }, 403, cors);
+  if (request.method !== 'POST') {
+    return json({ ok: false, error: 'Method not allowed' }, 405, cors);
+  }
+
+  const declaredLength = Number.parseInt(request.headers.get('Content-Length') || '', 10);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_PING_BYTES) {
+    return new Response(null, { status: 204, headers: cors });
+  }
+
+  let payload;
+  try {
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).byteLength > MAX_PING_BYTES) {
+      return new Response(null, { status: 204, headers: cors });
+    }
+    payload = JSON.parse(raw);
+  } catch {
+    return new Response(null, { status: 204, headers: cors });
+  }
+
+  const event = payload && typeof payload === 'object' ? payload.event : null;
+  if (!PING_EVENTS.has(event)) return new Response(null, { status: 204, headers: cors });
+
+  // Same reasoning as feedback: an absent limiter is an absent control, and a
+  // counter with no throttle is a counter anyone can inflate at will.
+  const limiter = env.FEEDBACK_RATE_LIMITER;
+  if (typeof limiter?.limit !== 'function') {
+    console.error('Usage counter is missing its rate limiter binding');
+    return new Response(null, { status: 204, headers: cors });
+  }
+  // A distinct key prefix gives pings their own bucket, so counting can never
+  // consume somebody's budget for filing feedback.
+  const client = request.headers.get('CF-Connecting-IP') || 'unknown';
+  try {
+    if (!(await limiter.limit({ key: `ping:${client}` })).success) {
+      return new Response(null, { status: 204, headers: cors });
+    }
+  } catch {
+    return new Response(null, { status: 204, headers: cors });
+  }
+
+  const counts = env.USAGE_COUNTS;
+  if (!counts || typeof counts.get !== 'function') {
+    console.error('Usage counter is missing its KV binding');
+    return new Response(null, { status: 204, headers: cors });
+  }
+
+  // Read-modify-write is not atomic in KV, so simultaneous pings can land on
+  // the same value and lose one. That is acceptable here: the question is
+  // whether people are using the app, not the exact number, and the
+  // alternative — a row per event — stores strictly more about visitors.
+  const key = countKey(utcDate(new Date()), event);
+  try {
+    const current = Number.parseInt((await counts.get(key)) || '0', 10);
+    const next = (Number.isFinite(current) ? current : 0) + 1;
+    await counts.put(key, String(next), { expirationTtl: COUNT_TTL_SECONDS });
+  } catch (error) {
+    console.error('Usage counter could not record a ping', { message: String(error?.message || '') });
+  }
+
+  // Always no-content: the client neither needs nor reads an answer, and a
+  // silent response gives a caller nothing to probe.
+  return new Response(null, { status: 204, headers: cors });
+}
+
+async function sendDigest(env) {
+  const webhook = env.DIGEST_WEBHOOK_URL;
+  if (!webhook) {
+    console.error('Usage digest is missing its webhook secret');
+    return;
+  }
+  const counts = env.USAGE_COUNTS;
+  if (!counts || typeof counts.get !== 'function') {
+    console.error('Usage digest is missing its KV binding');
+    return;
+  }
+
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const day = utcDate(yesterday);
+  const imports = Number.parseInt((await counts.get(countKey(day, 'import')).catch(() => '0')) || '0', 10) || 0;
+
+  const line = imports === 0
+    ? `Pictayo ${day}: no imports.`
+    : `Pictayo ${day}: ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
+
+  try {
+    // `content` is what Discord reads and `text` is what Slack reads, so one
+    // body works with either without needing to know which was configured.
+    await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: line, text: line }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    console.error('Usage digest could not be delivered');
+  }
+}
+
+function utcDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function countKey(day, event) {
+  return `count:${day}:${event}`;
+}
 
 function allowedOrigins(value) {
   const configured = String(value || '').split(',').map((item) => item.trim()).filter(Boolean);

@@ -14,5 +14,18 @@
       "namespace_id": "51012",
       "simple": { "limit": 5, "period": 60 }
     }
-  ]
+  ],
+  // Anonymous usage counts: one integer per UTC day, no per-visitor records.
+  // Replace the id with the one printed by:
+  //   npx wrangler kv namespace create USAGE_COUNTS
+  "kv_namespaces": [
+    {
+      "binding": "USAGE_COUNTS",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ],
+  // 08:00 UTC daily digest of the previous day's counts.
+  "triggers": {
+    "crons": ["0 8 * * *"]
+  }
 }

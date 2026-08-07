@@ -37,6 +37,14 @@ route, viewport, app version, and browser user agent to a dedicated Cloudflare
 Worker. The Worker creates a public GitHub issue. It never receives photos or a
 contact email.
 
+Usage counting sends the fixed string `{"event":"import"}` to the same Worker,
+once per browser session, after an import stores media. It carries no
+identifier, cookie, user agent, or device detail. The Worker keeps one integer
+per UTC day; the client IP is used as a rate-limit key and is never stored, so
+no record exists that could attribute a count to a visitor or link two visits.
+Because the endpoint is the feedback Worker's own origin, counting adds no
+entry to the CSP allowlist and no third party.
+
 ## Implemented controls
 
 - A restrictive Content Security Policy limits scripts, workers, frames,

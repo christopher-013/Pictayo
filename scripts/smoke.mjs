@@ -1555,6 +1555,60 @@ if (!existsSync(fixturesDir)) {
       !feedbackSource.includes('github.com'));
   check('feedback: does not collect or submit an email address',
     !feedbackSource.includes('feedback-email') && !feedbackSource.includes('email:'));
+
+  // ── Anonymous usage counting ───────────────────────────────────────────────
+  //
+  // The privacy notice makes a specific promise: the ping carries one word and
+  // nothing else. These checks are what stop that promise from quietly becoming
+  // false, because every tempting addition here — a user agent "just to know
+  // which browsers", an id "just to deduplicate" — reads as harmless in a diff.
+  const pingSource = readFileSync(join('src', 'usagePing.ts'), 'utf8');
+  // Scan the code, not the prose. The file's own comment names the things it
+  // refuses to collect, which would otherwise trip every check below.
+  const pingCode = pingSource
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const pingBody = pingCode.match(/body:\s*JSON\.stringify\(([^)]*)\)/)?.[1] ?? '';
+  check('usage: the ping body carries only the event name',
+    /^\{\s*event:\s*'import'\s*\}$/.test(pingBody.trim()), pingBody.trim().slice(0, 80));
+  for (const [label, needle] of [
+    ['user agent', 'navigator.userAgent'], ['language', 'navigator.language'],
+    ['timezone', 'timeZone'], ['screen size', 'screen.'],
+    ['viewport', 'innerWidth'], ['referrer', 'document.referrer'],
+    ['page address', 'location.href'], ['stored id', 'localStorage'],
+  ]) {
+    check(`usage: the ping never reads the visitor's ${label}`,
+      !pingCode.includes(needle), needle);
+  }
+  // sessionStorage holds a constant flag. Anything random would be an id, which
+  // is exactly what the notice says does not exist.
+  check('usage: the ping stores a flag, never a generated identifier',
+    !/crypto\.randomUUID|Math\.random/.test(pingCode) &&
+      pingCode.includes("sessionStorage.setItem(SESSION_FLAG, '1')"));
+  check('usage: the ping sends no credentials',
+    pingCode.includes("credentials: 'omit'") && pingCode.includes("referrerPolicy: 'no-referrer'"));
+  check('usage: counting failures never surface to the user',
+    pingCode.includes('.catch(() => {})') && !/\bthrow\b/.test(pingCode));
+  check('usage: counting reuses the origin already in the CSP',
+    pingSource.includes('picturepicture-feedback.cch13.workers.dev/api/ping'));
+  check('usage: only a completed import is counted',
+    /files\.length - failures - storageFailures > 0\) reportImportCompleted\(\)/.test(mainSource));
+
+  check('usage worker: the counter is origin restricted and rate limited',
+    feedbackWorkerSource.includes("const PING_PATH = '/api/ping'") &&
+      /handlePing[\s\S]*allowedOrigins\(env\.ALLOWED_ORIGINS\)/.test(feedbackWorkerSource) &&
+      /handlePing[\s\S]*limiter\.limit\(\{ key: `ping:\$\{client\}` \}\)/.test(feedbackWorkerSource));
+  check('usage worker: the counter stores a daily total, not a row per visitor',
+    feedbackWorkerSource.includes('function countKey(day, event)') &&
+      feedbackWorkerSource.includes('return `count:${day}:${event}`'));
+  // The IP is a rate-limit key and nothing else; writing it into KV would turn
+  // an aggregate counter into a visitor log.
+  check('usage worker: the client IP is never written to storage',
+    !/counts\.put\([^)]*client/.test(feedbackWorkerSource) &&
+      !/USAGE_COUNTS[\s\S]{0,200}CF-Connecting-IP/.test(feedbackWorkerSource));
+  check('usage worker: only the import event is accepted',
+    feedbackWorkerSource.includes("const PING_EVENTS = new Set(['import'])") &&
+      feedbackWorkerSource.includes('if (!PING_EVENTS.has(event))'));
   check('import: photo worker never buffers a whole original for hashing',
     ingestWorkerSource.includes('sampledPhotoId(file)') && !ingestWorkerSource.includes('file.arrayBuffer()'));
   check('security: no committed GitHub token pattern',
@@ -1831,6 +1885,12 @@ if (!existsSync(dist)) {
       privacyHtml.includes('Google Maps'));
   check('build: privacy page has its own restrictive CSP',
     privacyHtml.includes('Content-Security-Policy') && privacyHtml.includes("script-src 'none'"));
+  // Counting anything without saying so is the failure this guards against: the
+  // ping ships in the bundle, so the disclosure has to ship with it.
+  check('build: both privacy surfaces disclose the usage count',
+    privacyHtml.includes('Usage counts') && html.includes('Usage counts') &&
+      privacyHtml.includes('a single number per day'),
+    'the ping is in the build, so the notice must describe it');
   const manifest = JSON.parse(readFileSync(join(dist, 'site.webmanifest'), 'utf8'));
   check('build: web manifest uses the Pictayo launch identity',
     manifest.name === 'Pictayo' && manifest.short_name === 'Pictayo' &&
