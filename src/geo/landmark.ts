@@ -439,8 +439,9 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
       const nearby = groups[index * 2 + 1] ?? [];
       return {
         landmark: pickBestLandmark(enclosing, nearby, point),
-        // Same elements: pickNearbyDining applies its own tighter radius.
-        dining: pickNearbyDining(nearby, point),
+        // Same elements: pickNearbyDining applies its own tighter radius, and
+        // consults the enclosing outlines before any of them.
+        dining: pickNearbyDining(nearby, point, DINING_RADIUS_M, enclosing),
       };
     });
 
@@ -683,12 +684,36 @@ export function isFreshCacheEntry(
   return now - cached.checkedAt < ttl;
 }
 
-/** Picks the nearest named food venue inside the deliberately small radius. */
+/**
+ * Picks the food venue a photo was taken at.
+ *
+ * `enclosing` comes first and wins outright when it holds one, because being
+ * inside a restaurant is not a guess the way "nearest centroid" is. Photos of
+ * an Eggs'n Things breakfast in Harajuku were captioned "Burn side st café", a
+ * different cafe 29 m up the street: the restaurant is mapped as a building
+ * with `amenity=restaurant`, `is_in` returns it, and nothing looked. Ranking by
+ * distance alone means a few metres of indoor drift hands the credit to a
+ * neighbour.
+ */
 export function pickNearbyDining(
   elements: OverpassElement[],
   from: GeoPoint,
   radiusMeters = DINING_RADIUS_M,
+  enclosing: OverpassElement[] = [],
 ): NearbyDining | null {
+  for (const element of enclosing) {
+    const tags = element.tags;
+    const kind = tags?.amenity;
+    if (!tags || !kind || !DINING_AMENITIES.has(kind)) continue;
+
+    const name = (tags['name:en'] ?? tags.name ?? '').trim();
+    if (!name) continue;
+
+    // The camera is within the outline, so there is no distance to report and
+    // no position to link to beyond the photo's own.
+    return { name, kind, distanceMeters: 0, lat: from.lat, lon: from.lon };
+  }
+
   let best: NearbyDining | null = null;
 
   for (const element of elements) {
@@ -821,6 +846,27 @@ function bestNearbyCandidate(
 }
 
 /**
+ * Tags that turn a building outline into somewhere you would say you had been.
+ * A bare `building=yes` is a structure; the same outline with `amenity` or
+ * `shop` on it is a place with a door and a name.
+ *
+ * `office` is deliberately absent. It is a workplace rather than a destination,
+ * and admitting it renamed a photo of the Fuji TV sphere after the office block
+ * behind it — trading a landmark for the name of a corporate tenant.
+ */
+const VENUE_KEYS = ['amenity', 'shop', 'tourism', 'leisure'] as const;
+
+/**
+ * What containment inside a named venue is worth.
+ *
+ * Set alongside a shopping centre's 100, deliberately below a strong nearby
+ * attraction: standing in Shibuya Scramble Square should still yield "Shibuya
+ * Sky" when the deck is ten metres away, but standing in a restaurant with
+ * nothing notable nearby should yield the restaurant.
+ */
+const VENUE_CONTAINMENT_SCORE = 100;
+
+/**
  * The most recognizable building the point sits inside.
  *
  * `is_in` returns the whole administrative stack — country, prefecture, ward —
@@ -842,13 +888,25 @@ function bestEnclosingBuilding(
   for (const element of elements) {
     const tags = element.tags;
     if (!tags?.building) continue;
-    if (!tags.wikipedia && !tags.wikidata) continue;
 
     const name = (tags['name:en'] ?? tags.name ?? '').trim();
     if (!name) continue;
 
-    // Standing inside it, so there is no distance to penalize.
-    const score = nearbyLandmarkScore(tags, 'building', tags.building, 0, NEARBY_RADIUS_M);
+    // A building that is also a named venue — a restaurant, a shop, a gallery —
+    // is where the photographer was, which is stronger evidence than anything
+    // merely close by. Breakfast inside Eggs'n Things in Harajuku was captioned
+    // "Near Ota Memorial Museum of Art", a museum up the road, because a plain
+    // `building=yes` with `amenity=restaurant` cleared no bar at all.
+    const venue = VENUE_KEYS.some((key) => tags[key]);
+    const documented = Boolean(tags.wikipedia || tags.wikidata);
+    if (!venue && !documented) continue;
+
+    // Standing inside it, so there is no distance to penalize. A venue scores
+    // like a mall — recognisable, and specific to the photo — while a building
+    // that is only famous keeps the lower structural base.
+    const score = venue
+      ? VENUE_CONTAINMENT_SCORE + (documented ? 15 : 0)
+      : nearbyLandmarkScore(tags, 'building', tags.building, 0, NEARBY_RADIUS_M);
     if (best && score <= best.score) continue;
 
     best = { landmark: { name, kind: `building=${tags.building}`, near: false }, score };

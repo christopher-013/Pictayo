@@ -487,6 +487,65 @@ function near(name, actual, expected, tolerance) {
     contained?.name === 'Tokyo Dome', JSON.stringify(contained));
 }
 
+// ── Being inside somewhere beats being near it ───────────────────────────────
+// Breakfast photos taken inside Eggs'n Things in Harajuku were captioned "Near
+// Jingumae" with "Nearby place: Burn side st café" — a different cafe 29m up
+// the street. The restaurant is mapped as a building with amenity=restaurant
+// and `is_in` returns it, but only the nearby scan was ever consulted, so a few
+// metres of indoor drift handed the credit to a neighbour.
+
+{
+  const table = { lat: 35.6685856, lon: 139.7062313 };
+  const eggs = {
+    type: 'way',
+    tags: { name: "Eggs'n Things", building: 'yes', amenity: 'restaurant' },
+  };
+  const burnside = {
+    type: 'node', lat: 35.66883, lon: 139.70623, // ~29m away
+    tags: { name: 'Burn side st café', amenity: 'cafe' },
+  };
+  const museum = {
+    type: 'node', lat: 35.66990, lon: 139.70590,
+    tags: { name: '太田記念美術館', 'name:en': 'Ota Memorial Museum of Art', tourism: 'museum' },
+  };
+
+  const dining = pickNearbyDining([burnside], table, 30, [eggs]);
+  check('inside: the restaurant you are in beats a nearer neighbour',
+    dining?.name === "Eggs'n Things", JSON.stringify(dining));
+  check('inside: a contained venue reports no distance',
+    dining?.distanceMeters === 0, JSON.stringify(dining));
+
+  const landmark = pickBestLandmark([eggs], [museum, burnside], table);
+  check('inside: a named venue underfoot beats a museum up the road',
+    landmark?.name === "Eggs'n Things" && landmark?.near === false, JSON.stringify(landmark));
+
+  // Containment must not become a trump card: the deck ten metres away is still
+  // the better answer than the tower it sits on.
+  // Real tags: a retail building with a Wikidata id and no venue tag of its own.
+  const tower = {
+    type: 'way',
+    tags: { name: 'Shibuya Scramble Square', building: 'retail', wikidata: 'Q64026922' },
+  };
+  const sky = {
+    type: 'node', lat: 35.658374, lon: 139.702242,
+    tags: { name: 'Shibuya Sky', tourism: 'viewpoint', wikidata: 'Q116281743', wikipedia: 'ja:SHIBUYA SKY' },
+  };
+  const deck = pickBestLandmark([tower], [sky], { lat: 35.6583652, lon: 139.7022229 });
+  check('inside: a strong nearby landmark still outranks the building holding it',
+    deck?.name === 'Shibuya Sky', JSON.stringify(deck));
+
+  // An office block is a workplace, not a destination.
+  const office = { type: 'way', tags: { name: 'Some Tower', building: 'office' } };
+  check('inside: a plain office building is not a venue',
+    pickBestLandmark([office], [], table) === null,
+    'office alone would rename photos after whichever tenant is nearest');
+
+  // Nothing enclosing: the old behaviour is unchanged.
+  const outside = pickNearbyDining([burnside], { lat: 35.66883, lon: 139.70623 }, 30, []);
+  check('inside: with nothing enclosing, the nearest venue still answers',
+    outside?.name === 'Burn side st café', JSON.stringify(outside));
+}
+
 // ── Overpass resource budget ─────────────────────────────────────────────────
 // Overpass refuses a request that does not fit in roughly half of what the
 // server has free, and charges the full 512 MiB default to any query that
