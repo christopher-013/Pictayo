@@ -138,9 +138,13 @@ function near(name, actual, expected, tolerance) {
   // the road, so every photo was captioned after the district and a restaurant
   // none of them were taken in.
   {
-    const step = 70; // comfortably inside the radius, so each join is legal
+    // 25m steps specifically: close enough that the centroid keeps creeping
+    // forward, so the old rule swept all six into one cluster 125m across —
+    // wider than the radius that supposedly defines it. A coarser walk hides
+    // the bug, because a distant photo pulls the mean back and gets rejected.
+    const step = 25;
     const walk = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       walk.push(photo(`w${i}`, 35.6685 + (i * step / 6371000) * (180 / Math.PI), 139.7062, i));
     }
     const walked = clusterPhotos(walk);
@@ -151,7 +155,7 @@ function near(name, actual, expected, tolerance) {
     };
     const widest = Math.max(...walked.map(spanOf));
     check('cluster: a walk down a street does not chain into one cluster',
-      walked.length > 1, `8 photos ${step}m apart became ${walked.length} cluster(s)`);
+      walked.length > 1, `6 photos ${step}m apart became ${walked.length} cluster(s)`);
     check('cluster: no cluster grows wider than its own radius',
       widest <= DEFAULT_CLUSTER_RADIUS_M,
       `widest span ${widest.toFixed(0)}m against a ${DEFAULT_CLUSTER_RADIUS_M}m radius`);
@@ -580,6 +584,65 @@ function near(name, actual, expected, tolerance) {
   const outside = pickNearbyDining([burnside], { lat: 35.66883, lon: 139.70623 }, 30, []);
   check('inside: with nothing enclosing, the nearest venue still answers',
     outside?.name === 'Burn side st café', JSON.stringify(outside));
+
+  // ── The reported morning, clustering and naming together ──────────────────
+  //
+  // Neither half of this is enough on its own, which is how the bug survived a
+  // first fix: containment was made decisive while the coordinate being
+  // resolved was still a cluster centroid sitting out in the road. This walks
+  // the whole path — real positions in, a name out.
+  //
+  // Coordinates are the venues visible in the photographs from that morning:
+  // Eggs'n Things from its Google listing, then Island Vintage Coffee,
+  // Onitsuka Tiger and Anker, 230m, 344m and 390m further along.
+  const morning = [
+    ['eggs-menu', 35.6685856, 139.7062313, 9 * 60 + 51],
+    ['eggs-pancakes', 35.6685900, 139.7062400, 10 * 60 + 2],
+    ['island-vintage-coffee', 35.6693500, 139.7086000, 11 * 60 + 57],
+    ['onitsuka-tiger', 35.6670000, 139.7095000, 12 * 60 + 20],
+    ['anker-harajuku', 35.6706000, 139.7027000, 12 * 60 + 22],
+  ].map(([id, lat, lon, minutes]) => ({
+    id, name: `${id}.jpg`, bytes: 1, previewUnavailable: false,
+    meta: {
+      takenAt: Date.UTC(2026, 5, 11, 0, minutes), tzOffsetMinutes: 540,
+      dayKey: '2026-06-11', gps: { lat, lon }, width: 1, height: 1,
+      make: null, model: null, dateSource: 'exif',
+    },
+  }));
+
+  const morningClusters = clusterPhotos(morning);
+  check('harajuku: a morning of separate venues is not one cluster',
+    morningClusters.length >= 4,
+    `${morningClusters.length} cluster(s) for venues up to 390m apart`);
+
+  const eggsCluster = morningClusters.find((c) => c.photoIds.includes('eggs-menu'));
+  check('harajuku: both restaurant photos land in the same cluster',
+    eggsCluster?.photoIds.includes('eggs-pancakes'), JSON.stringify(eggsCluster?.photoIds));
+  check('harajuku: no shop up the street joins the restaurant cluster',
+    eggsCluster?.photoIds.length === 2, JSON.stringify(eggsCluster?.photoIds));
+
+  // The centroid is the coordinate that actually gets looked up, so it has to
+  // still be inside the building — that is the whole point of bounding drift.
+  const centroidOffset = distanceMeters(eggsCluster, { lat: 35.6685856, lon: 139.7062313 });
+  check('harajuku: the cluster centroid stays inside the restaurant',
+    centroidOffset < 15, `${centroidOffset.toFixed(0)}m from the restaurant`);
+
+  // And resolving that centroid names the restaurant, not the district and not
+  // whichever cafe happened to be nearest a point in the road.
+  const onden = {
+    type: 'node', lat: 35.66886, lon: 139.70597,
+    tags: { name: 'Onden', amenity: 'restaurant' },
+  };
+  const jingumae = {
+    type: 'relation',
+    tags: { name: '神宮前', 'name:en': 'Jingumae', place: 'neighbourhood' },
+  };
+  const resolvedName = pickBestLandmark([eggs, jingumae], [museum, burnside, onden], eggsCluster);
+  const resolvedDining = pickNearbyDining([burnside, onden], eggsCluster, 30, [eggs]);
+  check('harajuku: the cluster resolves to the restaurant, not the district',
+    resolvedName?.name === "Eggs'n Things", JSON.stringify(resolvedName));
+  check('harajuku: dining credits the restaurant, not a neighbour',
+    resolvedDining?.name === "Eggs'n Things", JSON.stringify(resolvedDining));
 }
 
 // ── Overpass resource budget ─────────────────────────────────────────────────
