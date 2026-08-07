@@ -46,9 +46,27 @@ body {
 }
 
 h1 { margin: 8px 0 10px; color: var(--deep); font-size: clamp(34px, 7vw, 52px); line-height: 1.1; }
-h2 { margin: 30px 0 6px; color: var(--deep); font-size: 19px; }
+h2 { margin: 0 0 6px; color: var(--deep); font-size: 19px; }
 p { margin: 0 0 12px; }
 ul { margin: 8px 0 14px; padding-left: 24px; }
+
+/* One box per disclosure, matching the in-app privacy dialog. Someone looking
+   for a single answer — what leaves the device, what feedback sends — can find
+   where it starts and stops instead of reading the whole page. */
+.privacy-section {
+  margin-top: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(10, 124, 130, 0.15);
+  border-radius: 16px;
+  background: rgba(250, 255, 254, 0.72);
+}
+.privacy-section > :last-child { margin-bottom: 0; }
+.privacy-section code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(10, 124, 130, 0.09);
+  font-size: 0.92em;
+}
 .privacy-lead { color: var(--muted); font-size: 18px; }
 .privacy-updated { margin-top: 32px; color: var(--muted); font-size: 13px; }
 

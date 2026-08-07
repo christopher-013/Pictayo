@@ -134,16 +134,25 @@ button, a, input { font: inherit; }
   50% { transform: translateY(-13px); }
 }
 
+/* One line on anything wider than a phone.
+ *
+ * `text-wrap: balance` used to sit under the `nowrap` below and quietly undo
+ * it: `text-wrap` resets `text-wrap-mode` to `wrap`, so the computed value came
+ * out `normal` and the tagline broke across two lines despite asking not to.
+ * Balancing belongs in the small-screen rules, where wrapping is wanted.
+ *
+ * The width cap matches `.landing-inner`, and 4.2vw keeps the sentence about
+ * 84% of the viewport — comfortably inside the container at every width down to
+ * the 760px breakpoint, where wrapping takes over. */
 .landing-tagline {
-  max-width: 980px;
+  max-width: 1180px;
   margin: 8px 0 0;
-  font-size: clamp(28px, 4.4vw, 56px);
+  font-size: clamp(28px, 4.2vw, 56px);
   font-weight: 850;
   line-height: 1.08;
   letter-spacing: -0.035em;
   white-space: nowrap;
   color: var(--pictayo-navy-dark);
-  text-wrap: balance;
 }
 
 .landing-eyebrow {
@@ -155,13 +164,16 @@ button, a, input { font: inherit; }
   text-transform: uppercase;
 }
 
+/* Sits under the tagline as a single quiet line rather than a paragraph.
+ * `text-wrap: pretty` is left off for the same reason balancing is: it would
+ * reset the wrapping mode and cancel the `nowrap`. */
 .landing-support {
-  max-width: 760px;
-  margin: 16px 0 0;
+  max-width: 1180px;
+  margin: 14px 0 0;
   color: #526b68;
-  font-size: clamp(14px, 1.6vw, 18px);
+  font-size: clamp(13px, 1.15vw, 15px);
   line-height: 1.55;
-  text-wrap: pretty;
+  white-space: nowrap;
 }
 
 .landing-menu {
@@ -1548,10 +1560,21 @@ button, a, input { font: inherit; }
 
 .info-dialog-card { display: flex; flex-direction: column; }
 .info-dialog-body { min-height: 0; overflow-y: auto; padding-right: 8px; }
-.privacy-dialog-grid { display: block; }
-.privacy-dialog-grid section { min-width: 0; }
-.privacy-dialog-grid h3 { margin-top: 14px; }
+/* Each disclosure sits in its own box, so a reader scanning for one topic —
+   what leaves the device, what feedback sends — can find its edges instead of
+   parsing a wall of paragraphs. Same border, radius and tint as the cards on
+   the landing page, so the dialog reads as part of the same app. */
+.privacy-dialog-grid { display: grid; gap: 12px; }
+.privacy-dialog-grid section {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(10, 124, 130, 0.13);
+  border-radius: 14px;
+  background: rgba(250, 255, 254, 0.78);
+}
+.privacy-dialog-grid h3 { margin: 0 0 5px; font-size: 15px; }
 .privacy-dialog-grid p { margin-bottom: 0; }
+.privacy-dialog-grid p + p { margin-top: 8px; }
 .privacy-dialog-body .info-dialog-updated { margin: 14px 0 0; }
 .learn-more-dialog-card .landing-learn-grid { margin-top: 20px; }
 
@@ -1599,7 +1622,9 @@ button, a, input { font: inherit; }
     line-height: 1.4;
   }
   .privacy-dialog-body .info-dialog-lead { margin-bottom: 2px; font-size: 14px; }
-  .privacy-dialog-grid h3 { margin: 9px 0 2px; font-size: 14px; }
+  .privacy-dialog-grid { gap: 9px; }
+  .privacy-dialog-grid section { padding: 11px 14px; border-radius: 12px; }
+  .privacy-dialog-grid h3 { margin: 0 0 2px; font-size: 14px; }
   .privacy-dialog-body .info-dialog-updated { margin-top: 12px; }
 }
 
@@ -1786,6 +1811,13 @@ body.photo-lightbox-open { overflow: hidden; }
     letter-spacing: -0.035em;
     white-space: normal;
     text-wrap: balance;
+  }
+  /* Below this width one line would mean an unreadable size, so let both
+     strings wrap and let the browser make the breaks look deliberate. */
+  .landing-support {
+    max-width: 560px;
+    white-space: normal;
+    text-wrap: pretty;
   }
 }
 

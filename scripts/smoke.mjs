@@ -1491,6 +1491,23 @@ if (!existsSync(dist)) {
       html.includes('data-open-info="learn-more"') &&
       html.indexOf('class="site-footer-line"') < html.indexOf('id="landing-learn"') &&
       !html.includes('Learn More <span aria-hidden="true">↗</span>'));
+  // `text-wrap` resets `text-wrap-mode` to `wrap`, so `text-wrap: balance` or
+  // `pretty` sitting in the same block as `white-space: nowrap` silently
+  // cancels it — which is exactly how the hero ended up on two lines while the
+  // stylesheet said otherwise. Wrapping hints belong in the small-screen rules.
+  for (const selector of ['.landing-tagline', '.landing-support']) {
+    const base = appStyle.match(
+      new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`),
+    )?.[1] ?? '';
+    check(`build: ${selector} asks for a single line`,
+      /white-space:\s*nowrap/.test(base), base.trim().slice(0, 80));
+    check(`build: ${selector} is not re-wrapped by a text-wrap reset`,
+      !/text-wrap:/.test(base),
+      'text-wrap in this block resets text-wrap-mode and undoes the nowrap');
+  }
+  check('build: the footer Learn More link has no trailing full stop',
+    !/Learn More<\/button><\/span>\./.test(html));
+
   check('build: About copy explains the name, pronunciation, and broad audience',
     html.includes('pic-TAH-yo') && html.includes('“Pic tayo,”') &&
       html.includes('Pictayo is made for everyone.'));
@@ -1499,10 +1516,18 @@ if (!existsSync(dist)) {
       html.includes('<strong>Pic</strong>tayo'));
   check('build: informational content uses native modal dialogs',
     html.includes('id="learn-more-dialog"') && html.includes('id="privacy-dialog"'));
+  // The guarantee is that the whole policy is readable on a desktop without
+  // scrolling inside the dialog, in one column. How that column is laid out is
+  // not the point — asserting the exact declaration only pinned the old
+  // `display: block` and broke when the sections became boxes.
   check('build: privacy dialog uses a compact non-scrolling desktop flow',
     html.includes('privacy-dialog-grid') &&
-      appStyle.includes('.privacy-dialog-grid { display: block; }') &&
+      !/\.privacy-dialog-grid\s*\{[^}]*grid-template-columns/.test(appStyle) &&
       appStyle.includes('overflow-y: visible'));
+  check('build: privacy disclosures are visually separated boxes',
+    /\.privacy-dialog-grid section\s*\{[^}]*border:/.test(appStyle) &&
+      /\.privacy-dialog-grid section\s*\{[^}]*border-radius:/.test(appStyle),
+    'each disclosure should have findable edges, not run together as prose');
   const privacyHtml = readFileSync(join(dist, 'privacy.html'), 'utf8');
   check('build: privacy page documents local media and external location services',
     privacyHtml.includes('does not upload your library') &&
