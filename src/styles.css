@@ -164,28 +164,24 @@ button, a, input { font: inherit; }
  * The width cap matches `.landing-inner`, and 4.2vw keeps the sentence about
  * 84% of the viewport — comfortably inside the container at every width down to
  * the 760px breakpoint, where wrapping takes over. */
-/* Weight, colour, and leading follow Adtona's hero: 600 rather than a black
- * weight, and a navy lifted off the near-black so the sentence reads as a calm
- * promise instead of a headline shout. Tracking stays at -0.035em because the
- * one-line fit above is tuned around it. */
+/* Weight and leading follow Adtona's hero: 600 rather than a black weight, so
+ * the sentence reads as a calm promise instead of a headline shout. Tracking
+ * stays at -0.035em because the one-line fit above is tuned around it.
+ *
+ * Teal now carries the promise itself, since the teal eyebrow that used to sit
+ * above it is gone. It uses --teal rather than --brand-teal: the brand tone
+ * only reaches 2.9:1 against the #e8eff9 end of the landing gradient, under
+ * the 3:1 large text needs, while --teal clears it at 4.2:1. The top margin
+ * covers the spacing the eyebrow used to contribute below the logo. */
 .landing-tagline {
   max-width: 1180px;
-  margin: 8px 0 0;
+  margin: 22px 0 0;
   font-size: clamp(28px, 4.2vw, 56px);
   font-weight: 600;
   line-height: 1.12;
   letter-spacing: -0.035em;
   white-space: nowrap;
-  color: #17324d;
-}
-
-.landing-eyebrow {
-  margin: 12px 0 0;
-  color: var(--pictayo-teal-dark);
-  font-size: 12px;
-  font-weight: 850;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: var(--teal);
 }
 
 /* Sits under the tagline as a single quiet line rather than a paragraph.
@@ -1889,7 +1885,6 @@ body.photo-lightbox-open { overflow: hidden; }
 
   .landing { padding: 28px 18px 44px; }
   .landing-logo { width: min(300px, 78%); }
-  .landing-eyebrow { margin-top: 8px; font-size: 10px; }
   .landing-tagline { max-width: 340px; font-size: clamp(27px, 8.7vw, 38px); white-space: normal; }
   .landing-support { max-width: 380px; font-size: 14px; }
   .landing-menu { padding-top: 30px; }
