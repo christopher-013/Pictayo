@@ -100,6 +100,12 @@ export async function exportSite(days: DayGroup[], options: ExportOptions = {}):
     DEFLATE,
   ];
 
+  // The meta tag above covers each page wherever the album lands; this covers
+  // the whole folder, but only when it is published at a domain root, because
+  // robots.txt is ignored in a subdirectory. Both, so neither gap is load
+  // bearing.
+  files['robots.txt'] = [encode('User-agent: *\nDisallow: /\n'), DEFLATE];
+
   files['README.md'] = [encode(buildReadme(title, days)), DEFLATE];
 
   const archive = (await zipAsync(files)) as Uint8Array<ArrayBuffer>;
@@ -134,6 +140,21 @@ function encode(text: string): Uint8Array {
 
 /** Upper bound on fetching a bundled brand asset; see {@link fetchAsset}. */
 const ASSET_TIMEOUT_MS = 10_000;
+
+/**
+ * Crawl directives for exported album pages.
+ *
+ * An album is somebody's personal photographs, and publishing it to a host is
+ * not the same as offering it to search engines: a folder uploaded so that
+ * family can see it should not quietly become findable by name. Pictayo cannot
+ * know who the intended audience is, so it defaults to the choice that cannot
+ * surprise anyone, and says how to reverse it in the album's README.
+ *
+ * `noimageindex` is the one that matters most here — without it the photos
+ * themselves can surface in image search even from a page that is not indexed.
+ * `noarchive` keeps them out of cached copies that outlive the album.
+ */
+const EXPORT_ROBOTS = 'noindex, nofollow, noimageindex, noarchive';
 
 /**
  * Content Security Policy for exported album pages.
@@ -237,6 +258,7 @@ function buildDayPage(context: PageContext): string {
 <title>${escapeAttr(`${title} — ${day.label}`)}</title>
 <meta name="theme-color" content="#019aa0">
 <meta name="referrer" content="no-referrer">
+<meta name="robots" content="${EXPORT_ROBOTS}">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -482,6 +504,7 @@ function buildEverywherePage(
 <title>${escapeAttr(`${title} — All photo locations`)}</title>
 <meta name="theme-color" content="#019aa0">
 <meta name="referrer" content="no-referrer">
+<meta name="robots" content="${EXPORT_ROBOTS}">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -685,6 +708,24 @@ The maps use Google's keyless embed, so there is no API key to configure and
 nothing that expires. Pin positions are baked into the HTML, so the maps are
 correct even with JavaScript turned off — the script only handles filtering,
 the lightbox, and collapsing the map.
+
+## Search engines
+
+These are your photographs, so this album asks search engines to leave it
+alone. Every page carries:
+
+    <meta name="robots" content="noindex, nofollow, noimageindex, noarchive">
+
+and \`robots.txt\` disallows crawling for hosts that read it. \`noimageindex\`
+matters as much as \`noindex\` — without it the photos can appear in image
+search even when the page itself does not.
+
+**If you want this album found**, delete \`robots.txt\` and remove that
+\`<meta name="robots">\` line from each page.
+
+None of this is a security control. It is a request that well-behaved crawlers
+honour; anyone with the link can still open the album. Use your host's access
+controls if the album should be private.
 `;
 }
 

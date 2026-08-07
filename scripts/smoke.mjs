@@ -1594,6 +1594,24 @@ if (!existsSync(dist)) {
     check(`export: ${label} blocks plugins and form posts`,
       page.includes("object-src 'none'") && page.includes("form-action 'none'"), label);
   }
+  // An album is personal photographs. Publishing it so family can see it is not
+  // the same as offering it to search engines, and Pictayo cannot tell which
+  // was meant — so it defaults to the choice that cannot surprise anyone.
+  for (const [label, page] of [['day page', dayPage], ['everywhere page', everywherePage]]) {
+    const robots = page.match(/<meta name="robots" content="([^"]*)"/);
+    check(`export: ${label} asks search engines not to index it`,
+      Boolean(robots) && robots[1].includes('noindex'), robots?.[1] ?? 'no robots meta');
+    check(`export: ${label} keeps the photographs out of image search`,
+      Boolean(robots) && robots[1].includes('noimageindex'),
+      'noindex alone still allows images to be indexed');
+  }
+  check('export: ships a robots.txt disallowing crawlers',
+    Boolean(archive['robots.txt']) &&
+      strFromU8(archive['robots.txt']).includes('Disallow: /'));
+  check('export: README explains how to make the album findable',
+    strFromU8(archive['README.md']).includes('If you want this album found'),
+    'a silent default is not a decision the owner made');
+
   check('export: the only executable script is the bundled file',
     (dayPage.match(/<script(?![^>]*type="application\/json")/g) || [])
       .every((_, i) => dayPage.split('<script').slice(1)[i]?.includes('src="assets/site.js"')
