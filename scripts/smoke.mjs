@@ -25,8 +25,9 @@ import {
   DEFAULT_CLUSTER_RADIUS_M, distanceMeters, clusterPhotos, splitIntoRegions,
 } from '../src/geo/cluster.ts';
 import {
-  isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickBestLandmark, pickLandmark,
-  pickNearest, pickNearbyDining, pickNotableWikipediaPlace, QUERY_BUDGET, splitOnCountMarkers,
+  isFreshCacheEntry, landmarkCacheKey, nearbyLandmarkQuery, pickBestLandmark, pickContainingVenue,
+  pickLandmark, pickNearest, pickNearbyDining, pickNotableWikipediaPlace, QUERY_BUDGET,
+  splitOnCountMarkers, venueFootprintQuery,
 } from '../src/geo/landmark.ts';
 import {
   parseExifDateTime, parseExifOffset, wallClockToInstant,
@@ -692,6 +693,95 @@ function near(name, actual, expected, tolerance) {
     resolvedName?.name === "Eggs'n Things", JSON.stringify(resolvedName));
   check('harajuku: dining credits the restaurant, not a neighbour',
     resolvedDining?.name === "Eggs'n Things", JSON.stringify(resolvedDining));
+}
+
+// ── Naming a restaurant only when the coordinates support it ─────────────────
+// `is_in` answers exactly, and exactly is too strict for a phone: breakfast
+// photographed at a table inside Eggs'n Things recorded positions 4.5m and 6.8m
+// *outside* the building outline. The next-nearest venue to those same photos
+// was 39m away, so the outline plus a slack of GPS error separates "at the
+// wall" from "up the street" — and refuses to guess in between.
+
+{
+  const centre = { lat: 35.6685856, lon: 139.7062313 };
+  const metresNorth = (m) => centre.lat + m / 110_540;
+
+  // A 20m square around the restaurant, so its wall sits 10m from the centre.
+  const half = 10;
+  const dLat = half / 110_540;
+  const dLon = half / (111_320 * Math.cos((centre.lat * Math.PI) / 180));
+  const outline = [
+    { lat: centre.lat - dLat, lon: centre.lon - dLon },
+    { lat: centre.lat - dLat, lon: centre.lon + dLon },
+    { lat: centre.lat + dLat, lon: centre.lon + dLon },
+    { lat: centre.lat + dLat, lon: centre.lon - dLon },
+    { lat: centre.lat - dLat, lon: centre.lon - dLon },
+  ];
+  const eggsWay = {
+    type: 'way',
+    tags: { name: "Eggs'n Things", amenity: 'restaurant' },
+    geometry: outline,
+  };
+
+  const at = (m) => ({ lat: metresNorth(m), lon: centre.lon });
+
+  check('footprint: a photo inside the outline names the venue',
+    pickContainingVenue([eggsWay], centre)?.name === "Eggs'n Things");
+
+  // 15m north of centre is 5m beyond a wall 10m out — ordinary GPS error.
+  const justOutside = pickContainingVenue([eggsWay], at(15));
+  check('footprint: a few metres past the wall still counts as inside',
+    justOutside?.name === "Eggs'n Things",
+    `${justOutside?.outsideMeters?.toFixed(1) ?? 'none'}m outside`);
+
+  // 50m north is 40m beyond the wall — the distance at which the trainer shop
+  // and the electronics store sat from this restaurant.
+  check('footprint: a venue up the street is not claimed',
+    pickContainingVenue([eggsWay], at(50)) === null,
+    'this is the guard: never name a restaurant the camera was not in');
+
+  // The boundary itself, so the slack cannot quietly drift.
+  check('footprint: the slack stops well short of a neighbouring building',
+    pickContainingVenue([eggsWay], at(40)) === null, '30m past the wall must not qualify');
+
+  check('footprint: a contained venue reports no distance',
+    pickNearbyDining([], centre, 30, [], [eggsWay])?.distanceMeters === 0);
+
+  check('footprint: the landmark names it too when the camera was inside',
+    pickBestLandmark([], [], centre, [eggsWay])?.name === "Eggs'n Things");
+  check('footprint: and does not when the camera was not',
+    pickBestLandmark([], [], at(50), [eggsWay]) === null,
+    'a nearby restaurant must not become the location');
+
+  // Geometry is required: a centroid alone cannot answer "inside".
+  check('footprint: a venue without an outline is never claimed as containing',
+    pickContainingVenue([{ type: 'way', tags: eggsWay.tags, center: centre }], centre) === null);
+
+  // Outlines must come out of the scan already paid for. A second `around`
+  // query for the same neighbourhood measured just over a second slower across
+  // six points, and occasionally far worse.
+  const q = venueFootprintQuery();
+  check('footprint: the lookup reads the scan back rather than rescanning',
+    q.startsWith('way.') && !q.includes('around:'),
+    `${q} — a second spatial query here costs about a second per batch`);
+  check('footprint: it selects only food venues',
+    q.includes('amenity') && [...q.matchAll(/restaurant|cafe/g)].length > 0, q);
+
+  // And the whole per-point query still contains exactly one spatial scan.
+  const perPoint = nearbyLandmarkQuery(centre) + venueFootprintQuery();
+  check('footprint: one spatial scan per point, still',
+    (perPoint.match(/around:/g) || []).length === 1, perPoint);
+
+  // The scan lands in a named set so it can be read twice, which means a bare
+  // `out` appended by a caller would print the empty default set instead. Both
+  // builders therefore emit their own output statement — a trap worth pinning,
+  // because it fails silently by returning nothing rather than by erroring.
+  for (const [label, built] of [['nearby', nearbyLandmarkQuery(centre)], ['footprint', venueFootprintQuery()]]) {
+    check(`footprint: the ${label} builder emits its own out statement`,
+      /out [a-z ]*;$/.test(built.trim()), built);
+  }
+  check('footprint: the nearby output reads the named set, not the default one',
+    /->\.(\w+);\.\1 out/.test(nearbyLandmarkQuery(centre)), nearbyLandmarkQuery(centre));
 }
 
 // ── Overpass resource budget ─────────────────────────────────────────────────

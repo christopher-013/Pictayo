@@ -266,8 +266,18 @@ const LANDMARK_RULES: readonly LandmarkRule[] = [
  * relations had been fetched and scored under the old form.
  */
 export function nearbyLandmarkQuery(point: GeoPoint): string {
-  return `nw(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[name];`;
+  return `nw(around:${NEARBY_RADIUS_M},${point.lat},${point.lon})[name]->.${NEARBY_SET};` +
+    `.${NEARBY_SET} out tags center;`;
 }
+
+/**
+ * Overpass set name holding the one spatial scan, so it can be read twice.
+ *
+ * Both query builders emit their own `out`, because the scan no longer lands in
+ * the default set: a caller appending a bare `out tags center` to the selector
+ * would silently print nothing at all.
+ */
+const NEARBY_SET = 'nearby';
 
 interface OverpassElement {
   type?: string;
@@ -277,6 +287,110 @@ interface OverpassElement {
   lon?: number;
   /** …while `out center` gives ways and relations a representative point. */
   center?: { lat?: number; lon?: number };
+  /** Present only on the footprint lookup, which asks for `out geom`. */
+  geometry?: Array<{ lat: number; lon: number }>;
+}
+
+/**
+ * How far outside a venue's wall a photo may sit and still be treated as taken
+ * inside it.
+ *
+ * `is_in` answers exactly, and exactly is too strict for a phone: breakfast
+ * photographed at a table inside Eggs'n Things recorded positions 4.5m and 6.8m
+ * *outside* the building outline, which is ordinary GPS error and worse indoors.
+ * Measured against the real footprints on that block, the next-nearest venue to
+ * those same photos was 39m away, so anything from about 10m to 30m separates
+ * "at the wall" from "up the street" — 15m sits in the middle of that gap.
+ *
+ * Distance is to the outline, not to the centroid. A photo inside a long
+ * building can be 20m from its centre while standing well within its walls, and
+ * a photo just outside a small one can be closer to the centre than that.
+ */
+const FOOTPRINT_SLACK_M = 15;
+
+/**
+ * Asks for the outlines of the food venues already found by the radius scan.
+ *
+ * Deliberately not a second `around` query. Filtering the set the scan just
+ * produced costs nothing extra spatially, while asking Overpass for the same
+ * neighbourhood twice does: measured over six points, a separate
+ * `way(around:45)[amenity~…]` added just over a second and occasionally much
+ * more, where reading the existing set back is steady and slightly cheaper.
+ *
+ * The radius is therefore the scan's own, and distance is decided later by
+ * {@link pickContainingVenue} against the real outline rather than by a cliff
+ * in the query.
+ */
+export function venueFootprintQuery(): string {
+  const amenities = [...DINING_AMENITIES].join('|');
+  return `way.${NEARBY_SET}["amenity"~"^(${amenities})$"];out tags geom;`;
+}
+
+/**
+ * Signed distance from a point to a polygon: negative inside, positive outside.
+ *
+ * Flat-earth projection around the point itself, which is exact enough over the
+ * few tens of metres this is ever asked about.
+ */
+function metresOutsideOutline(point: GeoPoint, ring: Array<{ lat: number; lon: number }>): number {
+  if (ring.length < 3) return Infinity;
+
+  const latScale = 110_540;
+  const lonScale = 111_320 * Math.cos((point.lat * Math.PI) / 180);
+  const xs = ring.map((p) => (p.lon - point.lon) * lonScale);
+  const ys = ring.map((p) => (p.lat - point.lat) * latScale);
+
+  let inside = false;
+  let nearest = Infinity;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = xs[i]!, yi = ys[i]!, xj = xs[j]!, yj = ys[j]!;
+
+    // Ray cast from the origin, which is the point itself.
+    if ((yi > 0) !== (yj > 0) && 0 < ((xj - xi) * (0 - yi)) / (yj - yi) + xi) inside = !inside;
+
+    const dx = xj - xi;
+    const dy = yj - yi;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((0 - xi) * dx + (0 - yi) * dy) / lengthSquared));
+    nearest = Math.min(nearest, Math.hypot(xi + t * dx, yi + t * dy));
+  }
+
+  return inside ? -nearest : nearest;
+}
+
+/**
+ * The food venue a photo was almost certainly taken inside.
+ *
+ * Returns nothing unless the recorded position falls within the outline, or
+ * within {@link FOOTPRINT_SLACK_M} of it — the point being to name a restaurant
+ * only when the coordinates support the claim, not merely because it is the
+ * closest thing around.
+ */
+export function pickContainingVenue(
+  footprints: OverpassElement[],
+  point: GeoPoint,
+): { name: string; kind: string; outsideMeters: number } | null {
+  let best: { name: string; kind: string; outsideMeters: number } | null = null;
+
+  for (const element of footprints) {
+    const tags = element.tags;
+    const kind = tags?.amenity;
+    if (!tags || !kind || !DINING_AMENITIES.has(kind) || !element.geometry) continue;
+
+    const name = (tags['name:en'] ?? tags.name ?? '').trim();
+    if (!name) continue;
+
+    const outsideMeters = metresOutsideOutline(point, element.geometry);
+    if (outsideMeters > FOOTPRINT_SLACK_M) continue;
+    if (best && outsideMeters >= best.outsideMeters) continue;
+
+    best = { name, kind, outsideMeters };
+  }
+
+  return best;
 }
 
 /**
@@ -404,7 +518,12 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
         .map(
           ({ point }) =>
             `is_in(${point.lat},${point.lon})->.s;(way(pivot.s);rel(pivot.s););out tags;out count;` +
-            `${nearbyLandmarkQuery(point)}out tags center;out count;`,
+            `${nearbyLandmarkQuery(point)}out count;` +
+            // Outlines, not centres, for the food venues among what that scan
+            // already found. `is_in` alone is too strict for a phone: a photo
+            // taken at a table can record a position a few metres outside the
+            // wall, and a centroid cannot tell that from being up the street.
+            `${venueFootprintQuery()}out count;`,
         )
         .join('');
 
@@ -434,14 +553,15 @@ export class OverpassLandmarkFinder implements LandmarkFinder {
 
     const groups = splitOnCountMarkers(elements ?? []);
     const preliminary = batch.map(({ point }, index) => {
-      // Two groups per point, in the order the query emitted them.
-      const enclosing = groups[index * 2] ?? [];
-      const nearby = groups[index * 2 + 1] ?? [];
+      // Three groups per point, in the order the query emitted them.
+      const enclosing = groups[index * 3] ?? [];
+      const nearby = groups[index * 3 + 1] ?? [];
+      const footprints = groups[index * 3 + 2] ?? [];
       return {
-        landmark: pickBestLandmark(enclosing, nearby, point),
+        landmark: pickBestLandmark(enclosing, nearby, point, footprints),
         // Same elements: pickNearbyDining applies its own tighter radius, and
         // consults the enclosing outlines before any of them.
-        dining: pickNearbyDining(nearby, point, DINING_RADIUS_M, enclosing),
+        dining: pickNearbyDining(nearby, point, DINING_RADIUS_M, enclosing, footprints),
       };
     });
 
@@ -700,7 +820,21 @@ export function pickNearbyDining(
   from: GeoPoint,
   radiusMeters = DINING_RADIUS_M,
   enclosing: OverpassElement[] = [],
+  footprints: OverpassElement[] = [],
 ): NearbyDining | null {
+  // Inside the outline, or close enough to the wall that the difference is GPS
+  // error rather than a different building.
+  const containing = pickContainingVenue(footprints, from);
+  if (containing) {
+    return {
+      name: containing.name,
+      kind: containing.kind,
+      distanceMeters: 0,
+      lat: from.lat,
+      lon: from.lon,
+    };
+  }
+
   for (const element of enclosing) {
     const tags = element.tags;
     const kind = tags?.amenity;
@@ -959,14 +1093,31 @@ export function pickBestLandmark(
   enclosing: OverpassElement[],
   nearby: OverpassElement[],
   point: GeoPoint,
+  footprints: OverpassElement[] = [],
 ): Landmark | null {
   const contained = pickLandmark(enclosing);
   if (contained) return contained;
+
+  // A venue whose outline holds the camera, or misses it by less than GPS
+  // error, is where the photo was taken. It competes rather than short-circuits
+  // — an attraction a few metres away can still be the better answer — but it
+  // is only offered at all when the coordinates actually support the claim.
+  const containing = pickContainingVenue(footprints, point);
 
   const candidates = [
     bestNearbyCandidate(nearby, point),
     bestEnclosingBuilding(enclosing),
     bestEnclosingDistrict(enclosing),
+    containing
+      ? {
+        landmark: {
+          name: containing.name,
+          kind: `amenity=${containing.kind}`,
+          near: false,
+        },
+        score: VENUE_CONTAINMENT_SCORE,
+      }
+      : null,
   ].filter((c): c is { landmark: Landmark; score: number } => c != null);
 
   if (candidates.length === 0) return null;
