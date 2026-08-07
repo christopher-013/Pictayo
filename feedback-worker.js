@@ -172,12 +172,24 @@ export default {
       '_Filed automatically from the Pictayo in-app feedback form._',
     ].join('\n');
 
+    // A pasted secret can arrive with a trailing newline or space, and a header
+    // value containing one is invalid: `fetch` throws before sending anything.
+    // That failure is indistinguishable from a rejected token at the browser,
+    // so name it here rather than leaving a 502 with no cause.
+    const token = String(env.GITHUB_TOKEN);
+    if (token !== token.trim()) {
+      console.error(
+        'GitHub secret has surrounding whitespace; the request was never sent. Re-enter it with no trailing newline or space.',
+      );
+      return json({ ok: false, error: 'Feedback could not be submitted right now.' }, 503, cors);
+    }
+
     let response;
     try {
       response = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO || DEFAULT_REPO}/issues`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+          Authorization: `Bearer ${token}`,
           Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json',
@@ -187,7 +199,15 @@ export default {
         redirect: 'error',
         signal: AbortSignal.timeout(10_000),
       });
-    } catch {
+    } catch (error) {
+      // Never silent: this branch covers a refused redirect, a timeout, and a
+      // malformed header, which look identical from outside and are the reason
+      // a 502 here used to be unexplainable. The message is the error's own,
+      // so no token material can reach the log.
+      console.error('GitHub request never completed', {
+        reason: String(error?.name || 'Error'),
+        message: String(error?.message || '').slice(0, 200),
+      });
       return json({ ok: false, error: 'Feedback could not be submitted right now.' }, 502, cors);
     }
     if (!response.ok) {

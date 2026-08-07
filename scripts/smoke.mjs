@@ -1556,6 +1556,23 @@ if (!existsSync(fixturesDir)) {
   check('feedback: does not collect or submit an email address',
     !feedbackSource.includes('feedback-email') && !feedbackSource.includes('email:'));
 
+  // A 502 whose cause is not written down cost a long debugging session: the
+  // fetch threw, the catch returned silently, and the logs showed only that a
+  // request had failed. Every branch that gives up must say why.
+  check('feedback worker: a failed GitHub request is never swallowed silently',
+    /catch \(error\) \{[\s\S]{0,400}console\.error\('GitHub request never completed'/.test(
+      feedbackWorkerSource,
+    ),
+    'the catch around the GitHub fetch must log its reason');
+  check('feedback worker: a whitespace-padded secret is named, not left as a 502',
+    feedbackWorkerSource.includes('if (token !== token.trim())') &&
+      /GitHub secret has surrounding whitespace/.test(feedbackWorkerSource));
+  // The log carries the error's own fields. Interpolating the token into a
+  // diagnostic is how secrets end up in a log pane.
+  check('feedback worker: diagnostics never carry token material',
+    !/console\.error\([^)]*GITHUB_TOKEN/.test(feedbackWorkerSource) &&
+      !/console\.error\([^)]*\btoken\b/.test(feedbackWorkerSource));
+
   // ── Anonymous usage counting ───────────────────────────────────────────────
   //
   // The privacy notice makes a specific promise: the ping carries one word and
