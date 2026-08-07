@@ -170,6 +170,55 @@ function near(name, actual, expected, tolerance) {
       clusterPhotos(burst).length === 1, `got ${clusterPhotos(burst).length}`);
   }
 
+  // Distance alone cannot separate neighbours on a dense block. These are the
+  // real EXIF coordinates from the reported Harajuku morning: breakfast at
+  // Eggs'n Things, then a coffee shop, a trainer shop and an electronics store
+  // around noon — every pair within 83m, so all five shared one centroid out in
+  // the road and were captioned after the district and a restaurant nobody ate
+  // at. What separates them is the two hours in between.
+  {
+    const at = (h, m) => Date.UTC(2026, 5, 11, h, m);
+    const morning = [
+      photo('eggs-menu', 35.66856666666666, 139.70637499999998, at(9, 51)),
+      photo('eggs-pancakes', 35.66860833333333, 139.7063611111111, at(10, 2)),
+      photo('island-vintage', 35.667991666666666, 139.70683333333332, at(11, 57)),
+      photo('onitsuka', 35.66817222222222, 139.70594722222222, at(12, 20)),
+      photo('anker', 35.66819722222222, 139.7061, at(12, 22)),
+    ];
+    const split = clusterPhotos(morning);
+    check('visit: a block of neighbouring shops is not one visit',
+      split.length > 1, `${split.length} cluster(s) for five venues within 83m`);
+
+    const breakfast = split.find((c) => c.photoIds.includes('eggs-menu'));
+    check('visit: the two breakfast photos stay together',
+      breakfast?.photoIds.length === 2, JSON.stringify(breakfast?.photoIds));
+    check('visit: the midday shops do not join breakfast',
+      !breakfast?.photoIds.some((id) => ['island-vintage', 'onitsuka', 'anker'].includes(id)),
+      JSON.stringify(breakfast?.photoIds));
+
+    // The centroid is what gets looked up, so it has to land on the restaurant.
+    const offset = distanceMeters(breakfast, { lat: 35.6685856, lon: 139.7062313 });
+    check('visit: the breakfast centroid sits at the restaurant',
+      offset < 20, `${offset.toFixed(0)}m from Eggs'n Things`);
+
+    // A long meal photographed throughout must not fragment: the gap is
+    // measured from the most recent photo, so only idle time splits.
+    const longMeal = [];
+    for (let i = 0; i < 10; i++) {
+      longMeal.push(photo(`m${i}`, 35.6685856, 139.7062313, at(13, i * 20)));
+    }
+    check('visit: a three-hour meal photographed throughout stays one cluster',
+      clusterPhotos(longMeal).length === 1, `got ${clusterPhotos(longMeal).length}`);
+
+    // Returning to the same spot after a long gap is a separate visit.
+    const returned = clusterPhotos([
+      photo('lunch', 35.6685856, 139.7062313, at(12, 0)),
+      photo('dinner', 35.6685856, 139.7062313, at(19, 0)),
+    ]);
+    check('visit: coming back hours later counts as a second visit',
+      returned.length === 2, `got ${returned.length}`);
+  }
+
   // A day spanning the Pacific must yield two maps, not one useless one.
   const regions = splitIntoRegions(clusters.concat(clusterPhotos([
     photo('d', 21.30694, -157.85833, 4),

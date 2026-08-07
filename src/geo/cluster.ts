@@ -38,6 +38,22 @@ export function distanceMeters(a: GpsPoint, b: GpsPoint): number {
 export const DEFAULT_CLUSTER_RADIUS_M = 80;
 
 /**
+ * How long a cluster can go quiet before the next photo counts as a new visit.
+ *
+ * Distance alone cannot separate neighbours on a dense city block. A Harajuku
+ * morning put breakfast at Eggs'n Things (09:51, 10:02) in the same cluster as
+ * a coffee shop, a trainer shop and an electronics store visited around noon —
+ * every pair within 83m, so all five shared a centroid out in the road and were
+ * captioned after the district and a restaurant nobody ate at. What actually
+ * separates them is the two hours in between.
+ *
+ * The gap is measured from the cluster's most recent photo, not its first, so
+ * a long meal photographed throughout never splits: only genuine idle time
+ * does. Returning to the same place later simply resolves to the same name.
+ */
+export const MAX_VISIT_GAP_MS = 60 * 60 * 1000;
+
+/**
  * Greedy nearest-cluster assignment: each geotagged photo joins the closest
  * cluster within `radiusMeters`, or starts a new one. It is distance-based and
  * order-stable (photos arrive sorted by time, so clusters form along the day's
@@ -81,6 +97,13 @@ export function clusterPhotos(
 
       const seed = seeds.get(cluster.id);
       if (seed && distanceMeters(gps, seed) >= radiusMeters) continue;
+
+      // A neighbouring shop is not the place you were an hour ago, even when it
+      // is inside the radius. Photos arrive in time order, so `lastAt` is the
+      // most recent one already in this cluster.
+      const takenAt = photo.meta.takenAt;
+      if (takenAt != null && cluster.lastAt != null &&
+          takenAt - cluster.lastAt >= MAX_VISIT_GAP_MS) continue;
 
       best = cluster;
       bestDistance = d;
