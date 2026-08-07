@@ -125,6 +125,19 @@ button, a, input { font: inherit; }
   max-width: 1180px;
 }
 
+/* Takes the space the actions leave and centres the promise inside it. On a
+ * tall screen that drops the logo to roughly a quarter of the way down, the
+ * way Adtona's sits; on a short one it collapses back towards the top edge
+ * on its own, so nothing is ever pushed off the bottom. */
+.landing-hero {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
 /* Transparent artwork, so the gradient runs behind it rather than round it. */
 .landing-logo {
   display: block;
@@ -194,10 +207,9 @@ button, a, input { font: inherit; }
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  /* Sinks to the bottom of the filled hero. The padding is the floor: when the
-   * screen is too short for `auto` to leave any room, the actions still keep
-   * clear air above them instead of butting up against the copy. */
-  margin-top: auto;
+  /* The hero above takes the free space, so this already sits at the bottom.
+   * The padding is the floor: on a screen too short for any free space, the
+   * actions still keep clear air above them instead of butting up the copy. */
   padding-top: 44px;
 }
 
