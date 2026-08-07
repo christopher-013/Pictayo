@@ -26,6 +26,9 @@ const PING_EVENTS = new Set(['import']);
 const MAX_PING_BYTES = 512;
 /** Roughly 13 months, so a year-over-year digest still has something to read. */
 const COUNT_TTL_SECONDS = 400 * 24 * 60 * 60;
+/** Where the daily line is appended, and the KV key remembering which issue. */
+const DIGEST_ISSUE_TITLE = 'Pictayo usage log';
+const DIGEST_ISSUE_KEY = 'digest:issue';
 /**
  * Must track the repository's current name. GitHub answers a renamed repo with
  * a 301, and fetch rewrites a redirected POST into a GET — so a stale name here
@@ -272,37 +275,118 @@ async function handlePing(request, env) {
 }
 
 async function sendDigest(env) {
-  const webhook = env.DIGEST_WEBHOOK_URL;
-  if (!webhook) {
-    console.error('Usage digest is missing its webhook secret');
-    return;
-  }
   const counts = env.USAGE_COUNTS;
   if (!counts || typeof counts.get !== 'function') {
     console.error('Usage digest is missing its KV binding');
     return;
   }
 
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const day = utcDate(yesterday);
+  const day = utcDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
   const imports = Number.parseInt((await counts.get(countKey(day, 'import')).catch(() => '0')) || '0', 10) || 0;
 
-  const line = imports === 0
-    ? `Pictayo ${day}: no imports.`
-    : `Pictayo ${day}: ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
+  // Quiet days are not news. Staying silent keeps the log to real signal and
+  // stops a daily "no imports" comment from training the inbox to ignore it.
+  if (imports === 0) return;
+
+  const line = `**${day}** — ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
+
+  await postDigestToGitHub(env, counts, line);
+
+  // Optional second destination. Only fires when the secret exists, so a
+  // Discord or Slack channel can mirror the log without being required.
+  const webhook = env.DIGEST_WEBHOOK_URL;
+  if (webhook) {
+    try {
+      // `content` is what Discord reads and `text` is what Slack reads, so one
+      // body works with either without needing to know which was configured.
+      const plain = `Pictayo ${day}: ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
+      await fetch(webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: plain, text: plain }),
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      console.error('Usage digest could not reach the webhook');
+    }
+  }
+}
+
+/**
+ * Appends the day's line to a single long-lived issue.
+ *
+ * This reuses the Issues-scoped token feedback already needs, so the digest
+ * introduces no new credential and no new service. The issue lives in the
+ * public repository, so it carries counts only — never anything about a
+ * visitor, because nothing about a visitor was ever stored to carry.
+ */
+async function postDigestToGitHub(env, counts, line) {
+  if (!env.GITHUB_TOKEN) {
+    console.error('Usage digest is missing its GitHub secret');
+    return;
+  }
+  const repo = env.GITHUB_REPO || DEFAULT_REPO;
+  const headers = {
+    Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+    'User-Agent': 'Pictayo-Feedback-Worker',
+  };
+
+  let issue = Number.parseInt((await counts.get(DIGEST_ISSUE_KEY).catch(() => '')) || '', 10);
+
+  if (!Number.isFinite(issue) || issue <= 0) {
+    try {
+      const created = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: DIGEST_ISSUE_TITLE,
+          body: [
+            'Running log of anonymous usage counts, appended by the Pictayo Worker.',
+            '',
+            'Each line is the number of browser sessions that imported photos on a',
+            'given UTC day. There is no identifier, cookie, IP, or device detail',
+            'behind these numbers — only a daily total is stored. Days with no',
+            'imports are skipped.',
+          ].join('\n'),
+        }),
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!created.ok) {
+        console.error('Usage digest could not open its log issue', { status: created.status });
+        return;
+      }
+      const body = await created.json().catch(() => ({}));
+      if (!Number.isFinite(body.number)) {
+        console.error('Usage digest got no issue number back');
+        return;
+      }
+      issue = body.number;
+      // Remembered without a TTL: losing this would silently start a second log.
+      await counts.put(DIGEST_ISSUE_KEY, String(issue));
+    } catch {
+      console.error('Usage digest could not open its log issue');
+      return;
+    }
+  }
 
   try {
-    // `content` is what Discord reads and `text` is what Slack reads, so one
-    // body works with either without needing to know which was configured.
-    await fetch(webhook, {
+    const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}/comments`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: line, text: line }),
+      headers,
+      body: JSON.stringify({ body: line }),
       redirect: 'error',
       signal: AbortSignal.timeout(10_000),
     });
+    if (!response.ok) {
+      console.error('Usage digest could not append to its log issue', { status: response.status });
+    }
   } catch {
-    console.error('Usage digest could not be delivered');
+    console.error('Usage digest could not append to its log issue');
   }
 }
 

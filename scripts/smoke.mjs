@@ -1609,6 +1609,30 @@ if (!existsSync(fixturesDir)) {
   check('usage worker: only the import event is accepted',
     feedbackWorkerSource.includes("const PING_EVENTS = new Set(['import'])") &&
       feedbackWorkerSource.includes('if (!PING_EVENTS.has(event))'));
+
+  // The digest is the one place counts leave the Worker, and it writes to a
+  // public issue. What it may say is therefore worth pinning down.
+  const digestSource = feedbackWorkerSource.slice(feedbackWorkerSource.indexOf('async function sendDigest'));
+  check('usage digest: quiet days are not posted',
+    /if \(imports === 0\) return;/.test(digestSource));
+  check('usage digest: reuses the existing Issues-scoped token, adding no secret',
+    digestSource.includes('env.GITHUB_TOKEN') &&
+      digestSource.includes('/issues/${issue}/comments'));
+  check('usage digest: the webhook is optional, not required',
+    /const webhook = env\.DIGEST_WEBHOOK_URL;\s*\n\s*if \(webhook\)/.test(digestSource));
+  // A digest that could name a visitor would defeat the whole design, so the
+  // line it publishes must be built from the count and the date alone.
+  check('usage digest: publishes only a date and a count',
+    /const line = `\*\*\$\{day\}\*\* — \$\{imports\} session/.test(digestSource) &&
+      !/userAgent|CF-Connecting-IP|client/.test(digestSource),
+    'the published line must not be able to carry visitor detail');
+  check('usage digest: remembers its log issue instead of opening a new one daily',
+    feedbackWorkerSource.includes("const DIGEST_ISSUE_KEY = 'digest:issue'") &&
+      digestSource.includes('counts.get(DIGEST_ISSUE_KEY)') &&
+      digestSource.includes('counts.put(DIGEST_ISSUE_KEY, String(issue))'));
+  check('usage digest: GitHub calls refuse redirects and time out',
+    (digestSource.match(/redirect: 'error'/g) || []).length >= 2 &&
+      (digestSource.match(/AbortSignal\.timeout\(10_000\)/g) || []).length >= 2);
   check('import: photo worker never buffers a whole original for hashing',
     ingestWorkerSource.includes('sampledPhotoId(file)') && !ingestWorkerSource.includes('file.arrayBuffer()'));
   check('security: no committed GitHub token pattern',
