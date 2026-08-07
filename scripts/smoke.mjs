@@ -1564,6 +1564,22 @@ if (!existsSync(fixturesDir)) {
       feedbackWorkerSource,
     ),
     'the catch around the GitHub fetch must log its reason');
+  // `redirect: 'error'` is valid in the fetch standard and reads like the safe
+  // choice, but the Workers runtime refuses it and throws before sending. It
+  // cost a long hunt through tokens and permissions that were never consulted.
+  // `manual` expresses the same intent and the 3xx then fails `response.ok`.
+  // Scan the code, not the prose: the comment beside these fetches names the
+  // rejected mode in order to explain it, which would otherwise trip the check.
+  const workerCode = feedbackWorkerSource
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  check('feedback worker: no fetch uses a redirect mode Workers rejects',
+    !/redirect:\s*'error'/.test(workerCode),
+    "redirect: 'error' throws a TypeError at the edge; use 'manual'");
+  check('feedback worker: every outbound fetch still refuses to follow redirects',
+    (workerCode.match(/redirect: 'manual'/g) || []).length ===
+      (workerCode.match(/await fetch\(/g) || []).length,
+    'a followed redirect turns a POST into a GET and silently files nothing');
   check('feedback worker: a whitespace-padded secret is named, not left as a 502',
     feedbackWorkerSource.includes('if (token !== token.trim())') &&
       /GitHub secret has surrounding whitespace/.test(feedbackWorkerSource));
@@ -1648,7 +1664,7 @@ if (!existsSync(fixturesDir)) {
       digestSource.includes('counts.get(DIGEST_ISSUE_KEY)') &&
       digestSource.includes('counts.put(DIGEST_ISSUE_KEY, String(issue))'));
   check('usage digest: GitHub calls refuse redirects and time out',
-    (digestSource.match(/redirect: 'error'/g) || []).length >= 2 &&
+    (digestSource.match(/redirect: 'manual'/g) || []).length >= 2 &&
       (digestSource.match(/AbortSignal\.timeout\(10_000\)/g) || []).length >= 2);
   check('import: photo worker never buffers a whole original for hashing',
     ingestWorkerSource.includes('sampledPhotoId(file)') && !ingestWorkerSource.includes('file.arrayBuffer()'));

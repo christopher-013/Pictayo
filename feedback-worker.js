@@ -37,9 +37,16 @@ const DIGEST_ISSUE_TITLE = 'Pictayo usage log';
 const DIGEST_ISSUE_KEY = 'digest:issue';
 /**
  * Must track the repository's current name. GitHub answers a renamed repo with
- * a 301, and fetch rewrites a redirected POST into a GET — so a stale name here
- * reads the issue list, returns 200, and reports success without filing
- * anything.
+ * a 301, and a followed redirect rewrites a POST into a GET — so a stale name
+ * here would read the issue list, return 200, and report success without
+ * filing anything.
+ *
+ * Every fetch below therefore uses `redirect: 'manual'`, which hands back the
+ * 3xx instead of following it. A redirect then fails the `response.ok` check
+ * and is logged with its status. `redirect: 'error'` would express the same
+ * intent but the Workers runtime rejects it outright, throwing a TypeError
+ * before the request is sent — a failure that looks exactly like a bad
+ * credential from the browser.
  *
  * The Worker's own hostname is a separate matter: renaming it mints a new
  * `*.workers.dev` address, so the CSP, both client endpoints, and the origin
@@ -196,7 +203,7 @@ export default {
           'User-Agent': 'Pictayo-Feedback-Worker',
         },
         body: JSON.stringify({ title: `[${typeLabel}] ${summary}`, body: issueBody }),
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(10_000),
       });
     } catch (error) {
@@ -335,7 +342,7 @@ async function sendDigest(env) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: plain, text: plain }),
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(10_000),
       });
     } catch {
@@ -384,7 +391,7 @@ async function postDigestToGitHub(env, counts, line) {
             'imports are skipped.',
           ].join('\n'),
         }),
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(10_000),
       });
       if (!created.ok) {
@@ -410,7 +417,7 @@ async function postDigestToGitHub(env, counts, line) {
       method: 'POST',
       headers,
       body: JSON.stringify({ body: line }),
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
