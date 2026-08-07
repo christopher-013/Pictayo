@@ -169,19 +169,20 @@ button, a, input { font: inherit; }
  * stays at -0.035em because the one-line fit above is tuned around it.
  *
  * Teal now carries the promise itself, since the teal eyebrow that used to sit
- * above it is gone. It uses --teal rather than --brand-teal: the brand tone
- * only reaches 2.9:1 against the #e8eff9 end of the landing gradient, under
- * the 3:1 large text needs, while --teal clears it at 4.2:1. The top margin
- * covers the spacing the eyebrow used to contribute below the logo. */
+ * above it is gone. The tone is deeper than the brand teal on purpose: the
+ * brand value only reaches 2.9:1 against the #e8eff9 end of the landing
+ * gradient, under the 3:1 large text needs, while this one clears 6.9:1 and
+ * still reads as teal rather than navy. It sits tight under the logo so the
+ * mark and the promise read as one unit. */
 .landing-tagline {
   max-width: 1180px;
-  margin: 22px 0 0;
+  margin: 4px 0 0;
   font-size: clamp(28px, 4.2vw, 56px);
   font-weight: 600;
   line-height: 1.12;
   letter-spacing: -0.035em;
   white-space: nowrap;
-  color: var(--teal);
+  color: #065a5b;
 }
 
 /* Sits under the tagline as a single quiet line rather than a paragraph.
