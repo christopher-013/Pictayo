@@ -38,6 +38,8 @@ const DIGEST_ISSUE_KEY = 'digest:issue';
  */
 const DEFAULT_REPO = 'christopher-013/Pictayo';
 const DEFAULT_ALLOWED_ORIGINS = [
+  'https://pictayo.com',
+  'https://www.pictayo.com',
   'https://christopher-013.github.io',
   'https://picturepicture-feedback.cch13.workers.dev',
   'http://127.0.0.1:5276',
