@@ -64,7 +64,13 @@ phone touch/pinch behavior for every new interaction.
 
 ## Deployment
 
-Pushes to `master` run `.github/workflows/deploy.yml` and publish `dist/` to
-GitHub Pages. The feedback Worker is deployed separately with Wrangler; see
-`FEEDBACK-WORKER-SETUP.md`. A Pages success does not prove the Worker secret is
-configured, so validate feedback independently before declaring a release live.
+Pushes to `master` run `.github/workflows/deploy.yml`, which builds, tests, and
+then runs `wrangler deploy`. One Worker serves both the site at `pictayo.com`
+and the `/api/*` routes: `dist/` ships as its static assets, and only
+`/api/feedback` and `/api/ping` reach the Worker script itself. See
+`FEEDBACK-WORKER-SETUP.md`.
+
+A successful deploy does not prove the Worker's secrets are configured — the
+GitHub token, the KV namespace, and the custom domain are dashboard state, not
+repository state. Validate feedback and usage counting independently before
+declaring a release live.

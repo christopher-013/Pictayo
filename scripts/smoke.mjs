@@ -1648,7 +1648,7 @@ if (!existsSync(fixturesDir)) {
 {
   const botRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
     method: 'POST',
-    headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
+    headers: { Origin: 'https://pictayo.com', 'Content-Type': 'application/json' },
     body: JSON.stringify({ website: 'filled-by-bot', summary: 'spam' }),
   });
   const botResponse = await feedbackWorker.fetch(botRequest, {});
@@ -1672,7 +1672,7 @@ if (!existsSync(fixturesDir)) {
   const feedbackRequest = (body) =>
     new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
       method: 'POST',
-      headers: { Origin: 'https://christopher-013.github.io', 'Content-Type': 'application/json' },
+      headers: { Origin: 'https://pictayo.com', 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 
@@ -1765,7 +1765,7 @@ if (!existsSync(dist)) {
       html.includes('Your memories, mapped by time and place.'));
   check('build: charset declared', html.includes('charset="utf-8"'));
   check('build: Open Graph image is absolute',
-    html.includes('content="https://christopher-013.github.io/Pictayo/og-image.png"'));
+    html.includes('content="https://pictayo.com/og-image.png"'));
   check('build: canonical URL and crawl directives are present',
     html.includes('rel="canonical"') && html.includes('name="robots"'));
 

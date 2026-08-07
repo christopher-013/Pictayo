@@ -386,25 +386,29 @@ account. The browser never receives the GitHub credential. See
 [`FEEDBACK-WORKER-SETUP.md`](FEEDBACK-WORKER-SETUP.md) for the one-time encrypted
 secret and deployment steps.
 
-### GitHub Pages
+### Cloudflare Worker with static assets
 
-`.github/workflows/deploy.yml` builds and publishes on every push. One-time
-setup: **Settings → Pages → Source → GitHub Actions**.
+`.github/workflows/deploy.yml` builds, tests, and runs `wrangler deploy` on
+every push. One-time setup: a `CLOUDFLARE_API_TOKEN` repository secret with the
+*Edit Cloudflare Workers* template, and the custom domain attached to the Worker
+in the Cloudflare dashboard.
 
 The type check, production build, generated-fixture suite, and smoke checks all
 run before deployment, so a regression blocks publishing.
 
-Project sites serve from `<user>.github.io/<repo>/`, and a sub-path is where
-static builds usually break. This one doesn't: `vite.config.ts` sets
-`base: './'`, and the ingest worker is loaded via `new URL(…, import.meta.url)`,
-so both resolve against wherever the app is actually mounted. Verified by
-serving a production build from a `/Pictayo/` prefix and running a full
-import against it.
+A single Worker answers for the whole origin. `dist/` is uploaded as its static
+assets and served directly; `run_worker_first` lists `/api/feedback` and
+`/api/ping`, the only paths that reach the Worker script. The site and its API
+therefore share an origin, which is why attaching the domain also finishes the
+API — there is no second service to point anywhere.
 
-No `.nojekyll` is needed — nothing in `dist/` is underscore-prefixed. The
-`og:image` metadata uses the final absolute GitHub Pages URL so link-preview
-crawlers can resolve it; runtime assets remain relative for project-subpath
-portability.
+`vite.config.ts` sets `base: './'` and the ingest worker is loaded via
+`new URL(…, import.meta.url)`, so the build resolves against whatever path it is
+mounted at. That was needed for a GitHub Pages project sub-path and is kept: it
+costs nothing and still makes the folder openable straight off disk.
+
+The `og:image` metadata uses the final absolute URL so link-preview crawlers can
+resolve it; runtime assets remain relative.
 
 ### Cloudflare Pages
 
