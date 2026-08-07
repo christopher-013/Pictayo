@@ -1,7 +1,7 @@
 # Pictayo feedback setup
 
 Pictayo's in-app form posts to
-`https://picturepicture-feedback.cch13.workers.dev/api/feedback`. The Cloudflare
+`https://pictayo.cch13.workers.dev/api/feedback`. The Cloudflare
 Worker in `feedback-worker.js` creates a public issue in
 `christopher-013/Pictayo`, so visitors stay inside Pictayo and do
 not need a GitHub account.
@@ -18,7 +18,7 @@ documentation.
 4. From an authenticated terminal, run:
 
 ```powershell
-npx wrangler secret put GITHUB_TOKEN --name picturepicture-feedback
+npx wrangler secret put GITHUB_TOKEN --name pictayo
 npx wrangler deploy
 ```
 
@@ -70,7 +70,7 @@ To mirror the digest into Discord or Slack as well, set the optional webhook
 secret. Without it, the GitHub log is the only destination:
 
 ```powershell
-npx wrangler secret put DIGEST_WEBHOOK_URL --name picturepicture-feedback
+npx wrangler secret put DIGEST_WEBHOOK_URL --name pictayo
 ```
 
 ### Reading counts without waiting
@@ -79,7 +79,7 @@ Raw values are visible in the Cloudflare dashboard under **Workers & Pages → K
 → USAGE_COUNTS**, keyed `count:YYYY-MM-DD:import`. To watch a ping arrive live:
 
 ```powershell
-npx wrangler tail --name picturepicture-feedback
+npx wrangler tail --name pictayo
 ```
 
 If the KV binding or the GitHub secret is missing, counting and the digest log an

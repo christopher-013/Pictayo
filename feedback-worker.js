@@ -1,18 +1,24 @@
 /**
- * Feedback API for Pictayo.
+ * Pictayo's Worker: the site and its API.
  *
- * The browser posts here and this Worker creates a public GitHub issue using a
- * narrowly scoped secret. The credential is never embedded in the website.
+ * The built site is uploaded as this Worker's static assets and served
+ * directly. Only the two paths below run this script — `run_worker_first` in
+ * wrangler.jsonc decides that, so everything else is a static file.
+ *
+ * For feedback, the browser posts here and the Worker creates a public GitHub
+ * issue using a narrowly scoped secret. The credential is never embedded in
+ * the website.
  */
 
 const API_PATH = '/api/feedback';
 /**
  * Anonymous usage counter.
  *
- * The site is served from GitHub Pages, which exposes no logs, so without this
- * there is no way to tell whether anyone is using the app. It answers exactly
- * one question — how many browser sessions imported media on a given day — and
- * is deliberately incapable of answering anything narrower.
+ * The site is served as static assets, which produce no visitor log anyone
+ * here reads, so without this there is no way to tell whether the app is being
+ * used. It answers exactly one question — how many browser sessions imported
+ * media on a given day — and is deliberately incapable of answering anything
+ * narrower.
  *
  * What it stores is a single integer per UTC day. There is no identifier, no
  * cookie, no per-event row, and the client IP is used only transiently as a
@@ -33,15 +39,18 @@ const DIGEST_ISSUE_KEY = 'digest:issue';
  * Must track the repository's current name. GitHub answers a renamed repo with
  * a 301, and fetch rewrites a redirected POST into a GET — so a stale name here
  * reads the issue list, returns 200, and reports success without filing
- * anything. The Worker hostname below is deliberately not renamed: it is the
- * live endpoint the site and its CSP already point at.
+ * anything.
+ *
+ * The Worker's own hostname is a separate matter: renaming it mints a new
+ * `*.workers.dev` address, so the CSP, both client endpoints, and the origin
+ * allowlist have to move in the same commit or feedback starts failing.
  */
 const DEFAULT_REPO = 'christopher-013/Pictayo';
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://pictayo.com',
   'https://www.pictayo.com',
   'https://christopher-013.github.io',
-  'https://picturepicture-feedback.cch13.workers.dev',
+  'https://pictayo.cch13.workers.dev',
   'http://127.0.0.1:5276',
   'http://127.0.0.1:5273',
   'http://localhost:5276',

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "picturepicture-feedback",
+  "name": "pictayo",
   "compatibility_date": "2026-07-31",
   "main": "./feedback-worker.js",
   "observability": { "enabled": true },
@@ -9,7 +9,7 @@
     // Both the custom domain and the github.io origin are listed. GitHub keeps
     // serving the old one as a redirect, and feedback and usage counting are
     // rejected outright from any origin not named here.
-    "ALLOWED_ORIGINS": "https://pictayo.com,https://www.pictayo.com,https://christopher-013.github.io,https://picturepicture-feedback.cch13.workers.dev,http://127.0.0.1:5276,http://127.0.0.1:5273,http://localhost:5276,http://localhost:5273"
+    "ALLOWED_ORIGINS": "https://pictayo.com,https://www.pictayo.com,https://christopher-013.github.io,https://pictayo.cch13.workers.dev,http://127.0.0.1:5276,http://127.0.0.1:5273,http://localhost:5276,http://localhost:5273"
   },
   "ratelimits": [
     {

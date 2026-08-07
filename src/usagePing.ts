@@ -14,7 +14,7 @@
  * The endpoint is the origin already present in the CSP for feedback, so
  * counting introduces no new network destination.
  */
-const PING_ENDPOINT = 'https://picturepicture-feedback.cch13.workers.dev/api/ping';
+const PING_ENDPOINT = 'https://pictayo.cch13.workers.dev/api/ping';
 
 /**
  * One ping per browser session rather than per import.

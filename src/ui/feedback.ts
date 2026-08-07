@@ -1,5 +1,5 @@
 const FEEDBACK_ENDPOINT =
-  'https://picturepicture-feedback.cch13.workers.dev/api/feedback';
+  'https://pictayo.cch13.workers.dev/api/feedback';
 
 /**
  * How long to wait for the feedback service before giving up.

@@ -1551,7 +1551,7 @@ if (!existsSync(fixturesDir)) {
     styleSource.includes('grid-template-columns: 126px minmax(210px, 250px)') &&
       styleSource.includes('justify-content: end'));
   check('feedback: submits to the server-side Worker without a GitHub redirect',
-    feedbackSource.includes('picturepicture-feedback.cch13.workers.dev/api/feedback') &&
+    feedbackSource.includes('pictayo.cch13.workers.dev/api/feedback') &&
       !feedbackSource.includes('github.com'));
   check('feedback: does not collect or submit an email address',
     !feedbackSource.includes('feedback-email') && !feedbackSource.includes('email:'));
@@ -1590,7 +1590,7 @@ if (!existsSync(fixturesDir)) {
   check('usage: counting failures never surface to the user',
     pingCode.includes('.catch(() => {})') && !/\bthrow\b/.test(pingCode));
   check('usage: counting reuses the origin already in the CSP',
-    pingSource.includes('picturepicture-feedback.cch13.workers.dev/api/ping'));
+    pingSource.includes('pictayo.cch13.workers.dev/api/ping'));
   check('usage: only a completed import is counted',
     /files\.length - failures - storageFailures > 0\) reportImportCompleted\(\)/.test(mainSource));
 
@@ -1646,7 +1646,7 @@ if (!existsSync(fixturesDir)) {
 }
 
 {
-  const botRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+  const botRequest = new Request('https://pictayo.cch13.workers.dev/api/feedback', {
     method: 'POST',
     headers: { Origin: 'https://pictayo.com', 'Content-Type': 'application/json' },
     body: JSON.stringify({ website: 'filled-by-bot', summary: 'spam' }),
@@ -1655,7 +1655,7 @@ if (!existsSync(fixturesDir)) {
   check('feedback worker: quietly traps honeypot submissions',
     botResponse.status === 201 && (await botResponse.json()).ok === true);
 
-  const deniedRequest = new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+  const deniedRequest = new Request('https://pictayo.cch13.workers.dev/api/feedback', {
     method: 'POST',
     headers: { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
     body: JSON.stringify({ summary: 'not allowed' }),
@@ -1670,7 +1670,7 @@ if (!existsSync(fixturesDir)) {
   });
 
   const feedbackRequest = (body) =>
-    new Request('https://picturepicture-feedback.cch13.workers.dev/api/feedback', {
+    new Request('https://pictayo.cch13.workers.dev/api/feedback', {
       method: 'POST',
       headers: { Origin: 'https://pictayo.com', 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -1829,7 +1829,7 @@ if (!existsSync(dist)) {
   check('build: CSP allowlists every application network service',
     ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
       'overpass.private.coffee', 'en.wikipedia.org',
-      'picturepicture-feedback.cch13.workers.dev']
+      'pictayo.cch13.workers.dev']
       .every((host) => html.includes(host)));
   // Reverse geocoding 307s from the documented host to api-bdc.io. A redirect
   // to an unlisted origin is blocked outright, which silently turns every
@@ -1921,7 +1921,7 @@ if (!existsSync(dist)) {
       manifest.description === 'Your memories, mapped by time and place.' &&
       manifest.theme_color === '#0b326b' && manifest.background_color === '#ffffff');
   check('build: feedback bundle never sends the visitor to GitHub',
-    appBundle.includes('picturepicture-feedback.cch13.workers.dev/api/feedback') &&
+    appBundle.includes('pictayo.cch13.workers.dev/api/feedback') &&
       !appBundle.includes('github.com'));
   check('build: lightbox includes zoom controls', html.includes('photo-lightbox-zoom-in'));
   check('build: includes the styled confirmation dialog',
