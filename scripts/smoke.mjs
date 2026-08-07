@@ -130,6 +130,42 @@ function near(name, actual, expected, tolerance) {
   check('cluster: distinct city-block destinations stay separate', denseCity.length === 2,
     `got ${denseCity.length} with ${DEFAULT_CLUSTER_RADIUS_M} m radius`);
 
+  // Walking down a street used to chain into one enormous cluster: the centroid
+  // moves toward each photo that joins, so one just inside the edge drags the
+  // centre outward and lets the next in a little further along. A morning in
+  // Harajuku collapsed Eggs'n Things, Island Vintage Coffee, Onitsuka Tiger and
+  // Anker — 230m to 390m apart — into a single cluster whose centroid sat in
+  // the road, so every photo was captioned after the district and a restaurant
+  // none of them were taken in.
+  {
+    const step = 70; // comfortably inside the radius, so each join is legal
+    const walk = [];
+    for (let i = 0; i < 8; i++) {
+      walk.push(photo(`w${i}`, 35.6685 + (i * step / 6371000) * (180 / Math.PI), 139.7062, i));
+    }
+    const walked = clusterPhotos(walk);
+    const spanOf = (cluster) => {
+      const pts = cluster.photoIds
+        .map((id) => walk.find((p) => p.id === id).meta.gps);
+      return Math.max(...pts.map((a) => Math.max(...pts.map((b) => distanceMeters(a, b)))));
+    };
+    const widest = Math.max(...walked.map(spanOf));
+    check('cluster: a walk down a street does not chain into one cluster',
+      walked.length > 1, `8 photos ${step}m apart became ${walked.length} cluster(s)`);
+    check('cluster: no cluster grows wider than its own radius',
+      widest <= DEFAULT_CLUSTER_RADIUS_M,
+      `widest span ${widest.toFixed(0)}m against a ${DEFAULT_CLUSTER_RADIUS_M}m radius`);
+
+    // The point of a radius is to hold a burst at one venue together.
+    const burst = [];
+    for (let i = 0; i < 12; i++) {
+      const off = ((i % 4) - 1.5) * 20 / 6371000 * (180 / Math.PI);
+      burst.push(photo(`b${i}`, 35.6685856 + off, 139.7062313 + off, i));
+    }
+    check('cluster: a burst inside one venue still forms a single cluster',
+      clusterPhotos(burst).length === 1, `got ${clusterPhotos(burst).length}`);
+  }
+
   // A day spanning the Pacific must yield two maps, not one useless one.
   const regions = splitIntoRegions(clusters.concat(clusterPhotos([
     photo('d', 21.30694, -157.85833, 4),

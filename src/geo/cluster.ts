@@ -49,6 +49,22 @@ export function clusterPhotos(
 ): PlaceCluster[] {
   const clusters: PlaceCluster[] = [];
 
+  /**
+   * Where each cluster started, which is what actually bounds its size.
+   *
+   * The radius alone does not: the centroid moves toward every photo that
+   * joins, so a photo just inside the edge drags the centre outward and lets
+   * the next one in a little further along. Walking down a street taking
+   * pictures, that chains — a morning in Harajuku collapsed Eggs'n Things,
+   * Island Vintage Coffee, Onitsuka Tiger and Anker into a single cluster whose
+   * centroid sat in the road between them, so the whole set was captioned after
+   * the district and a restaurant none of the photos were taken in.
+   *
+   * Measuring against the seed as well keeps a cluster inside one disc, so it
+   * stays what it claims to be: a burst of photos at one place.
+   */
+  const seeds = new Map<string, GpsPoint>();
+
   const geotagged = photos
     .filter((p): p is Photo & { meta: { gps: GpsPoint } } => p.meta.gps !== null)
     .sort((a, b) => (a.meta.takenAt ?? 0) - (b.meta.takenAt ?? 0));
@@ -61,10 +77,13 @@ export function clusterPhotos(
 
     for (const cluster of clusters) {
       const d = distanceMeters(gps, cluster);
-      if (d < radiusMeters && d < bestDistance) {
-        best = cluster;
-        bestDistance = d;
-      }
+      if (d >= radiusMeters || d >= bestDistance) continue;
+
+      const seed = seeds.get(cluster.id);
+      if (seed && distanceMeters(gps, seed) >= radiusMeters) continue;
+
+      best = cluster;
+      bestDistance = d;
     }
 
     if (best) {
@@ -76,8 +95,10 @@ export function clusterPhotos(
       best.firstAt = minDefined(best.firstAt, photo.meta.takenAt);
       best.lastAt = maxDefined(best.lastAt, photo.meta.takenAt);
     } else {
+      const id = `c${clusters.length}-${gps.lat.toFixed(5)},${gps.lon.toFixed(5)}`;
+      seeds.set(id, { lat: gps.lat, lon: gps.lon });
       clusters.push({
-        id: `c${clusters.length}-${gps.lat.toFixed(5)},${gps.lon.toFixed(5)}`,
+        id,
         lat: gps.lat,
         lon: gps.lon,
         photoIds: [photo.id],
