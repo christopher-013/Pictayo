@@ -1555,6 +1555,11 @@ if (!existsSync(fixturesDir)) {
       !feedbackSource.includes('github.com'));
   check('feedback: does not collect or submit an email address',
     !feedbackSource.includes('feedback-email') && !feedbackSource.includes('email:'));
+  // The issue number points into a public tracker and means nothing to the
+  // person who just wrote in, so the confirmation must not carry it.
+  check('feedback: the confirmation never shows the issue number',
+    feedbackSource.includes("'Thank you — feedback was sent.'") &&
+      !/feedback #\$\{/.test(feedbackSource) && !/#\$\{data\.number\}/.test(feedbackSource));
 
   // A 502 whose cause is not written down cost a long debugging session: the
   // fetch threw, the catch returned silently, and the logs showed only that a
@@ -1659,10 +1664,34 @@ if (!existsSync(fixturesDir)) {
     /const line = `\*\*\$\{day\}\*\* — \$\{imports\} session/.test(digestSource) &&
       !/userAgent|CF-Connecting-IP|client/.test(digestSource),
     'the published line must not be able to carry visitor detail');
-  check('usage digest: remembers its log issue instead of opening a new one daily',
+  // The running figure is published as imports arrive, which is the only part
+  // of this system that writes to GitHub on a visitor's request rather than on
+  // a timer. It must stay off the response path and stay throttled.
+  check('usage: the running total is published after the response, not during it',
+    /ctx\.waitUntil\(syncLogIssue\(env, counts, false\)\)/.test(feedbackWorkerSource) &&
+      /async function handlePing\(request, env, ctx\)/.test(feedbackWorkerSource));
+  check('usage: issue updates are throttled so traffic cannot become API load',
+    feedbackWorkerSource.includes('const ISSUE_SYNC_MIN_MS = 60_000') &&
+      /Date\.now\(\) - last < ISSUE_SYNC_MIN_MS\) return;/.test(feedbackWorkerSource));
+  check('usage: the daily run forces a sync so the headline cannot lag the log',
+    /await syncLogIssue\(env, counts, true\);/.test(feedbackWorkerSource));
+  check('usage: a lifetime total is stored rather than summed from expiring keys',
+    feedbackWorkerSource.includes("const TOTAL_KEY = 'count:total:import'") &&
+      !/counts\.put\(TOTAL_KEY[^)]*expirationTtl/.test(feedbackWorkerSource));
+  // Same guarantee as the daily comment: the published body is built from
+  // counts and a date, and has no parameter that could carry anything else.
+  check('usage: the published issue body can only carry counts and a date',
+    /function logIssueBody\(total, today, todayCount\)/.test(feedbackWorkerSource) &&
+      !/logIssueBody\([^)]*(?:client|userAgent|origin)/.test(feedbackWorkerSource));
+  // One log issue, opened once and remembered. Losing the number would start a
+  // second log, and both the ping path and the daily run go through here.
+  check('usage: the log issue is remembered rather than reopened',
     feedbackWorkerSource.includes("const DIGEST_ISSUE_KEY = 'digest:issue'") &&
-      digestSource.includes('counts.get(DIGEST_ISSUE_KEY)') &&
-      digestSource.includes('counts.put(DIGEST_ISSUE_KEY, String(issue))'));
+      /async function ensureLogIssue\(env, counts, repo, headers\)/.test(feedbackWorkerSource) &&
+      /counts\.get\(DIGEST_ISSUE_KEY\)/.test(feedbackWorkerSource) &&
+      /counts\.put\(DIGEST_ISSUE_KEY, String\(body\.number\)\)/.test(feedbackWorkerSource));
+  check('usage: both the ping path and the daily run share one issue lookup',
+    (feedbackWorkerSource.match(/await ensureLogIssue\(env, counts, repo, headers\)/g) || []).length === 2);
   check('usage digest: GitHub calls refuse redirects and time out',
     (digestSource.match(/redirect: 'manual'/g) || []).length >= 2 &&
       (digestSource.match(/AbortSignal\.timeout\(10_000\)/g) || []).length >= 2);

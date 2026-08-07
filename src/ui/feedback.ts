@@ -90,9 +90,9 @@ export function initFeedback(): void {
         throw new Error(data.error || `Feedback request failed (${response.status})`);
       }
 
-      status.textContent = data.number
-        ? `Thank you — feedback #${data.number} was sent.`
-        : 'Thank you — your feedback was sent.';
+      // The issue number is deliberately not shown. It is a pointer into a
+      // public tracker, and the person sending feedback has no use for it.
+      status.textContent = 'Thank you — feedback was sent.';
       status.className = 'feedback-status is-success';
       form.reset();
       window.setTimeout(() => {

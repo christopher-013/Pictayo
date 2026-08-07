@@ -36,6 +36,19 @@ const COUNT_TTL_SECONDS = 400 * 24 * 60 * 60;
 const DIGEST_ISSUE_TITLE = 'Pictayo usage log';
 const DIGEST_ISSUE_KEY = 'digest:issue';
 /**
+ * Running total since counting began, kept alongside the per-day figures so the
+ * log issue can show a current number without reading back every daily key.
+ * Deliberately without a TTL — the daily keys expire, this does not.
+ */
+const TOTAL_KEY = 'count:total:import';
+/**
+ * The issue body is rewritten as imports arrive, so a burst of them would mean
+ * a burst of GitHub writes. One update a minute is frequent enough to feel live
+ * and slow enough that traffic can never turn into an API problem.
+ */
+const ISSUE_SYNC_KEY = 'digest:issue-synced';
+const ISSUE_SYNC_MIN_MS = 60_000;
+/**
  * Must track the repository's current name. GitHub answers a renamed repo with
  * a 301, and a followed redirect rewrites a POST into a GET — so a stale name
  * here would read the issue list, return 200, and report success without
@@ -68,9 +81,9 @@ const MAX_BODY_BYTES = 16 * 1024;
 const UNSAFE_FEEDBACK_ERROR = 'Feedback contains content that cannot be submitted.';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === PING_PATH) return handlePing(request, env);
+    if (url.pathname === PING_PATH) return handlePing(request, env, ctx);
     if (url.pathname !== API_PATH) return new Response('Not found', { status: 404 });
 
     const origin = request.headers.get('Origin') || '';
@@ -236,7 +249,7 @@ export default {
   },
 };
 
-async function handlePing(request, env) {
+async function handlePing(request, env, ctx) {
   const origin = request.headers.get('Origin') || '';
   const allowed = allowedOrigins(env.ALLOWED_ORIGINS).includes(origin);
   const cors = corsHeaders(allowed ? origin : '');
@@ -303,13 +316,138 @@ async function handlePing(request, env) {
     const current = Number.parseInt((await counts.get(key)) || '0', 10);
     const next = (Number.isFinite(current) ? current : 0) + 1;
     await counts.put(key, String(next), { expirationTtl: COUNT_TTL_SECONDS });
+
+    // The running total is what the log issue shows, so it is kept here rather
+    // than recomputed by summing daily keys that eventually expire.
+    const totalNow = Number.parseInt((await counts.get(TOTAL_KEY)) || '0', 10);
+    await counts.put(TOTAL_KEY, String((Number.isFinite(totalNow) ? totalNow : 0) + 1));
   } catch (error) {
     console.error('Usage counter could not record a ping', { message: String(error?.message || '') });
+  }
+
+  // Publish after responding. The import has already finished for the person
+  // who triggered this, and nothing they see should wait on GitHub.
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(syncLogIssue(env, counts, false));
   }
 
   // Always no-content: the client neither needs nor reads an answer, and a
   // silent response gives a caller nothing to probe.
   return new Response(null, { status: 204, headers: cors });
+}
+
+/**
+ * Rewrites the log issue so its opening lines always carry the current numbers.
+ *
+ * The daily comments below it are the history; this is the figure you read
+ * without scrolling. It publishes counts and a date and nothing else, because
+ * counts and dates are the only things stored.
+ */
+async function syncLogIssue(env, counts, force) {
+  if (!env.GITHUB_TOKEN) {
+    console.error('Usage counter cannot update the log issue without its GitHub secret');
+    return;
+  }
+
+  if (!force) {
+    const last = Number.parseInt((await counts.get(ISSUE_SYNC_KEY).catch(() => '')) || '0', 10);
+    if (Number.isFinite(last) && Date.now() - last < ISSUE_SYNC_MIN_MS) return;
+  }
+
+  const today = utcDate(new Date());
+  const total = Number.parseInt((await counts.get(TOTAL_KEY).catch(() => '0')) || '0', 10) || 0;
+  const todayCount = Number.parseInt((await counts.get(countKey(today, 'import')).catch(() => '0')) || '0', 10) || 0;
+
+  const repo = env.GITHUB_REPO || DEFAULT_REPO;
+  const headers = githubHeaders(env);
+  const issue = await ensureLogIssue(env, counts, repo, headers);
+  if (!issue) return;
+
+  try {
+    const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ body: logIssueBody(total, today, todayCount) }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      console.error('Usage counter could not update the log issue', { status: response.status });
+      return;
+    }
+    await counts.put(ISSUE_SYNC_KEY, String(Date.now()));
+  } catch (error) {
+    console.error('Usage counter could not update the log issue', {
+      reason: String(error?.name || 'Error'),
+      message: String(error?.message || '').slice(0, 200),
+    });
+  }
+}
+
+function logIssueBody(total, today, todayCount) {
+  return [
+    `## Imports to date: ${total}`,
+    '',
+    `Today (${today} UTC): ${todayCount}`,
+    '',
+    '---',
+    '',
+    'Running log of anonymous usage counts, maintained by the Pictayo Worker.',
+    'The number above updates as imports arrive; the comments below are the',
+    'daily history.',
+    '',
+    'Each figure is the number of browser sessions that imported photos. There',
+    'is no identifier, cookie, IP, or device detail behind them — only totals',
+    'are stored, so only totals can be shown. Days with no imports are skipped',
+    'in the comments.',
+  ].join('\n');
+}
+
+function githubHeaders(env) {
+  return {
+    Authorization: `Bearer ${String(env.GITHUB_TOKEN).trim()}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+    'User-Agent': 'Pictayo-Feedback-Worker',
+  };
+}
+
+/** Returns the log issue's number, opening it the first time. */
+async function ensureLogIssue(env, counts, repo, headers) {
+  const remembered = Number.parseInt((await counts.get(DIGEST_ISSUE_KEY).catch(() => '')) || '', 10);
+  if (Number.isFinite(remembered) && remembered > 0) return remembered;
+
+  try {
+    const created = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        title: DIGEST_ISSUE_TITLE,
+        body: logIssueBody(0, utcDate(new Date()), 0),
+      }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!created.ok) {
+      console.error('Usage log issue could not be opened', { status: created.status });
+      return null;
+    }
+    const body = await created.json().catch(() => ({}));
+    if (!Number.isFinite(body.number)) {
+      console.error('Usage log issue was created without a number');
+      return null;
+    }
+    // Remembered without a TTL: losing this would silently start a second log.
+    await counts.put(DIGEST_ISSUE_KEY, String(body.number));
+    return body.number;
+  } catch (error) {
+    console.error('Usage log issue could not be opened', {
+      reason: String(error?.name || 'Error'),
+      message: String(error?.message || '').slice(0, 200),
+    });
+    return null;
+  }
 }
 
 async function sendDigest(env) {
@@ -329,6 +467,11 @@ async function sendDigest(env) {
   const line = `**${day}** — ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
 
   await postDigestToGitHub(env, counts, line);
+
+  // Force a rewrite of the running figures too. A ping can be throttled out of
+  // syncing, so without this the headline number could sit a day behind the
+  // comment directly under it.
+  await syncLogIssue(env, counts, true);
 
   // Optional second destination. Only fires when the secret exists, so a
   // Discord or Slack channel can mirror the log without being required.
@@ -365,52 +508,9 @@ async function postDigestToGitHub(env, counts, line) {
     return;
   }
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
-  const headers = {
-    Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Content-Type': 'application/json',
-    'User-Agent': 'Pictayo-Feedback-Worker',
-  };
-
-  let issue = Number.parseInt((await counts.get(DIGEST_ISSUE_KEY).catch(() => '')) || '', 10);
-
-  if (!Number.isFinite(issue) || issue <= 0) {
-    try {
-      const created = await fetch(`https://api.github.com/repos/${repo}/issues`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          title: DIGEST_ISSUE_TITLE,
-          body: [
-            'Running log of anonymous usage counts, appended by the Pictayo Worker.',
-            '',
-            'Each line is the number of browser sessions that imported photos on a',
-            'given UTC day. There is no identifier, cookie, IP, or device detail',
-            'behind these numbers — only a daily total is stored. Days with no',
-            'imports are skipped.',
-          ].join('\n'),
-        }),
-        redirect: 'manual',
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!created.ok) {
-        console.error('Usage digest could not open its log issue', { status: created.status });
-        return;
-      }
-      const body = await created.json().catch(() => ({}));
-      if (!Number.isFinite(body.number)) {
-        console.error('Usage digest got no issue number back');
-        return;
-      }
-      issue = body.number;
-      // Remembered without a TTL: losing this would silently start a second log.
-      await counts.put(DIGEST_ISSUE_KEY, String(issue));
-    } catch {
-      console.error('Usage digest could not open its log issue');
-      return;
-    }
-  }
+  const headers = githubHeaders(env);
+  const issue = await ensureLogIssue(env, counts, repo, headers);
+  if (!issue) return;
 
   try {
     const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}/comments`, {
