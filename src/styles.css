@@ -96,14 +96,19 @@ button, a, input { font: inherit; }
 
 /* ── Start screen ──────────────────────────────────────────────────────── */
 
+/* Adtona's start page reads as two anchored groups rather than one centred
+ * stack: the promise sits in the top quarter, the actions ride near the
+ * bottom, and the open space between them is what makes it feel calm. The
+ * bottom padding keeps the actions off the very edge the way theirs sit at
+ * roughly 83% of the viewport. */
 .landing {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 18px;
-  padding: 40px 22px 56px;
+  padding: clamp(26px, 4.5vh, 52px) 22px clamp(52px, 11vh, 124px);
   background: var(--brand-gradient);
   background-attachment: fixed;
   text-align: center;
@@ -113,6 +118,8 @@ button, a, input { font: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Fills the screen so the actions below can sink to the bottom of it. */
+  flex: 1;
   /* Match Adtona's wide hero eyebrow so the promise reads as one line. */
   width: 100%;
   max-width: 1180px;
@@ -187,7 +194,11 @@ button, a, input { font: inherit; }
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin-top: 92px;
+  /* Sinks to the bottom of the filled hero. The padding is the floor: when the
+   * screen is too short for `auto` to leave any room, the actions still keep
+   * clear air above them instead of butting up against the copy. */
+  margin-top: auto;
+  padding-top: 44px;
 }
 
 .landing-cta {
@@ -1869,7 +1880,7 @@ body.photo-lightbox-open { overflow: hidden; }
   .landing-eyebrow { margin-top: 8px; font-size: 10px; }
   .landing-tagline { max-width: 340px; font-size: clamp(27px, 8.7vw, 38px); white-space: normal; }
   .landing-support { max-width: 380px; font-size: 14px; }
-  .landing-menu { margin-top: 56px; }
+  .landing-menu { padding-top: 30px; }
   .landing-cta { padding: 14px 26px; font-size: 16px; }
   .landing-learn { margin-top: 30px; }
   .landing-learn-panel { padding: 22px 18px; border-radius: 18px; }
