@@ -19,12 +19,12 @@
     }
   ],
   // Anonymous usage counts: one integer per UTC day, no per-visitor records.
-  // Replace the id with the one printed by:
-  //   npx wrangler kv namespace create USAGE_COUNTS
+  // A namespace id is an account-scoped handle, not a credential — it grants
+  // nothing on its own, so it belongs in the repository rather than in secrets.
   "kv_namespaces": [
     {
       "binding": "USAGE_COUNTS",
-      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+      "id": "5003e9726ae94cf0b908225b961d1757"
     }
   ],
   // 08:00 UTC daily digest of the previous day's counts.

@@ -388,13 +388,14 @@ secret and deployment steps.
 
 ### Cloudflare Worker with static assets
 
-`.github/workflows/deploy.yml` builds, tests, and runs `wrangler deploy` on
-every push. One-time setup: a `CLOUDFLARE_API_TOKEN` repository secret with the
-*Edit Cloudflare Workers* template, and the custom domain attached to the Worker
-in the Cloudflare dashboard.
+Cloudflare builds this repository from Git and deploys on every push. One-time
+setup, all in the Cloudflare dashboard: connect the repository to a Worker, add
+the `GITHUB_TOKEN` secret, and attach the custom domain — attaching it is what
+creates the DNS records. No API token is stored in GitHub.
 
-The type check, production build, generated-fixture suite, and smoke checks all
-run before deployment, so a regression blocks publishing.
+`.github/workflows/ci.yml` runs the type check, production build,
+generated-fixture suite, and smoke checks on every push and pull request. It
+does not deploy; it is there so a regression shows up on the commit.
 
 A single Worker answers for the whole origin. `dist/` is uploaded as its static
 assets and served directly; `run_worker_first` lists `/api/feedback` and

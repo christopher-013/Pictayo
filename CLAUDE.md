@@ -64,11 +64,12 @@ phone touch/pinch behavior for every new interaction.
 
 ## Deployment
 
-Pushes to `master` run `.github/workflows/deploy.yml`, which builds, tests, and
-then runs `wrangler deploy`. One Worker serves both the site at `pictayo.com`
-and the `/api/*` routes: `dist/` ships as its static assets, and only
-`/api/feedback` and `/api/ping` reach the Worker script itself. See
-`FEEDBACK-WORKER-SETUP.md`.
+Cloudflare builds this repository from Git and deploys on every push to
+`master`. One Worker named `pictayo` serves both the site at `pictayo.com` and
+the `/api/*` routes: `dist/` ships as its static assets, and only
+`/api/feedback` and `/api/ping` reach the Worker script itself.
+`.github/workflows/ci.yml` runs the same checks as a gate but does not deploy.
+See `FEEDBACK-WORKER-SETUP.md`.
 
 A successful deploy does not prove the Worker's secrets are configured — the
 GitHub token, the KV namespace, and the custom domain are dashboard state, not
