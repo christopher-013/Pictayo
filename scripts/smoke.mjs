@@ -1704,6 +1704,12 @@ if (!existsSync(fixturesDir)) {
     /recorded = \{ event, day: today, count: next, total: nextTotal \}/.test(feedbackWorkerSource) &&
       /total = Math\.max\(total, override\.total\)/.test(feedbackWorkerSource) &&
       /value = Math\.max\(value, override\.count\)/.test(feedbackWorkerSource));
+  // Counting predated the lifetime keys, so a total can start behind the
+  // history it is meant to summarise. It must never print as less than a
+  // window contained within it.
+  check('usage: a lifetime total is never smaller than a window inside it',
+    /total = Math\.max\(total, last30\);/.test(feedbackWorkerSource) &&
+      /activeDays = Math\.max\(await read\(activeDaysKey\(event\)\), days\.filter/.test(feedbackWorkerSource));
   // Every column is arithmetic on stored daily counts. A window that grew with
   // the age of the log would eventually read every key ever written.
   check('usage: the rolling windows read a bounded number of days',

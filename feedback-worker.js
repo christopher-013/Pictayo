@@ -564,6 +564,11 @@ async function eventStats(counts, event, today, fresh) {
   const last7 = days.slice(0, 7).reduce((a, b) => a + b, 0);
   const last30 = days.reduce((a, b) => a + b, 0);
 
+  // A lifetime figure cannot be smaller than a window inside it. It can look
+  // that way when counting predates the lifetime key, as it did here: three
+  // imports were already on record when the total was introduced at zero.
+  total = Math.max(total, last30);
+
   // Counted from today backwards, stopping at the first blank day. Today being
   // blank is not a broken streak yet, so the search starts at yesterday then.
   let streak = 0;
