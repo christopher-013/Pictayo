@@ -1899,6 +1899,21 @@ if (!existsSync(dist)) {
     !html.includes("'unsafe-inline'"), 'the dev-only style relaxation leaked into the build');
   check('build: no inline styles need relaxing',
     !/<style[\s>]/i.test(html) && !/\sstyle="/i.test(html));
+  // Invariant 5, now that the page itself carries outbound links. A new tab
+  // opened without these can reach back through window.opener.
+  const blankLinks = [...html.matchAll(/<a\b[^>]*target="_blank"[^>]*>/g)].map((m) => m[0]);
+  check('security: every new-window link in the page suppresses opener and referrer',
+    blankLinks.length > 0 && blankLinks.every((tag) => /rel="noopener noreferrer"/.test(tag)),
+    blankLinks.find((tag) => !/rel="noopener noreferrer"/.test(tag)) || `${blankLinks.length} checked`);
+  // The icon is inline SVG on purpose: img-src allows this origin only, so a
+  // hosted badge would be blocked and a CSP entry is not worth an icon.
+  check('social: the Instagram mark is drawn inline, not fetched',
+    !/<img[^>]+instagram/i.test(html) && !html.includes('cdninstagram'));
+  check('social: the Instagram profile is linked from all three places',
+    (html.match(/https:\/\/www\.instagram\.com\/pictayo_com\//g) || []).length === 3 &&
+      html.includes('class="header-instagram"') &&
+      html.includes('class="landing-instagram"') &&
+      html.includes('class="landing-learn-instagram"'));
   check('build: CSP allowlists every application network service',
     ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
       'overpass.private.coffee', 'en.wikipedia.org',

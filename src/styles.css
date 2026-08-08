@@ -259,6 +259,25 @@ button, a, input { font: inherit; }
   font-weight: 700;
 }
 
+/* Shared by the start screen and the Learn More panel: a quiet text link with
+ * the mark inline, rather than a second button competing with Choose Photos. */
+.landing-instagram,
+.landing-learn-instagram {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.landing-instagram { margin-top: 12px; }
+.landing-learn-instagram { margin-top: 14px; }
+.landing-instagram:hover,
+.landing-learn-instagram:hover { text-decoration: underline; }
+.landing-instagram svg,
+.landing-learn-instagram svg { flex: 0 0 auto; }
+
 .landing-note {
   max-width: 620px;
   margin: 18px 0 0;
@@ -497,10 +516,36 @@ button, a, input { font: inherit; }
 }
 .btn-feedback:hover:not(:disabled) { background: #fff; border-color: var(--teal); }
 
+/* Occupies the grid's third column so Feedback and the Instagram icon travel
+ * together at the end of the bar. */
+.header-end {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 9px;
+}
+
 .header-feedback {
   position: static;
-  justify-self: end;
 }
+
+/* Borrows the Feedback button's shape so the two read as one control pair
+ * rather than a button with a stray link beside it. */
+.header-instagram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(10, 81, 87, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 2px 8px rgba(10, 81, 87, 0.08);
+  color: var(--teal-deep);
+  text-decoration: none;
+}
+.header-instagram:hover { border-color: var(--teal); background: #fff; color: var(--teal); }
 
 .btn-quiet { border-color: var(--border); color: var(--ink3); background: transparent; }
 .btn-quiet:hover:not(:disabled) { background: #fff; border-color: var(--pin); color: var(--pin); }
@@ -1867,11 +1912,16 @@ body.photo-lightbox-open { overflow: hidden; }
   }
   .app-logo-mobile img { width: 30px; height: 30px; }
   .app-logo-mobile strong { color: var(--pictayo-navy); }
+  /* A third column for the Instagram mark. Feedback is hidden at this width, so
+     the group is just the icon and stays at the end of the same row rather than
+     dropping to a second one. */
   .app-header-inner {
-    grid-template-columns: 83px minmax(0, 1fr);
+    grid-template-columns: 83px minmax(0, 1fr) auto;
     gap: 8px;
     padding: 5px 8px;
   }
+  .header-instagram { width: 32px; height: 32px; }
+  .header-instagram svg { width: 17px; height: 17px; }
   .app-actions {
     width: min(100%, 260px);
     justify-self: center;
@@ -1968,7 +2018,7 @@ body.photo-lightbox-open { overflow: hidden; }
 @media (max-width: 360px) {
   .app-logo-mobile { font-size: 12px; }
   .app-logo-mobile img { width: 27px; height: 27px; }
-  .app-header-inner { grid-template-columns: 71px minmax(0, 1fr); }
+  .app-header-inner { grid-template-columns: 71px minmax(0, 1fr) auto; }
   .app-actions .btn { font-size: 11px; }
 }
 
