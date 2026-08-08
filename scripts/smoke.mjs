@@ -1545,6 +1545,12 @@ if (!existsSync(fixturesDir)) {
   check('navigation: app controls and date strip stay pinned without overlap',
     styleSource.includes('.app-header {\n  position: sticky;') &&
       styleSource.includes('top: var(--app-header-height)'));
+  // Learn More explains what the app does and where data goes. That is no less
+  // worth reaching after an import than before one, and the footer is the only
+  // place it is offered — so nothing may hide it when the library appears.
+  check('navigation: the footer Learn More survives the switch to the library',
+    !mainSource.includes('landingLearn'),
+    'something is toggling the footer Learn More link again');
   check('navigation: long place names truncate with an ellipsis',
     styleSource.includes('text-overflow: ellipsis'));
   check('dialog: destructive action uses a compact bounded column',
@@ -1914,13 +1920,12 @@ if (!existsSync(dist)) {
       html.includes('class="header-instagram"') &&
       html.includes('class="footer-instagram"') &&
       html.includes('class="landing-learn-instagram"'));
-  // The footer's Learn More is hidden once photos are imported, so a link
-  // placed inside that span would vanish with it. Instagram sits outside.
+  // Instagram sits outside the Learn More span rather than within it, so the
+  // two are independent no matter what either one does.
   const learnSpanEnd = html.indexOf('Learn More</button></span>');
-  check('social: the footer Instagram link survives the library view',
+  check('social: the footer Instagram link closes after the Learn More span',
     learnSpanEnd !== -1 &&
-      html.indexOf('class="footer-instagram"') > learnSpanEnd,
-    'it must close after the Learn More span, which is hidden once photos exist');
+      html.indexOf('class="footer-instagram"') > learnSpanEnd);
   check('build: CSP allowlists every application network service',
     ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
       'overpass.private.coffee', 'en.wikipedia.org',

@@ -49,7 +49,6 @@ const el = {
   landingProgressBar: must('landing-progress-bar'),
   landingProgressFill: must('landing-progress-fill'),
   landingProgressLabel: must('landing-progress-label'),
-  landingLearn: must('landing-learn'),
 
   header: must('app-header'),
   main: must('app-main'),
@@ -361,7 +360,9 @@ function updateChrome(): void {
   const hasPhotos = count > 0;
 
   el.landing.hidden = hasPhotos;
-  el.landingLearn.hidden = hasPhotos;
+  // Learn More stays in the footer once a library exists. It explains what the
+  // app does and where data goes, which is no less worth reaching after import
+  // than before it — and the footer is the only place it is offered.
   el.header.hidden = !hasPhotos;
   el.main.hidden = !hasPhotos;
 
