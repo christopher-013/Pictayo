@@ -259,23 +259,41 @@ button, a, input { font: inherit; }
   font-weight: 700;
 }
 
-/* Shared by the start screen and the Learn More panel: a quiet text link with
- * the mark inline, rather than a second button competing with Choose Photos. */
-.landing-instagram,
+/* Sits in the footer beside the other links, so it takes their weight and
+ * colour and differs only by carrying the mark inline. `inline-flex` keeps the
+ * icon and label on one line and aligned to the text either side of them. */
+.footer-instagram {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--teal);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* Sits on the text baseline rather than riding above it, which is what an
+     inline-flex box does inside a line of prose by default. */
+  vertical-align: text-bottom;
+}
+.footer-instagram:hover { color: var(--teal-deep); }
+.footer-instagram:focus-visible {
+  outline: 3px solid rgba(1, 154, 160, 0.3);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* The Learn More panel's own link, below the privacy line that closes it. */
 .landing-learn-instagram {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  margin-top: 14px;
   color: var(--teal);
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
 }
-.landing-instagram { margin-top: 12px; }
-.landing-learn-instagram { margin-top: 14px; }
-.landing-instagram:hover,
 .landing-learn-instagram:hover { text-decoration: underline; }
-.landing-instagram svg,
+.footer-instagram svg,
 .landing-learn-instagram svg { flex: 0 0 auto; }
 
 .landing-note {

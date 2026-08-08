@@ -1912,8 +1912,15 @@ if (!existsSync(dist)) {
   check('social: the Instagram profile is linked from all three places',
     (html.match(/https:\/\/www\.instagram\.com\/pictayo_com\//g) || []).length === 3 &&
       html.includes('class="header-instagram"') &&
-      html.includes('class="landing-instagram"') &&
+      html.includes('class="footer-instagram"') &&
       html.includes('class="landing-learn-instagram"'));
+  // The footer's Learn More is hidden once photos are imported, so a link
+  // placed inside that span would vanish with it. Instagram sits outside.
+  const learnSpanEnd = html.indexOf('Learn More</button></span>');
+  check('social: the footer Instagram link survives the library view',
+    learnSpanEnd !== -1 &&
+      html.indexOf('class="footer-instagram"') > learnSpanEnd,
+    'it must close after the Learn More span, which is hidden once photos exist');
   check('build: CSP allowlists every application network service',
     ['api.bigdatacloud.net', 'overpass-api.de', 'overpass.kumi.systems',
       'overpass.private.coffee', 'en.wikipedia.org',
