@@ -45,8 +45,9 @@
 
     <section class="privacy-section">
       <h2>Usage counts</h2>
-      <p>When an import finishes, Pictayo adds 1 to a daily total, so we can tell the app is being used at all. The site is hosted as static files and keeps no visitor logs, so without this there is no way to know.</p>
-      <p>The request sends one word — <code>import</code> — and nothing else. There is no identifier, account, cookie, or device, browser, screen, or location detail, and nothing is stored that could be traced back to you or used to link one visit to another. What is kept is a single number per day. A tab that imports several times is counted once, and if you never import, no count is ever sent.</p>
+      <p>Pictayo adds 1 to a daily total at three moments: when you open the app, when an import finishes, and when you export an album. The site is hosted as static files and keeps no visitor logs, so without this there is no way to tell it is being used at all.</p>
+      <p>Each request sends one word — <code>open</code>, <code>import</code>, or <code>export</code> — and nothing else. There is no identifier, account, cookie, or device, browser, screen, or location detail. Nothing is stored that could be traced back to you, used to link one visit to another, or used to connect one of these counts to another: they are three separate tallies with nothing in common to join them on.</p>
+      <p>What is kept is a single number per day for each. Anything else reported from them — weekly and monthly figures, how many days had activity, averages per active day — is arithmetic on those numbers rather than extra information about you. A tab is counted once per event no matter how many times you repeat it.</p>
     </section>
 
     <section class="privacy-section">

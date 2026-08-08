@@ -23,7 +23,7 @@ import { exportSite } from './export/exportSite';
 import { confirmAction, initConfirmDialog } from './ui/confirmDialog';
 import { initFeedback } from './ui/feedback';
 import { initInfoDialogs } from './ui/infoDialogs';
-import { reportImportCompleted } from './usagePing';
+import { reportAppOpened, reportExportCompleted, reportImportCompleted } from './usagePing';
 
 /** Flush to IndexedDB in batches so a large import survives an early tab close. */
 const SAVE_BATCH_SIZE = 24;
@@ -76,6 +76,10 @@ const el = {
 void start();
 
 async function start(): Promise<void> {
+  // Counted at the top of startup rather than after restore, so a library that
+  // fails to load still registers that somebody arrived.
+  reportAppOpened();
+
   initConfirmDialog();
   initFeedback();
   initInfoDialogs();
@@ -282,6 +286,10 @@ async function handleExport(): Promise<void> {
     link.click();
     // Revoke on the next turn so the download has taken the reference.
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
+
+    // Counted only once the archive exists and the download has been handed
+    // over, so a failed export never reads as a successful one.
+    reportExportCompleted();
   } catch (error) {
     console.error('Export failed', error);
     setNotice('Export failed — see the browser console for details.');

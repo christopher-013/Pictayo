@@ -26,8 +26,18 @@ const API_PATH = '/api/feedback';
  * traced back to a person, because nothing about the person is ever received.
  */
 const PING_PATH = '/api/ping';
-/** The only event the counter accepts. Anything else is discarded. */
-const PING_EVENTS = new Set(['import']);
+/**
+ * The events the counter accepts. Anything else is discarded.
+ *
+ * Three separate tallies, never joined: nothing links an `open` to the `import`
+ * that may have followed it, because no request carries anything to join on.
+ * `import` needs a file picker driven, which is the strongest evidence of a
+ * person; `open` counts more bot traffic precisely because it needs nothing.
+ */
+const PING_EVENTS = new Set(['import', 'export', 'open']);
+/** Ordered for display: the funnel reads open, then import, then export. */
+const REPORTED_EVENTS = ['open', 'import', 'export'];
+const EVENT_LABELS = { open: 'Sessions', import: 'Imports', export: 'Exports' };
 /** A ping is two short fields; anything larger is not one. */
 const MAX_PING_BYTES = 512;
 /** Roughly 13 months, so a year-over-year digest still has something to read. */
@@ -36,11 +46,20 @@ const COUNT_TTL_SECONDS = 400 * 24 * 60 * 60;
 const DIGEST_ISSUE_TITLE = 'Pictayo usage log';
 const DIGEST_ISSUE_KEY = 'digest:issue';
 /**
- * Running total since counting began, kept alongside the per-day figures so the
- * log issue can show a current number without reading back every daily key.
- * Deliberately without a TTL — the daily keys expire, this does not.
+ * Lifetime figures, kept alongside the per-day ones. The daily keys expire, so
+ * anything meant to outlive them is maintained here as it happens rather than
+ * recomputed later from records that will be gone. None carry a TTL.
+ *
+ * `first` and `best` and `active` exist because they cannot be derived from a
+ * bounded window: a best day in 2026 is still the best day in 2027, and an
+ * average per active day needs every active day, not the last thirty.
  */
-const TOTAL_KEY = 'count:total:import';
+const totalKey = (event) => `count:total:${event}`;
+const firstDayKey = (event) => `stats:first:${event}`;
+const bestDayKey = (event) => `stats:best:${event}`;
+const activeDaysKey = (event) => `stats:active:${event}`;
+/** How far back the rolling windows look. Also caps the streak search. */
+const WINDOW_DAYS = 30;
 /**
  * The issue body is rewritten as imports arrive, so a burst of them would mean
  * a burst of GitHub writes. One update a minute is frequent enough to feel live
@@ -319,31 +338,38 @@ async function handlePing(request, env, ctx) {
   // alternative — a row per event — stores strictly more about visitors.
   const today = utcDate(new Date());
   const key = countKey(today, event);
-  let fresh = null;
+  let recorded = null;
   try {
-    const current = Number.parseInt((await counts.get(key)) || '0', 10);
-    const next = (Number.isFinite(current) ? current : 0) + 1;
+    const current = readInt(await counts.get(key));
+    const next = current + 1;
     await counts.put(key, String(next), { expirationTtl: COUNT_TTL_SECONDS });
 
     // The running total is what the log issue shows, so it is kept here rather
     // than recomputed by summing daily keys that eventually expire.
-    const totalNow = Number.parseInt((await counts.get(TOTAL_KEY)) || '0', 10);
-    const nextTotal = (Number.isFinite(totalNow) ? totalNow : 0) + 1;
-    await counts.put(TOTAL_KEY, String(nextTotal));
+    const nextTotal = readInt(await counts.get(totalKey(event))) + 1;
+    await counts.put(totalKey(event), String(nextTotal));
 
-    // Carry the numbers forward rather than letting the publisher read them
-    // back. KV is eventually consistent, so a read that follows its own write
-    // can still return the previous value — which published a freshly
-    // incremented counter as zero.
-    fresh = { total: nextTotal, today, todayCount: next };
+    // A day becoming active is the only moment these can change, so they are
+    // maintained here rather than recounted from history that expires.
+    if (current === 0) {
+      await counts.put(activeDaysKey(event), String(readInt(await counts.get(activeDaysKey(event))) + 1));
+      if (!(await counts.get(firstDayKey(event)))) await counts.put(firstDayKey(event), today);
+    }
+    const best = parseBest(await counts.get(bestDayKey(event)));
+    if (next > best.count) await counts.put(bestDayKey(event), `${today}:${next}`);
+
+    // KV is eventually consistent, so the publisher below can read back the
+    // values from before these writes. Hand it what was actually written and
+    // let it take the larger of the two, which can never under-report.
+    recorded = { event, day: today, count: next, total: nextTotal };
   } catch (error) {
     console.error('Usage counter could not record a ping', { message: String(error?.message || '') });
   }
 
-  // Publish after responding. The import has already finished for the person
-  // who triggered this, and nothing they see should wait on GitHub.
-  if (fresh && ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(syncLogIssue(env, counts, false, fresh));
+  // Publish after responding. Whatever the visitor was doing has already
+  // finished, and nothing they see should wait on GitHub.
+  if (recorded && ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(syncLogIssue(env, counts, false, recorded));
   }
 
   // Always no-content: the client neither needs nor reads an answer, and a
@@ -375,17 +401,15 @@ async function syncLogIssue(env, counts, force, fresh) {
     if (Number.isFinite(last) && Date.now() - last < ISSUE_SYNC_MIN_MS) return;
   }
 
-  const today = fresh?.today ?? utcDate(new Date());
-  const total = fresh
-    ? fresh.total
-    : Number.parseInt((await counts.get(TOTAL_KEY).catch(() => '0')) || '0', 10) || 0;
-  const todayCount = fresh
-    ? fresh.todayCount
-    : Number.parseInt((await counts.get(countKey(today, 'import')).catch(() => '0')) || '0', 10) || 0;
+  const today = utcDate(new Date());
+  const stats = [];
+  for (const name of REPORTED_EVENTS) {
+    stats.push(await eventStats(counts, name, today, fresh));
+  }
 
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const headers = githubHeaders(env);
-  const body = logIssueBody(total, today, todayCount);
+  const body = logIssueBody(stats, today);
   const issue = await ensureLogIssue(env, counts, repo, headers, body);
   if (!issue) return;
 
@@ -410,7 +434,7 @@ async function syncLogIssue(env, counts, force, fresh) {
       // Issues permission at all, which refuses commenting just as flatly. If
       // some future refusal applies only to editing, the figure still lands.
       if (response.status === 403) {
-        await commentRunningTotal(env, counts, repo, headers, issue, total, today, todayCount);
+        await commentRunningTotal(env, counts, repo, headers, issue, stats, today);
       }
       return;
     }
@@ -430,15 +454,13 @@ async function syncLogIssue(env, counts, force, fresh) {
  * one line that keeps changing, whereas a comment is permanent, so the same
  * cadence would bury the log in its own updates.
  */
-async function commentRunningTotal(env, counts, repo, headers, issue, total, today, todayCount) {
+async function commentRunningTotal(env, counts, repo, headers, issue, stats, today) {
   const last = Number.parseInt((await counts.get(COMMENT_SYNC_KEY).catch(() => '')) || '0', 10);
   if (Number.isFinite(last) && Date.now() - last < COMMENT_SYNC_MIN_MS) return;
 
   // Same shape as the daily comment, so the thread reads consistently whether
   // a line was written by the cron or by this fallback.
-  const line =
-    `**${today} (UTC)** — ${todayCount} session${todayCount === 1 ? '' : 's'} imported photos. ` +
-    `Running total: ${total}.`;
+  const line = `**${today} (UTC)** — ${dailySummary(stats)}`;
   try {
     const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}/comments`, {
       method: 'POST',
@@ -464,27 +486,123 @@ async function commentRunningTotal(env, counts, repo, headers, issue, total, tod
   }
 }
 
-function logIssueBody(total, today, todayCount) {
+/**
+ * Renders the whole board.
+ *
+ * Every column is either a stored counter or arithmetic on stored counters.
+ * Nothing here needed a new fact about a visitor to be collected, which is why
+ * the privacy notice reads the same after this table as it did before it.
+ */
+function logIssueBody(stats, today) {
+  const imports = stats.find((s) => s.event === 'import') ?? stats[0];
+  const rows = stats.map((s) =>
+    `| ${EVENT_LABELS[s.event]} | ${s.total} | ${s.today} | ${s.last7} | ${s.last30} | ` +
+    `${s.activeDays} | ${s.perActiveDay} | ${s.bestDay ? `${s.bestCount} on ${s.bestDay}` : '—'} |`);
+
   return [
-    `## Imports to date: ${total}`,
+    `## Imports to date: ${imports.total}`,
     '',
-    `Today (${today} UTC): ${todayCount}`,
+    `Today (${today} UTC): ${imports.today}`,
     '',
     // Without this the figure is unfalsifiable: a stalled publisher and a quiet
     // day look identical, and both look like a working counter.
     `_Updated ${new Date().toISOString()}_`,
     '',
+    '| | Total | Today | 7 days | 30 days | Active days | Avg/active day | Best day |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+    ...rows,
+    '',
+    `Active ${imports.activeDays} day${imports.activeDays === 1 ? '' : 's'} since ` +
+      `${imports.firstDay || '—'}${imports.streak > 0 ? `, currently ${imports.streak} day${imports.streak === 1 ? '' : 's'} running` : ''}.`,
+    '',
     '---',
     '',
     'Running log of anonymous usage counts, maintained by the Pictayo Worker.',
-    'The number above updates as imports arrive; the comments below are the',
+    'The figures above update as events arrive; the comments below are the',
     'daily history.',
     '',
-    'Each figure is the number of browser sessions that imported photos. There',
-    'is no identifier, cookie, IP, or device detail behind them — only totals',
-    'are stored, so only totals can be shown. Days with no imports are skipped',
-    'in the comments.',
+    'Three things are counted, and never joined to one another: sessions that',
+    'opened the app, sessions that imported photos, and sessions that exported',
+    'an album. There is no identifier, cookie, IP, or device detail behind any',
+    'of them — only daily totals are stored, so only totals can be shown, and',
+    'every other column here is arithmetic on those totals. Days with no',
+    'imports are skipped in the comments.',
   ].join('\n');
+}
+
+/** One line summarising a day across all three counters. */
+function dailySummary(stats) {
+  const parts = stats
+    .filter((s) => s.today > 0)
+    .map((s) => `${s.today} ${EVENT_LABELS[s.event].toLowerCase()}`);
+  const imports = stats.find((s) => s.event === 'import');
+  return `${parts.join(', ') || 'no activity'}. Running total: ${imports ? imports.total : 0} imports.`;
+}
+
+/**
+ * Everything known about one counter, from the stored figures plus a bounded
+ * window of daily keys. `fresh` is what the caller has just written; taking the
+ * larger of the two survives KV's eventual consistency without over-reporting.
+ */
+async function eventStats(counts, event, today, fresh) {
+  const override = fresh && fresh.event === event ? fresh : null;
+  const read = async (key) => readInt(await counts.get(key).catch(() => null));
+
+  let total = await read(totalKey(event));
+  if (override) total = Math.max(total, override.total);
+
+  // One read per day in the window. Bounded by WINDOW_DAYS, so this cannot grow
+  // with the age of the log the way summing all history would.
+  const days = [];
+  for (let i = 0; i < WINDOW_DAYS; i++) {
+    const day = utcDate(new Date(Date.parse(`${today}T00:00:00Z`) - i * 86_400_000));
+    let value = await read(countKey(day, event));
+    if (override && override.day === day) value = Math.max(value, override.count);
+    days.push(value);
+  }
+
+  const last7 = days.slice(0, 7).reduce((a, b) => a + b, 0);
+  const last30 = days.reduce((a, b) => a + b, 0);
+
+  // Counted from today backwards, stopping at the first blank day. Today being
+  // blank is not a broken streak yet, so the search starts at yesterday then.
+  let streak = 0;
+  for (let i = days[0] > 0 ? 0 : 1; i < days.length; i++) {
+    if (days[i] <= 0) break;
+    streak++;
+  }
+
+  const activeDays = Math.max(await read(activeDaysKey(event)), days.filter((d) => d > 0).length);
+  const best = parseBest(await counts.get(bestDayKey(event)).catch(() => null));
+  if (override && override.count > best.count) {
+    best.count = override.count;
+    best.day = override.day;
+  }
+
+  return {
+    event,
+    total,
+    today: days[0],
+    last7,
+    last30,
+    activeDays,
+    streak,
+    perActiveDay: activeDays > 0 ? (total / activeDays).toFixed(1) : '0.0',
+    bestDay: best.day,
+    bestCount: best.count,
+    firstDay: (await counts.get(firstDayKey(event)).catch(() => null)) || '',
+  };
+}
+
+function readInt(value) {
+  const parsed = Number.parseInt(value || '0', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/** Stored as `YYYY-MM-DD:count`, so a single key carries both halves. */
+function parseBest(value) {
+  const [day, count] = String(value || '').split(':');
+  return { day: day || '', count: readInt(count) };
 }
 
 function githubHeaders(env) {
@@ -548,19 +666,18 @@ async function sendDigest(env) {
   }
 
   const day = utcDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  const imports = Number.parseInt((await counts.get(countKey(day, 'import')).catch(() => '0')) || '0', 10) || 0;
+
+  // Yesterday's figures for every counter. `eventStats` is keyed on the day it
+  // is given, so the day's own column comes out right even though the lifetime
+  // ones are current.
+  const stats = [];
+  for (const name of REPORTED_EVENTS) stats.push(await eventStats(counts, name, day, null));
 
   // Quiet days are not news. Staying silent keeps the log to real signal and
-  // stops a daily "no imports" comment from training the inbox to ignore it.
-  if (imports === 0) return;
+  // stops a daily "no activity" comment from training the inbox to ignore it.
+  if (stats.every((s) => s.today === 0)) return;
 
-  // The running total travels with the day's figure. Read here rather than
-  // derived from the comments above it: the daily keys expire, so the thread
-  // stops being summable long before the total stops being interesting.
-  const total = Number.parseInt((await counts.get(TOTAL_KEY).catch(() => '0')) || '0', 10) || 0;
-  const line =
-    `**${day} (UTC)** — ${imports} session${imports === 1 ? '' : 's'} imported photos. ` +
-    `Running total: ${total}.`;
+  const line = `**${day} (UTC)** — ${dailySummary(stats)}`;
 
   await postDigestToGitHub(env, counts, line);
 
@@ -576,7 +693,7 @@ async function sendDigest(env) {
     try {
       // `content` is what Discord reads and `text` is what Slack reads, so one
       // body works with either without needing to know which was configured.
-      const plain = `Pictayo ${day}: ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
+      const plain = `Pictayo ${day}: ${dailySummary(stats)}`;
       await fetch(webhook, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -608,7 +725,14 @@ async function postDigestToGitHub(env, counts, line) {
   // The forced sync in sendDigest rewrites this body straight afterwards, so a
   // placeholder here only ever exists between two calls.
   const issue = await ensureLogIssue(
-    env, counts, repo, headers, logIssueBody(0, utcDate(new Date()), 0),
+    env, counts, repo, headers,
+    logIssueBody(
+      REPORTED_EVENTS.map((event) => ({
+        event, total: 0, today: 0, last7: 0, last30: 0, activeDays: 0,
+        streak: 0, perActiveDay: '0.0', bestDay: '', bestCount: 0, firstDay: '',
+      })),
+      utcDate(new Date()),
+    ),
   );
   if (!issue) return;
 

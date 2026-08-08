@@ -1614,7 +1614,13 @@ if (!existsSync(fixturesDir)) {
     .replace(/^\s*\/\/.*$/gm, '');
   const pingBody = pingCode.match(/body:\s*JSON\.stringify\(([^)]*)\)/)?.[1] ?? '';
   check('usage: the ping body carries only the event name',
-    /^\{\s*event:\s*'import'\s*\}$/.test(pingBody.trim()), pingBody.trim().slice(0, 80));
+    /^\{\s*event\s*\}$/.test(pingBody.trim()), pingBody.trim().slice(0, 80));
+  // Three tallies, and the union of what the client may ever send. A fourth
+  // added here without a matching line in the notice would be undisclosed.
+  check('usage: the client sends only the three disclosed events',
+    /type UsageEvent = 'open' \| 'import' \| 'export';/.test(pingSource) &&
+      ["report('open')", "report('import')", "report('export')"]
+        .every((call) => pingCode.includes(call)));
   for (const [label, needle] of [
     ['user agent', 'navigator.userAgent'], ['language', 'navigator.language'],
     ['timezone', 'timeZone'], ['screen size', 'screen.'],
@@ -1628,7 +1634,8 @@ if (!existsSync(fixturesDir)) {
   // is exactly what the notice says does not exist.
   check('usage: the ping stores a flag, never a generated identifier',
     !/crypto\.randomUUID|Math\.random/.test(pingCode) &&
-      pingCode.includes("sessionStorage.setItem(SESSION_FLAG, '1')"));
+      pingCode.includes("sessionStorage.setItem(flag, '1')") &&
+      /const flag = `\$\{SESSION_FLAG\}-\$\{event\}`;/.test(pingCode));
   check('usage: the ping sends no credentials',
     pingCode.includes("credentials: 'omit'") && pingCode.includes("referrerPolicy: 'no-referrer'"));
   check('usage: counting failures never surface to the user',
@@ -1650,28 +1657,33 @@ if (!existsSync(fixturesDir)) {
   check('usage worker: the client IP is never written to storage',
     !/counts\.put\([^)]*client/.test(feedbackWorkerSource) &&
       !/USAGE_COUNTS[\s\S]{0,200}CF-Connecting-IP/.test(feedbackWorkerSource));
-  check('usage worker: only the import event is accepted',
-    feedbackWorkerSource.includes("const PING_EVENTS = new Set(['import'])") &&
+  // The accepted set and the disclosed set must be the same set. Counting
+  // something the notice does not name is the failure this guards against.
+  check('usage worker: only the three disclosed events are accepted',
+    feedbackWorkerSource.includes("const PING_EVENTS = new Set(['import', 'export', 'open'])") &&
       feedbackWorkerSource.includes('if (!PING_EVENTS.has(event))'));
+  check('usage worker: each event keeps its own tally, joined to nothing',
+    /const totalKey = \(event\) => `count:total:\$\{event\}`;/.test(feedbackWorkerSource) &&
+      /const activeDaysKey = \(event\) => `stats:active:\$\{event\}`;/.test(feedbackWorkerSource));
 
   // The digest is the one place counts leave the Worker, and it writes to a
   // public issue. What it may say is therefore worth pinning down.
   const digestSource = feedbackWorkerSource.slice(feedbackWorkerSource.indexOf('async function sendDigest'));
   check('usage digest: quiet days are not posted',
-    /if \(imports === 0\) return;/.test(digestSource));
+    /if \(stats\.every\(\(s\) => s\.today === 0\)\) return;/.test(digestSource));
   check('usage digest: reuses the existing Issues-scoped token, adding no secret',
     digestSource.includes('env.GITHUB_TOKEN') &&
       digestSource.includes('/issues/${issue}/comments'));
   check('usage digest: the webhook is optional, not required',
     /const webhook = env\.DIGEST_WEBHOOK_URL;\s*\n\s*if \(webhook\)/.test(digestSource));
-  // A digest that could name a visitor would defeat the whole design, so the
-  // line it publishes must be built from the count and the date alone.
   // Each daily line carries the running total beside the day's figure, so the
   // thread stays readable once the daily keys have expired and the comments
   // above it can no longer be summed.
   check('usage digest: each daily line carries the running total',
-    /\$\{imports\} session\$\{imports === 1 \? '' : 's'\} imported photos\. ` \+\s*\n?\s*`Running total: \$\{total\}\./.test(digestSource) &&
-      /const total = Number\.parseInt\(\(await counts\.get\(TOTAL_KEY\)/.test(digestSource));
+    /const line = `\*\*\$\{day\} \(UTC\)\*\* — \$\{dailySummary\(stats\)\}`;/.test(digestSource) &&
+      /Running total: \$\{imports \? imports\.total : 0\} imports\./.test(feedbackWorkerSource));
+  // A digest that could name a visitor would defeat the whole design, so the
+  // line it publishes must be built from counts and a date alone.
   check('usage digest: publishes only a date and a count',
     !/userAgent|CF-Connecting-IP|client/.test(digestSource),
     'the published line must not be able to carry visitor detail');
@@ -1682,15 +1694,24 @@ if (!existsSync(fixturesDir)) {
   // of this system that writes to GitHub on a visitor's request rather than on
   // a timer. It must stay off the response path and stay throttled.
   check('usage: the running total is published after the response, not during it',
-    /ctx\.waitUntil\(syncLogIssue\(env, counts, false, fresh\)\)/.test(feedbackWorkerSource) &&
+    /ctx\.waitUntil\(syncLogIssue\(env, counts, false, recorded\)\)/.test(feedbackWorkerSource) &&
       /async function handlePing\(request, env, ctx\)/.test(feedbackWorkerSource));
   // KV is eventually consistent, so a read that follows its own write can hand
-  // back the old value. Publishing what was just computed is the only way the
-  // figure on the issue matches the increment that triggered it.
+  // back the old value. Taking the larger of the stored and the just-written
+  // figure is what stops a freshly raised counter publishing as zero, and can
+  // never over-report the way trusting the write alone might.
   check('usage: freshly counted figures are carried, not read back from KV',
-    /fresh = \{ total: nextTotal, today, todayCount: next \}/.test(feedbackWorkerSource) &&
-      /const total = fresh\s*\n?\s*\? fresh\.total/.test(feedbackWorkerSource) &&
-      /const todayCount = fresh\s*\n?\s*\? fresh\.todayCount/.test(feedbackWorkerSource));
+    /recorded = \{ event, day: today, count: next, total: nextTotal \}/.test(feedbackWorkerSource) &&
+      /total = Math\.max\(total, override\.total\)/.test(feedbackWorkerSource) &&
+      /value = Math\.max\(value, override\.count\)/.test(feedbackWorkerSource));
+  // Every column is arithmetic on stored daily counts. A window that grew with
+  // the age of the log would eventually read every key ever written.
+  check('usage: the rolling windows read a bounded number of days',
+    /const WINDOW_DAYS = 30;/.test(feedbackWorkerSource) &&
+      /for \(let i = 0; i < WINDOW_DAYS; i\+\+\)/.test(feedbackWorkerSource));
+  check('usage: lifetime figures are maintained, not recounted from expiring keys',
+    ['firstDayKey', 'bestDayKey', 'activeDaysKey'].every((fn) =>
+      new RegExp(`counts\\.put\\(${fn}\\(event\\)`).test(feedbackWorkerSource)));
   // A refusal from GitHub must carry its own explanation. A bare status sent
   // the last investigation through tokens and permissions that were never the
   // problem, and the body says which one it actually wants.
@@ -1713,13 +1734,16 @@ if (!existsSync(fixturesDir)) {
       /Date\.now\(\) - last < ISSUE_SYNC_MIN_MS\) return;/.test(feedbackWorkerSource));
   check('usage: the daily run forces a sync so the headline cannot lag the log',
     /await syncLogIssue\(env, counts, true\);/.test(feedbackWorkerSource));
-  check('usage: a lifetime total is stored rather than summed from expiring keys',
-    feedbackWorkerSource.includes("const TOTAL_KEY = 'count:total:import'") &&
-      !/counts\.put\(TOTAL_KEY[^)]*expirationTtl/.test(feedbackWorkerSource));
+  // Only the daily keys expire. Anything meant to outlive them must be written
+  // without a TTL, or a two-year-old total would quietly reset itself.
+  check('usage: lifetime figures are stored without an expiry',
+    !/counts\.put\(totalKey\(event\)[^)]*expirationTtl/.test(feedbackWorkerSource) &&
+      !/counts\.put\(activeDaysKey\(event\)[^)]*expirationTtl/.test(feedbackWorkerSource) &&
+      /counts\.put\(key, String\(next\), \{ expirationTtl: COUNT_TTL_SECONDS \}\)/.test(feedbackWorkerSource));
   // Same guarantee as the daily comment: the published body is built from
   // counts and a date, and has no parameter that could carry anything else.
   check('usage: the published issue body can only carry counts and a date',
-    /function logIssueBody\(total, today, todayCount\)/.test(feedbackWorkerSource) &&
+    /function logIssueBody\(stats, today\)/.test(feedbackWorkerSource) &&
       !/logIssueBody\([^)]*(?:client|userAgent|origin)/.test(feedbackWorkerSource));
   // One log issue, opened once and remembered. Losing the number would start a
   // second log, and both the ping path and the daily run go through here.
@@ -2037,6 +2061,14 @@ if (!existsSync(dist)) {
     privacyHtml.includes('Usage counts') && html.includes('Usage counts') &&
       privacyHtml.includes('a single number per day'),
     'the ping is in the build, so the notice must describe it');
+  // Naming the events is the disclosure. A counter the notice does not mention
+  // is undisclosed however carefully the rest of the section is worded.
+  for (const surface of [['privacy page', privacyHtml], ['in-app dialog', html]]) {
+    check(`build: the ${surface[0]} names every event that is counted`,
+      ['open', 'import', 'export'].every((event) =>
+        new RegExp(`[>“"<code>]${event}[<”",.]`).test(surface[1])),
+      'each counted event must appear by name in the notice');
+  }
   const manifest = JSON.parse(readFileSync(join(dist, 'site.webmanifest'), 'utf8'));
   check('build: web manifest uses the Pictayo launch identity',
     manifest.name === 'Pictayo' && manifest.short_name === 'Pictayo' &&

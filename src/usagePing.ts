@@ -29,21 +29,25 @@ const SESSION_FLAG = 'pictayo-import-counted';
 /** Short enough that a stalled counter never delays anything the user sees. */
 const PING_TIMEOUT_MS = 4_000;
 
+/** The three things counted. Each is a separate tally that is never joined. */
+type UsageEvent = 'open' | 'import' | 'export';
+
 /**
- * Records that this session imported media.
+ * Sends one ping for `event`, at most once per browser session.
  *
  * Never throws and never returns a rejected promise: counting is the least
  * important thing happening on this page, and a failure here must not surface
- * to someone who has just imported their photos successfully.
+ * to someone who has just used the app successfully.
  */
-export function reportImportCompleted(): void {
+function report(event: UsageEvent): void {
+  const flag = `${SESSION_FLAG}-${event}`;
   let alreadyCounted = false;
   try {
-    alreadyCounted = sessionStorage.getItem(SESSION_FLAG) === '1';
-    if (!alreadyCounted) sessionStorage.setItem(SESSION_FLAG, '1');
+    alreadyCounted = sessionStorage.getItem(flag) === '1';
+    if (!alreadyCounted) sessionStorage.setItem(flag, '1');
   } catch {
     // Private modes and blocked storage throw on access. Skip rather than
-    // count every import in the session, which would overstate use.
+    // count every occurrence in the session, which would overstate use.
     return;
   }
   if (alreadyCounted) return;
@@ -52,8 +56,8 @@ export function reportImportCompleted(): void {
     void fetch(PING_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'import' }),
-      // Survives the tab being closed moments after an import finishes.
+      body: JSON.stringify({ event }),
+      // Survives the tab being closed moments after the event.
       keepalive: true,
       // No cookies are set by the Worker, but say so explicitly rather than
       // relying on the default.
@@ -64,4 +68,25 @@ export function reportImportCompleted(): void {
   } catch {
     // Ignored on purpose.
   }
+}
+
+/**
+ * Records that this session opened the app.
+ *
+ * Counts more automated traffic than the other two, because it asks nothing of
+ * the visitor. It is worth having anyway: paired with imports it says how many
+ * people who arrive go on to use the thing.
+ */
+export function reportAppOpened(): void {
+  report('open');
+}
+
+/** Records that this session imported media. Needs a file picker driven. */
+export function reportImportCompleted(): void {
+  report('import');
+}
+
+/** Records that this session exported a standalone album. */
+export function reportExportCompleted(): void {
+  report('export');
 }
