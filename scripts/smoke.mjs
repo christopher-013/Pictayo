@@ -1666,10 +1666,18 @@ if (!existsSync(fixturesDir)) {
     /const webhook = env\.DIGEST_WEBHOOK_URL;\s*\n\s*if \(webhook\)/.test(digestSource));
   // A digest that could name a visitor would defeat the whole design, so the
   // line it publishes must be built from the count and the date alone.
+  // Each daily line carries the running total beside the day's figure, so the
+  // thread stays readable once the daily keys have expired and the comments
+  // above it can no longer be summed.
+  check('usage digest: each daily line carries the running total',
+    /\$\{imports\} session\$\{imports === 1 \? '' : 's'\} imported photos\. ` \+\s*\n?\s*`Running total: \$\{total\}\./.test(digestSource) &&
+      /const total = Number\.parseInt\(\(await counts\.get\(TOTAL_KEY\)/.test(digestSource));
   check('usage digest: publishes only a date and a count',
-    /const line = `\*\*\$\{day\}\*\* — \$\{imports\} session/.test(digestSource) &&
-      !/userAgent|CF-Connecting-IP|client/.test(digestSource),
+    !/userAgent|CF-Connecting-IP|client/.test(digestSource),
     'the published line must not be able to carry visitor detail');
+  check('usage: the body records when it was last written',
+    /_Updated \$\{new Date\(\)\.toISOString\(\)\}_/.test(feedbackWorkerSource),
+    'a stalled publisher and a quiet day are otherwise indistinguishable');
   // The running figure is published as imports arrive, which is the only part
   // of this system that writes to GitHub on a visitor's request rather than on
   // a timer. It must stay off the response path and stay throttled.

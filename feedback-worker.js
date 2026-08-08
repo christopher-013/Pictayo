@@ -405,10 +405,10 @@ async function syncLogIssue(env, counts, force, fresh) {
         status: response.status,
         detail,
       });
-      // A token allowed to file issues is not always allowed to edit them:
-      // this endpoint also edits pull requests, so GitHub weighs that
-      // permission too. Commenting needs nothing beyond what filing already
-      // needs, so publish that way rather than losing the figure entirely.
+      // Kept as insurance rather than as a fix for anything known: the 403 this
+      // was written for turned out to be a token carrying Actions write and no
+      // Issues permission at all, which refuses commenting just as flatly. If
+      // some future refusal applies only to editing, the figure still lands.
       if (response.status === 403) {
         await commentRunningTotal(env, counts, repo, headers, issue, total, today, todayCount);
       }
@@ -434,7 +434,11 @@ async function commentRunningTotal(env, counts, repo, headers, issue, total, tod
   const last = Number.parseInt((await counts.get(COMMENT_SYNC_KEY).catch(() => '')) || '0', 10);
   if (Number.isFinite(last) && Date.now() - last < COMMENT_SYNC_MIN_MS) return;
 
-  const line = `**${total}** imports to date — ${todayCount} today (${today} UTC).`;
+  // Same shape as the daily comment, so the thread reads consistently whether
+  // a line was written by the cron or by this fallback.
+  const line =
+    `**${today} (UTC)** — ${todayCount} session${todayCount === 1 ? '' : 's'} imported photos. ` +
+    `Running total: ${total}.`;
   try {
     const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}/comments`, {
       method: 'POST',
@@ -465,6 +469,10 @@ function logIssueBody(total, today, todayCount) {
     `## Imports to date: ${total}`,
     '',
     `Today (${today} UTC): ${todayCount}`,
+    '',
+    // Without this the figure is unfalsifiable: a stalled publisher and a quiet
+    // day look identical, and both look like a working counter.
+    `_Updated ${new Date().toISOString()}_`,
     '',
     '---',
     '',
@@ -546,7 +554,13 @@ async function sendDigest(env) {
   // stops a daily "no imports" comment from training the inbox to ignore it.
   if (imports === 0) return;
 
-  const line = `**${day}** — ${imports} session${imports === 1 ? '' : 's'} imported photos.`;
+  // The running total travels with the day's figure. Read here rather than
+  // derived from the comments above it: the daily keys expire, so the thread
+  // stops being summable long before the total stops being interesting.
+  const total = Number.parseInt((await counts.get(TOTAL_KEY).catch(() => '0')) || '0', 10) || 0;
+  const line =
+    `**${day} (UTC)** — ${imports} session${imports === 1 ? '' : 's'} imported photos. ` +
+    `Running total: ${total}.`;
 
   await postDigestToGitHub(env, counts, line);
 
