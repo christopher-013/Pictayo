@@ -49,6 +49,12 @@ const TOTAL_KEY = 'count:total:import';
 const ISSUE_SYNC_KEY = 'digest:issue-synced';
 const ISSUE_SYNC_MIN_MS = 60_000;
 /**
+ * The fallback used when the body cannot be edited. A comment is permanent
+ * where an edit is not, so it is throttled by the hour rather than the minute.
+ */
+const COMMENT_SYNC_KEY = 'digest:comment-synced';
+const COMMENT_SYNC_MIN_MS = 60 * 60_000;
+/**
  * Must track the repository's current name. GitHub answers a renamed repo with
  * a 301, and a followed redirect rewrites a POST into a GET — so a stale name
  * here would read the issue list, return 200, and report success without
@@ -392,12 +398,62 @@ async function syncLogIssue(env, counts, force, fresh) {
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
-      console.error('Usage counter could not update the log issue', { status: response.status });
+      // GitHub explains a refusal in the body. Without it a 403 is just a
+      // number, and the last one cost a long hunt through the wrong things.
+      const detail = (await response.text().catch(() => '')).slice(0, 200);
+      console.error('Usage counter could not update the log issue', {
+        status: response.status,
+        detail,
+      });
+      // A token allowed to file issues is not always allowed to edit them:
+      // this endpoint also edits pull requests, so GitHub weighs that
+      // permission too. Commenting needs nothing beyond what filing already
+      // needs, so publish that way rather than losing the figure entirely.
+      if (response.status === 403) {
+        await commentRunningTotal(env, counts, repo, headers, issue, total, today, todayCount);
+      }
       return;
     }
     await counts.put(ISSUE_SYNC_KEY, String(Date.now()));
   } catch (error) {
     console.error('Usage counter could not update the log issue', {
+      reason: String(error?.name || 'Error'),
+      message: String(error?.message || '').slice(0, 200),
+    });
+  }
+}
+
+/**
+ * Publishes the running figure as a comment when the body cannot be edited.
+ *
+ * Throttled far harder than the body rewrite it stands in for: an edit leaves
+ * one line that keeps changing, whereas a comment is permanent, so the same
+ * cadence would bury the log in its own updates.
+ */
+async function commentRunningTotal(env, counts, repo, headers, issue, total, today, todayCount) {
+  const last = Number.parseInt((await counts.get(COMMENT_SYNC_KEY).catch(() => '')) || '0', 10);
+  if (Number.isFinite(last) && Date.now() - last < COMMENT_SYNC_MIN_MS) return;
+
+  const line = `**${total}** imports to date — ${todayCount} today (${today} UTC).`;
+  try {
+    const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}/comments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ body: line }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => '')).slice(0, 200);
+      console.error('Usage counter could not comment the running total', {
+        status: response.status,
+        detail,
+      });
+      return;
+    }
+    await counts.put(COMMENT_SYNC_KEY, String(Date.now()));
+  } catch (error) {
+    console.error('Usage counter could not comment the running total', {
       reason: String(error?.name || 'Error'),
       message: String(error?.message || '').slice(0, 200),
     });

@@ -1683,6 +1683,20 @@ if (!existsSync(fixturesDir)) {
     /fresh = \{ total: nextTotal, today, todayCount: next \}/.test(feedbackWorkerSource) &&
       /const total = fresh\s*\n?\s*\? fresh\.total/.test(feedbackWorkerSource) &&
       /const todayCount = fresh\s*\n?\s*\? fresh\.todayCount/.test(feedbackWorkerSource));
+  // A refusal from GitHub must carry its own explanation. A bare status sent
+  // the last investigation through tokens and permissions that were never the
+  // problem, and the body says which one it actually wants.
+  check('usage: a refused publish records what GitHub said, not just a number',
+    (feedbackWorkerSource.match(/const detail = \(await response\.text\(\)\.catch\(\(\) => ''\)\)\.slice\(0, 200\);/g) || []).length >= 2);
+  // Editing an issue and filing one need different permissions, because the
+  // edit endpoint also edits pull requests. Commenting needs no more than
+  // filing does, so the count still reaches the log on a narrow token.
+  check('usage: a 403 on the body edit falls back to commenting',
+    /if \(response\.status === 403\) \{[\s\S]{0,160}commentRunningTotal\(/.test(feedbackWorkerSource) &&
+      /async function commentRunningTotal\(/.test(feedbackWorkerSource));
+  check('usage: the comment fallback is throttled by the hour, not the minute',
+    feedbackWorkerSource.includes('const COMMENT_SYNC_MIN_MS = 60 * 60_000') &&
+      /Date\.now\(\) - last < COMMENT_SYNC_MIN_MS\) return;/.test(feedbackWorkerSource));
   check('usage: the log issue is opened with real figures, never a zeroed body',
     /async function ensureLogIssue\(env, counts, repo, headers, initialBody\)/.test(feedbackWorkerSource) &&
       /const issue = await ensureLogIssue\(env, counts, repo, headers, body\);/.test(feedbackWorkerSource));
