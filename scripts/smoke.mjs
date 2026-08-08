@@ -1971,7 +1971,12 @@ if (!existsSync(dist)) {
     (html.match(/https:\/\/www\.instagram\.com\/pictayo_com\//g) || []).length === 3 &&
       html.includes('class="header-instagram"') &&
       html.includes('class="footer-instagram"') &&
-      html.includes('class="landing-learn-instagram"'));
+      html.includes('class="landing-learn-social"'));
+  // The underline belongs to the label, not the anchor, or it runs through the
+  // mark beside it. The span is what makes that possible; the stylesheet half
+  // is asserted below, where the built CSS is already in hand.
+  check('social: the Learn More link wraps its label so the mark stays clean',
+    /<a class="social-link"[\s\S]{0,600}<span>Follow Pictayo on Instagram\.<\/span><\/a>/.test(html));
   // Instagram sits outside the Learn More span rather than within it, so the
   // two are independent no matter what either one does.
   const learnSpanEnd = html.indexOf('Learn More</button></span>');
@@ -1995,6 +2000,11 @@ if (!existsSync(dist)) {
     html.includes('application/ld+json') && html.includes('SoftwareApplication') &&
       html.includes('PhotographyApplication') && html.includes('"operatingSystem": "Web"'));
   const appStyle = readFileSync(join('src', 'styles.css'), 'utf8');
+  // Paired with the markup check above: the anchor carries no underline so the
+  // mark is not struck through, and the label carries it instead.
+  check('social: only the Learn More label is underlined, never the mark',
+    /\.landing-learn-social \.social-link \{[^}]*text-decoration: none;/.test(appStyle) &&
+      /\.landing-learn-social \.social-link span \{[^}]*text-decoration: underline;/.test(appStyle));
   check('build: feedback has a top-right bubble, footer link, and in-app dialog',
     html.includes('class="btn btn-feedback header-feedback"') &&
       html.includes('class="footer-link" data-open-feedback') &&

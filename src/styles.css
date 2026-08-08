@@ -275,19 +275,27 @@ button, a, input { font: inherit; }
   border-radius: 2px;
 }
 
-/* The Learn More panel's own link, below the privacy line that closes it. */
-.landing-learn-instagram {
+/* The Learn More panel's own link, below the privacy line that closes it.
+ * The underline sits on the label rather than the anchor, so the mark beside it
+ * is not dragged through a line it has no business being on. */
+.landing-learn-social {
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+.landing-learn-social .social-link {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 14px;
+  gap: 8px;
   color: var(--teal);
-  font-size: 12px;
   font-weight: 800;
   text-decoration: none;
 }
-.landing-learn-instagram:hover { text-decoration: underline; }
-.landing-learn-instagram svg { flex: 0 0 auto; }
+.landing-learn-social .social-link span {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.landing-learn-social .social-link:hover { color: var(--teal-deep); }
+.landing-learn-social .instagram-glyph { flex: 0 0 auto; }
 
 .landing-note {
   max-width: 620px;
