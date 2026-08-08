@@ -1668,8 +1668,18 @@ if (!existsSync(fixturesDir)) {
   // of this system that writes to GitHub on a visitor's request rather than on
   // a timer. It must stay off the response path and stay throttled.
   check('usage: the running total is published after the response, not during it',
-    /ctx\.waitUntil\(syncLogIssue\(env, counts, false\)\)/.test(feedbackWorkerSource) &&
+    /ctx\.waitUntil\(syncLogIssue\(env, counts, false, fresh\)\)/.test(feedbackWorkerSource) &&
       /async function handlePing\(request, env, ctx\)/.test(feedbackWorkerSource));
+  // KV is eventually consistent, so a read that follows its own write can hand
+  // back the old value. Publishing what was just computed is the only way the
+  // figure on the issue matches the increment that triggered it.
+  check('usage: freshly counted figures are carried, not read back from KV',
+    /fresh = \{ total: nextTotal, today, todayCount: next \}/.test(feedbackWorkerSource) &&
+      /const total = fresh\s*\n?\s*\? fresh\.total/.test(feedbackWorkerSource) &&
+      /const todayCount = fresh\s*\n?\s*\? fresh\.todayCount/.test(feedbackWorkerSource));
+  check('usage: the log issue is opened with real figures, never a zeroed body',
+    /async function ensureLogIssue\(env, counts, repo, headers, initialBody\)/.test(feedbackWorkerSource) &&
+      /const issue = await ensureLogIssue\(env, counts, repo, headers, body\);/.test(feedbackWorkerSource));
   check('usage: issue updates are throttled so traffic cannot become API load',
     feedbackWorkerSource.includes('const ISSUE_SYNC_MIN_MS = 60_000') &&
       /Date\.now\(\) - last < ISSUE_SYNC_MIN_MS\) return;/.test(feedbackWorkerSource));
@@ -1687,11 +1697,11 @@ if (!existsSync(fixturesDir)) {
   // second log, and both the ping path and the daily run go through here.
   check('usage: the log issue is remembered rather than reopened',
     feedbackWorkerSource.includes("const DIGEST_ISSUE_KEY = 'digest:issue'") &&
-      /async function ensureLogIssue\(env, counts, repo, headers\)/.test(feedbackWorkerSource) &&
+      /async function ensureLogIssue\(env, counts, repo, headers, initialBody\)/.test(feedbackWorkerSource) &&
       /counts\.get\(DIGEST_ISSUE_KEY\)/.test(feedbackWorkerSource) &&
       /counts\.put\(DIGEST_ISSUE_KEY, String\(body\.number\)\)/.test(feedbackWorkerSource));
   check('usage: both the ping path and the daily run share one issue lookup',
-    (feedbackWorkerSource.match(/await ensureLogIssue\(env, counts, repo, headers\)/g) || []).length === 2);
+    (feedbackWorkerSource.match(/await ensureLogIssue\(\s*\n?\s*env, counts, repo, headers/g) || []).length === 2);
   check('usage digest: GitHub calls refuse redirects and time out',
     (digestSource.match(/redirect: 'manual'/g) || []).length >= 2 &&
       (digestSource.match(/AbortSignal\.timeout\(10_000\)/g) || []).length >= 2);

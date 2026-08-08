@@ -311,7 +311,9 @@ async function handlePing(request, env, ctx) {
   // the same value and lose one. That is acceptable here: the question is
   // whether people are using the app, not the exact number, and the
   // alternative — a row per event — stores strictly more about visitors.
-  const key = countKey(utcDate(new Date()), event);
+  const today = utcDate(new Date());
+  const key = countKey(today, event);
+  let fresh = null;
   try {
     const current = Number.parseInt((await counts.get(key)) || '0', 10);
     const next = (Number.isFinite(current) ? current : 0) + 1;
@@ -320,15 +322,22 @@ async function handlePing(request, env, ctx) {
     // The running total is what the log issue shows, so it is kept here rather
     // than recomputed by summing daily keys that eventually expire.
     const totalNow = Number.parseInt((await counts.get(TOTAL_KEY)) || '0', 10);
-    await counts.put(TOTAL_KEY, String((Number.isFinite(totalNow) ? totalNow : 0) + 1));
+    const nextTotal = (Number.isFinite(totalNow) ? totalNow : 0) + 1;
+    await counts.put(TOTAL_KEY, String(nextTotal));
+
+    // Carry the numbers forward rather than letting the publisher read them
+    // back. KV is eventually consistent, so a read that follows its own write
+    // can still return the previous value — which published a freshly
+    // incremented counter as zero.
+    fresh = { total: nextTotal, today, todayCount: next };
   } catch (error) {
     console.error('Usage counter could not record a ping', { message: String(error?.message || '') });
   }
 
   // Publish after responding. The import has already finished for the person
   // who triggered this, and nothing they see should wait on GitHub.
-  if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(syncLogIssue(env, counts, false));
+  if (fresh && ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(syncLogIssue(env, counts, false, fresh));
   }
 
   // Always no-content: the client neither needs nor reads an answer, and a
@@ -342,8 +351,14 @@ async function handlePing(request, env, ctx) {
  * The daily comments below it are the history; this is the figure you read
  * without scrolling. It publishes counts and a date and nothing else, because
  * counts and dates are the only things stored.
+ *
+ * `fresh` carries figures the caller has just written. KV is eventually
+ * consistent, so reading them back here can return the values from before the
+ * increment — which is how a counter that had just been raised was published as
+ * zero. The cron path passes nothing and reads, which is correct for it: by
+ * then the writes are long settled.
  */
-async function syncLogIssue(env, counts, force) {
+async function syncLogIssue(env, counts, force, fresh) {
   if (!env.GITHUB_TOKEN) {
     console.error('Usage counter cannot update the log issue without its GitHub secret');
     return;
@@ -354,20 +369,25 @@ async function syncLogIssue(env, counts, force) {
     if (Number.isFinite(last) && Date.now() - last < ISSUE_SYNC_MIN_MS) return;
   }
 
-  const today = utcDate(new Date());
-  const total = Number.parseInt((await counts.get(TOTAL_KEY).catch(() => '0')) || '0', 10) || 0;
-  const todayCount = Number.parseInt((await counts.get(countKey(today, 'import')).catch(() => '0')) || '0', 10) || 0;
+  const today = fresh?.today ?? utcDate(new Date());
+  const total = fresh
+    ? fresh.total
+    : Number.parseInt((await counts.get(TOTAL_KEY).catch(() => '0')) || '0', 10) || 0;
+  const todayCount = fresh
+    ? fresh.todayCount
+    : Number.parseInt((await counts.get(countKey(today, 'import')).catch(() => '0')) || '0', 10) || 0;
 
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const headers = githubHeaders(env);
-  const issue = await ensureLogIssue(env, counts, repo, headers);
+  const body = logIssueBody(total, today, todayCount);
+  const issue = await ensureLogIssue(env, counts, repo, headers, body);
   if (!issue) return;
 
   try {
     const response = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify({ body: logIssueBody(total, today, todayCount) }),
+      body: JSON.stringify({ body }),
       redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
     });
@@ -413,8 +433,14 @@ function githubHeaders(env) {
   };
 }
 
-/** Returns the log issue's number, opening it the first time. */
-async function ensureLogIssue(env, counts, repo, headers) {
+/**
+ * Returns the log issue's number, opening it the first time.
+ *
+ * The caller supplies the opening body so the issue is right the moment it
+ * appears. Creating it with zeros and correcting it a beat later would leave
+ * the first version of a public page saying nobody had used the app.
+ */
+async function ensureLogIssue(env, counts, repo, headers, initialBody) {
   const remembered = Number.parseInt((await counts.get(DIGEST_ISSUE_KEY).catch(() => '')) || '', 10);
   if (Number.isFinite(remembered) && remembered > 0) return remembered;
 
@@ -424,7 +450,7 @@ async function ensureLogIssue(env, counts, repo, headers) {
       headers,
       body: JSON.stringify({
         title: DIGEST_ISSUE_TITLE,
-        body: logIssueBody(0, utcDate(new Date()), 0),
+        body: initialBody,
       }),
       redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
@@ -509,7 +535,11 @@ async function postDigestToGitHub(env, counts, line) {
   }
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const headers = githubHeaders(env);
-  const issue = await ensureLogIssue(env, counts, repo, headers);
+  // The forced sync in sendDigest rewrites this body straight afterwards, so a
+  // placeholder here only ever exists between two calls.
+  const issue = await ensureLogIssue(
+    env, counts, repo, headers, logIssueBody(0, utcDate(new Date()), 0),
+  );
   if (!issue) return;
 
   try {
