@@ -1,4 +1,14 @@
 User-agent: *
 Allow: /
 
+# Bingbot honours the wildcard block above, but Bing Webmaster Tools reports a
+# site as healthier when it is named, and an explicit crawl-delay of 0 tells
+# Bing not to throttle itself on a site this small.
+User-agent: bingbot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Googlebot
+Allow: /
+
 Sitemap: https://pictayo.com/sitemap.xml

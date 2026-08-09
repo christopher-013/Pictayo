@@ -1967,8 +1967,11 @@ if (!existsSync(dist)) {
   // hosted badge would be blocked and a CSP entry is not worth an icon.
   check('social: the Instagram mark is drawn inline, not fetched',
     !/<img[^>]+instagram/i.test(html) && !html.includes('cdninstagram'));
+  // Three visible links plus the structured-data `sameAs`, which is what ties
+  // the profile to the site as one entity rather than a coincidence of names.
   check('social: the Instagram profile is linked from all three places',
-    (html.match(/https:\/\/www\.instagram\.com\/pictayo_com\//g) || []).length === 3 &&
+    (html.match(/https:\/\/www\.instagram\.com\/pictayo_com\//g) || []).length === 4 &&
+      html.includes('"sameAs": ["https://www.instagram.com/pictayo_com/"]') &&
       html.includes('class="header-instagram"') &&
       html.includes('class="footer-instagram"') &&
       html.includes('class="landing-learn-social"'));
@@ -2095,8 +2098,38 @@ if (!existsSync(dist)) {
     check('seo: the IndexNow key file ships and its name matches its contents',
       keyFiles.length === 1 &&
         readFileSync(join(dist, keyFiles[0]), 'utf8').trim() === keyFiles[0].replace(/\.txt$/i, ''));
+    const robots = readFileSync(join(dist, 'robots.txt'), 'utf8');
     check('seo: robots.txt points at the sitemap on the live host',
-      readFileSync(join(dist, 'robots.txt'), 'utf8').includes('https://pictayo.com/sitemap.xml'));
+      robots.includes('https://pictayo.com/sitemap.xml'));
+    check('seo: robots.txt names bingbot explicitly',
+      /User-agent: bingbot/i.test(robots) && /Crawl-delay: 0/i.test(robots));
+
+    // The reason Bing had no description to show: everything explaining the app
+    // sat inside a closed <dialog>, which crawlers index but discount. This
+    // must stay real, visible page text outside any dialog.
+    const aboutAt = html.indexOf('class="landing-about"');
+    const learnDialogAt = html.indexOf('id="learn-more-dialog"');
+    check('seo: the product description is visible page text, not dialog-only',
+      aboutAt !== -1 && aboutAt < learnDialogAt,
+      'the crawlable section must sit outside and before the dialogs');
+    check('seo: the visible section carries the substance, not a stub',
+      /<section class="landing-about"[\s\S]*?<\/section>/.test(html) &&
+        html.slice(aboutAt, html.indexOf('</section>', aboutAt)).length > 1800);
+
+    // FAQ markup is only honest if the answers are on the page. Google requires
+    // it, and a mismatch is a manual-action risk rather than a missed snippet.
+    const faqQuestions = [...html.matchAll(/"@type": "Question",\s*\n\s*"name": "([^"]+)"/g)]
+      .map((m) => m[1]);
+    check('seo: FAQ structured data is present',
+      html.includes('"@type": "FAQPage"') && faqQuestions.length >= 5);
+    check('seo: every FAQ question in the markup is also visible on the page',
+      faqQuestions.length > 0 &&
+        faqQuestions.every((q) => html.includes(`<dt>${q}</dt>`)),
+      faqQuestions.find((q) => !html.includes(`<dt>${q}</dt>`)) || `${faqQuestions.length} checked`);
+    // The name is mistaken for other products in search results, so the entity
+    // declares what else it is called.
+    check('seo: the entity declares alternate names and a social profile',
+      html.includes('"alternateName"') && html.includes('"sameAs"'));
     // The IndexNow key is public by design; the Bing one is a credential. The
     // difference is worth enforcing, because they sit in the same file.
     const indexNow = readFileSync(join('scripts', 'submit-indexnow.mjs'), 'utf8');
