@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Extensionless privacy URL on purpose. Cloudflare's asset handler serves
+  /privacy and answers /privacy.html with a 307 to it, so listing the .html
+  form pointed crawlers at a redirect and told them the canonical page was
+  somewhere other than where the canonical tag said it was.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://pictayo.com/</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://pictayo.com/privacy.html</loc>
-    <lastmod>2026-07-31</lastmod>
+    <loc>https://pictayo.com/privacy</loc>
+    <lastmod>2026-08-08</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

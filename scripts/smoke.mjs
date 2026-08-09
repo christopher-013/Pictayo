@@ -2071,6 +2071,33 @@ if (!existsSync(dist)) {
       privacyHtml.includes('Google Maps'));
   check('build: privacy page has its own restrictive CSP',
     privacyHtml.includes('Content-Security-Policy') && privacyHtml.includes("script-src 'none'"));
+  // The asset handler serves /privacy and answers /privacy.html with a 307.
+  // Listing or declaring the .html form points crawlers at a redirect and
+  // disagrees with what the page itself claims to be.
+  {
+    const sitemap = readFileSync(join(dist, 'sitemap.xml'), 'utf8');
+    const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    check('seo: no sitemap URL points at a redirect',
+      locs.length > 0 && locs.every((loc) => !loc.endsWith('.html')), locs.join(' '));
+    check('seo: the canonical, the sitemap, and the schema agree on the privacy URL',
+      privacyHtml.includes('rel="canonical" href="https://pictayo.com/privacy"') &&
+        locs.includes('https://pictayo.com/privacy') &&
+        html.includes('"privacyPolicy": "https://pictayo.com/privacy"'));
+    // A stale lastmod tells a crawler nothing has changed, which is the one
+    // thing it must not be told after a release.
+    const today = new Date().toISOString().slice(0, 10);
+    const stamps = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
+    check('seo: sitemap lastmod dates are not in the future',
+      stamps.length > 0 && stamps.every((d) => d <= today), stamps.join(' '));
+    // IndexNow proves ownership by serving the key at the site root, so the
+    // file has to ship. Its name is the key, which is why they must match.
+    const keyFiles = readdirSync(dist).filter((name) => /^[0-9a-f]{16,128}\.txt$/i.test(name));
+    check('seo: the IndexNow key file ships and its name matches its contents',
+      keyFiles.length === 1 &&
+        readFileSync(join(dist, keyFiles[0]), 'utf8').trim() === keyFiles[0].replace(/\.txt$/i, ''));
+    check('seo: robots.txt points at the sitemap on the live host',
+      readFileSync(join(dist, 'robots.txt'), 'utf8').includes('https://pictayo.com/sitemap.xml'));
+  }
   // Counting anything without saying so is the failure this guards against: the
   // ping ships in the bundle, so the disclosure has to ship with it.
   check('build: both privacy surfaces disclose the usage count',

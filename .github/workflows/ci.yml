@@ -46,3 +46,11 @@ jobs:
 
       - name: Smoke tests
         run: npm run fixtures && npm run smoke
+
+      # Asks Bing, Yandex, Seznam and Naver to re-crawl. Only on a real push to
+      # the deploy branch, never on a pull request, and never allowed to fail a
+      # run: search engines are told about the release, they do not gate it.
+      - name: Ping IndexNow
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        run: npm run indexnow
