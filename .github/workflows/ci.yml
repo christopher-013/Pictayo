@@ -53,4 +53,10 @@ jobs:
       - name: Ping IndexNow
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         continue-on-error: true
+        # Optional. Unset, the step still runs and IndexNow alone reaches Bing;
+        # the secret only adds the more direct submission. Passed as an
+        # environment variable rather than an argument so it stays out of the
+        # command line the runner prints.
+        env:
+          BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
         run: npm run indexnow

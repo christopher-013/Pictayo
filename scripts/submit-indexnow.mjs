@@ -28,31 +28,64 @@ async function readIndexNowKey() {
   return keyFile ? keyFile.replace(/\.txt$/i, '') : '';
 }
 
+/**
+ * Posts JSON and reports only the status.
+ *
+ * The caller may be sending a credential, so nothing here echoes the URL or the
+ * request: a key that reaches a build log is a key that has to be rotated.
+ */
+async function postJson(url, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    return { ok: response.ok, status: response.status };
+  } catch (error) {
+    return { ok: false, status: 0, error: error?.message || String(error) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const key = await readIndexNowKey();
 if (!key) {
   console.warn('No IndexNow key file in public/; skipping submission.');
-  process.exit(0);
+} else {
+  const result = await postJson('https://api.indexnow.org/IndexNow', {
+    host: HOST,
+    key,
+    keyLocation: `https://${HOST}/${key}.txt`,
+    urlList: URLS,
+  });
+  console.log(result.ok
+    ? `IndexNow accepted ${URLS.length} URL(s) (HTTP ${result.status}).`
+    : `IndexNow submission skipped (HTTP ${result.status}${result.error ? `: ${result.error}` : ''}).`);
 }
 
-const controller = new AbortController();
-const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-try {
-  const response = await fetch('https://api.indexnow.org/IndexNow', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({
-      host: HOST,
-      key,
-      keyLocation: `https://${HOST}/${key}.txt`,
-      urlList: URLS,
-    }),
-    signal: controller.signal,
-  });
-  console.log(response.ok
-    ? `IndexNow accepted ${URLS.length} URL(s) (HTTP ${response.status}).`
-    : `IndexNow declined the submission (HTTP ${response.status}).`);
-} catch (error) {
-  console.log(`IndexNow submission skipped: ${error?.message || error}`);
-} finally {
-  clearTimeout(timer);
+/*
+ * The Bing URL Submission API is a different thing from IndexNow above. Its key
+ * is a real credential from Bing Webmaster Tools, not a public ownership proof,
+ * so it is read from the environment and must never be committed.
+ *
+ * Bing's API takes it as a query parameter — its design, not a choice made here
+ * — which is precisely why the URL is never logged and never echoed on failure.
+ * Unset simply skips: IndexNow already reaches Bing, so this is a second, more
+ * direct nudge rather than the only route.
+ */
+const bingKey = process.env.BING_WEBMASTER_API_KEY;
+if (!bingKey) {
+  console.log('BING_WEBMASTER_API_KEY not set; skipping the Bing URL Submission API.');
+} else {
+  const result = await postJson(
+    `https://ssl.bing.com/webmaster/api.svc/json/SubmitUrlbatch?apikey=${encodeURIComponent(bingKey)}`,
+    { siteUrl: `https://${HOST}`, urlList: URLS },
+  );
+  console.log(result.ok
+    ? `Bing URL Submission accepted ${URLS.length} URL(s).`
+    : `Bing URL Submission skipped (HTTP ${result.status}).`);
 }

@@ -2097,6 +2097,18 @@ if (!existsSync(dist)) {
         readFileSync(join(dist, keyFiles[0]), 'utf8').trim() === keyFiles[0].replace(/\.txt$/i, ''));
     check('seo: robots.txt points at the sitemap on the live host',
       readFileSync(join(dist, 'robots.txt'), 'utf8').includes('https://pictayo.com/sitemap.xml'));
+    // The IndexNow key is public by design; the Bing one is a credential. The
+    // difference is worth enforcing, because they sit in the same file.
+    const indexNow = readFileSync(join('scripts', 'submit-indexnow.mjs'), 'utf8');
+    check('seo: the Bing key is read from the environment, never committed',
+      indexNow.includes('process.env.BING_WEBMASTER_API_KEY') &&
+        !/BING_WEBMASTER_API_KEY\s*=\s*['"][^'"]+['"]/.test(indexNow));
+    // Bing takes the key as a query parameter, so logging a URL or an error
+    // body here would put a live credential into the build log.
+    check('seo: a submission failure never echoes the URL that carried the key',
+      !/console\.(log|error|warn)\([^)]*apikey/i.test(indexNow) &&
+        !/console\.(log|error|warn)\([^)]*\burl\b/.test(indexNow) &&
+        /Bing URL Submission skipped \(HTTP \$\{result\.status\}\)/.test(indexNow));
   }
   // Counting anything without saying so is the failure this guards against: the
   // ping ships in the bundle, so the disclosure has to ship with it.
