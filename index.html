@@ -12,6 +12,11 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://api.bigdatacloud.net https://api-bdc.io https://overpass-api.de https://overpass.kumi.systems https://overpass.private.coffee https://en.wikipedia.org https://pictayo.cch13.workers.dev; frame-src https://maps.google.com https://www.google.com">
 <link rel="canonical" href="https://pictayo.com/">
+<!-- The .ico is first because the path is the point, not the declaration:
+     Bing's icon service fetches /favicon.ico by convention and shows a generic
+     globe when it 404s, whatever the head says. The PNG stays for browsers,
+     which prefer it. -->
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">

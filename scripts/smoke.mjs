@@ -2104,6 +2104,44 @@ if (!existsSync(dist)) {
     check('seo: robots.txt names bingbot explicitly',
       /User-agent: bingbot/i.test(robots) && /Crawl-delay: 0/i.test(robots));
 
+    // Bing's icon service fetches /favicon.ico by convention and shows a
+    // generic globe when it 404s, whatever the head declares. The path is the
+    // requirement, so the file has to exist at the site root.
+    // `base: './'` rewrites the href to a relative one, which resolves to the
+    // root from the pages that declare it. The file's location is what matters
+    // to a crawler, and the declaration is for browsers.
+    const icoPath = join(dist, 'favicon.ico');
+    check('seo: a root favicon.ico ships alongside the PNG',
+      existsSync(icoPath) && /href="\.?\/favicon\.ico"/.test(html));
+    if (existsSync(icoPath)) {
+      const ico = readFileSync(icoPath);
+      const entries = ico.readUInt16LE(4);
+      // A container that parses is the whole point: a malformed .ico is worse
+      // than none, because the crawler caches the failure.
+      check('seo: the favicon.ico container is well formed',
+        ico.readUInt16LE(0) === 0 && ico.readUInt16LE(2) === 1 && entries >= 3,
+        `reserved=${ico.readUInt16LE(0)} type=${ico.readUInt16LE(2)} entries=${entries}`);
+      const sizes = [];
+      let entriesValid = true;
+      for (let i = 0; i < entries; i += 1) {
+        const at = 6 + i * 16;
+        const size = ico.readUInt8(at) === 0 ? 256 : ico.readUInt8(at);
+        const length = ico.readUInt32LE(at + 8);
+        const offset = ico.readUInt32LE(at + 12);
+        sizes.push(size);
+        // Each entry must actually point at image data inside the file.
+        if (offset + length > ico.length || ico.readUInt32BE(offset) !== 0x89504e47) {
+          entriesValid = false;
+        }
+      }
+      check('seo: every favicon.ico entry points at real image data',
+        entriesValid, sizes.join(', '));
+      // 48 is what Bing and Google render at on a high-density screen; without
+      // it the 32 is upscaled and looks soft.
+      check('seo: favicon.ico carries 16, 32 and 48 px entries',
+        [16, 32, 48].every((size) => sizes.includes(size)), sizes.join(', '));
+    }
+
     // The reason Bing had no description to show: everything explaining the app
     // sat inside a closed <dialog>, which crawlers index but discount. This
     // must stay real, visible page text outside any dialog.

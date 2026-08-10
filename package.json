@@ -14,7 +14,8 @@
     "smoke": "node --import ./scripts/ts-resolve-register.mjs scripts/smoke.mjs",
     "verify": "npm run fixtures && npm run build && npm run smoke",
     "release": "node scripts/release.mjs",
-    "indexnow": "node scripts/submit-indexnow.mjs"
+    "indexnow": "node scripts/submit-indexnow.mjs",
+    "favicon": "node scripts/make-favicon.mjs"
   },
   "dependencies": {
     "exifr": "^7.1.3",

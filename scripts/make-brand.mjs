@@ -192,8 +192,10 @@ const transparentMascotAt = (size) =>
 await (await transparentMascotAt(192)).webp({ quality: 90, alphaQuality: 100 }).toFile(`${OUT}/mark.webp`);
 await (await transparentMascotAt(512)).png({ compressionLevel: 9 }).toFile(`${BRAND_OUT}/pictayo-mascot.png`);
 
-// Favicons stay PNG: still the safest bet for tab icons, and Apple's
-// home-screen icon wants an opaque background rather than transparency.
+// PNG for browsers, which prefer it, and Apple's home-screen icon wants an
+// opaque background rather than transparency. The root favicon.ico that Bing's
+// icon service insists on is built separately by make-favicon.mjs, from the
+// 512px file written below.
 await (await mascotAt(48)).png({ compressionLevel: 9 }).toFile(`${OUT}/favicon.png`);
 await (await mascotAt(180)).png({ compressionLevel: 9 }).toFile(`${OUT}/apple-touch-icon.png`);
 await (await mascotAt(192)).png({ compressionLevel: 9 }).toFile(`${OUT}/icon-192.png`);
