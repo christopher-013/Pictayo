@@ -18,7 +18,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const HOST = process.env.INDEXNOW_HOST || 'pictayo.com';
-const URLS = [`https://${HOST}/`, `https://${HOST}/privacy`];
+const URLS = [`https://${HOST}/`, `https://${HOST}/about`, `https://${HOST}/privacy`];
 const TIMEOUT_MS = 15_000;
 
 /** The key file's name is the key, so `public/` is the single source of truth. */

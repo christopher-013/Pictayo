@@ -113,9 +113,7 @@ button, a, input { font: inherit; }
   align-items: center;
   justify-content: flex-start;
   gap: 18px;
-  /* The bottom padding belongs to the hero rather than the page, so it keeps
-   * the actions off the fold instead of trailing the prose below them. */
-  padding: var(--landing-pad-top) 22px 56px;
+  padding: var(--landing-pad-top) 22px var(--landing-pad-bottom);
   background: var(--brand-gradient);
   background-attachment: fixed;
   text-align: center;
@@ -125,12 +123,8 @@ button, a, input { font: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Holds exactly one screen, whatever follows it, so the start screen looks
-   * the same as it did before the about section existed and that section
-   * begins below the fold rather than intruding on it. */
-  flex: 1 0 auto;
-  min-height: calc(100dvh - var(--landing-pad-top));
-  padding-bottom: var(--landing-pad-bottom);
+  /* Fills the screen so the actions below can sink to the bottom of it. */
+  flex: 1;
   /* Match Adtona's wide hero eyebrow so the promise reads as one line. */
   width: 100%;
   max-width: 1180px;
@@ -307,51 +301,6 @@ button, a, input { font: inherit; }
 }
 .landing-learn-social .social-link:hover { color: var(--teal-deep); }
 .landing-learn-social .instagram-glyph { flex: 0 0 auto; }
-
-/* Below the fold on purpose: the start screen is unchanged for anyone who came
- * to use the app, while a crawler finds real prose instead of a closed dialog.
- * It lives inside `.landing`, so it disappears with the start screen once a
- * library exists and never intrudes on the app view. */
-.landing-about {
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 64px 4px 8px;
-  color: #43585a;
-  font-size: 14px;
-  line-height: 1.68;
-  text-align: left;
-}
-.landing-about h2 {
-  margin: 0 0 14px;
-  color: var(--pictayo-navy-dark);
-  font-size: 21px;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-}
-.landing-about h3 {
-  margin: 26px 0 8px;
-  color: var(--pictayo-navy-dark);
-  font-size: 15px;
-}
-.landing-about p { margin: 0 0 12px; }
-.landing-about ol,
-.landing-about ul { margin: 0; padding-left: 20px; }
-.landing-about li { margin-bottom: 7px; }
-.landing-about strong { color: #26403f; }
-
-.landing-faq { margin: 0; }
-.landing-faq dt {
-  margin-top: 14px;
-  color: var(--pictayo-navy-dark);
-  font-weight: 800;
-}
-.landing-faq dd { margin: 4px 0 0; }
-
-@media (max-width: 560px) {
-  .landing-about { padding-top: 44px; font-size: 13px; }
-  .landing-about h2 { font-size: 19px; }
-}
 
 .landing-note {
   max-width: 620px;

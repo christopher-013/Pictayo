@@ -1861,7 +1861,7 @@ if (!existsSync(dist)) {
   for (const required of ['favicon.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png',
     'logo.webp', 'mark.webp', 'assets/branding/pictayo-logo.png',
     'assets/branding/pictayo-mascot.png',
-    'robots.txt', 'sitemap.xml', 'site.webmanifest', 'privacy.html', 'privacy.css']) {
+    'robots.txt', 'sitemap.xml', 'site.webmanifest', 'privacy.html', 'page.css', 'about.html']) {
     check(`build: ships ${required}`, existsSync(join(dist, required)));
   }
 
@@ -2082,6 +2082,8 @@ if (!existsSync(dist)) {
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
     check('seo: no sitemap URL points at a redirect',
       locs.length > 0 && locs.every((loc) => !loc.endsWith('.html')), locs.join(' '));
+    check('seo: the about page is in the sitemap',
+      locs.includes('https://pictayo.com/about'), locs.join(' '));
     check('seo: the canonical, the sitemap, and the schema agree on the privacy URL',
       privacyHtml.includes('rel="canonical" href="https://pictayo.com/privacy"') &&
         locs.includes('https://pictayo.com/privacy') &&
@@ -2142,28 +2144,36 @@ if (!existsSync(dist)) {
         [16, 32, 48].every((size) => sizes.includes(size)), sizes.join(', '));
     }
 
-    // The reason Bing had no description to show: everything explaining the app
-    // sat inside a closed <dialog>, which crawlers index but discount. This
-    // must stay real, visible page text outside any dialog.
-    const aboutAt = html.indexOf('class="landing-about"');
-    const learnDialogAt = html.indexOf('id="learn-more-dialog"');
-    check('seo: the product description is visible page text, not dialog-only',
-      aboutAt !== -1 && aboutAt < learnDialogAt,
-      'the crawlable section must sit outside and before the dialogs');
-    check('seo: the visible section carries the substance, not a stub',
-      /<section class="landing-about"[\s\S]*?<\/section>/.test(html) &&
-        html.slice(aboutAt, html.indexOf('</section>', aboutAt)).length > 1800);
+    // Bing had no description to show because everything explaining the app sat
+    // inside a closed <dialog>, which crawlers index but discount. The answer is
+    // a real page, not a section bolted under the start screen: the app view
+    // stays uncluttered and the prose is somewhere that can rank on its own.
+    const aboutHtml = readFileSync(join(dist, 'about.html'), 'utf8');
+    // Comments stripped: the page explains why a dialog is the wrong place for
+    // this copy, and naming it there would otherwise trip the check.
+    const aboutMarkup = aboutHtml.replace(/<!--[\s\S]*?-->/g, '');
+    check('seo: the product description lives on a crawlable page of its own',
+      aboutMarkup.length > 3000 &&
+        aboutMarkup.includes('rel="canonical" href="https://pictayo.com/about"') &&
+        !aboutMarkup.includes('<dialog'));
+    check('seo: the start screen no longer carries the prose',
+      !html.includes('landing-about'), 'the crawlable copy belongs on /about');
+    check('seo: the start screen links to it, or nothing points there',
+      html.includes('href="/about"') || html.includes('href="./about"'));
 
-    // FAQ markup is only honest if the answers are on the page. Google requires
-    // it, and a mismatch is a manual-action risk rather than a missed snippet.
-    const faqQuestions = [...html.matchAll(/"@type": "Question",\s*\n\s*"name": "([^"]+)"/g)]
+    // FAQ markup is only honest if the answers are on the page carrying it.
+    // Google requires that, and a mismatch is a manual-action risk rather than
+    // a missed snippet — so the two are compared on the same document.
+    const faqQuestions = [...aboutHtml.matchAll(/"@type": "Question",\s*\n\s*"name": "([^"]+)"/g)]
       .map((m) => m[1]);
-    check('seo: FAQ structured data is present',
-      html.includes('"@type": "FAQPage"') && faqQuestions.length >= 5);
-    check('seo: every FAQ question in the markup is also visible on the page',
+    check('seo: FAQ structured data is present on the about page',
+      aboutHtml.includes('"@type": "FAQPage"') && faqQuestions.length >= 5);
+    check('seo: every FAQ question in the markup is visible on that same page',
       faqQuestions.length > 0 &&
-        faqQuestions.every((q) => html.includes(`<dt>${q}</dt>`)),
-      faqQuestions.find((q) => !html.includes(`<dt>${q}</dt>`)) || `${faqQuestions.length} checked`);
+        faqQuestions.every((q) => aboutHtml.includes(`<dt>${q}</dt>`)),
+      faqQuestions.find((q) => !aboutHtml.includes(`<dt>${q}</dt>`)) || `${faqQuestions.length} checked`);
+    check('seo: the index no longer claims FAQ content it does not show',
+      !html.includes('"@type": "FAQPage"'));
     // The name is mistaken for other products in search results, so the entity
     // declares what else it is called.
     check('seo: the entity declares alternate names and a social profile',

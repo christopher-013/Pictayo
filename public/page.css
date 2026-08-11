@@ -70,6 +70,16 @@ ul { margin: 8px 0 14px; padding-left: 24px; }
 .privacy-lead { color: var(--muted); font-size: 18px; }
 .privacy-updated { margin-top: 32px; color: var(--muted); font-size: 13px; }
 
+.privacy-section ol { margin: 8px 0 14px; padding-left: 24px; }
+.privacy-section li { margin-bottom: 7px; }
+
+/* The question is the thing being scanned for, so it carries the weight and
+   the answer sits quietly under it. */
+.page-faq { margin: 0; }
+.page-faq dt { margin-top: 16px; color: var(--deep); font-weight: 800; }
+.page-faq dt:first-child { margin-top: 0; }
+.page-faq dd { margin: 4px 0 0; }
+
 a { color: var(--teal); font-weight: 750; text-underline-offset: 3px; }
 .privacy-back { display: inline-block; margin-top: 8px; }
 
