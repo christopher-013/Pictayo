@@ -2178,6 +2178,28 @@ if (!existsSync(dist)) {
     // declares what else it is called.
     check('seo: the entity declares alternate names and a social profile',
       html.includes('"alternateName"') && html.includes('"sameAs"'));
+
+    // Bing reports a second h1 as an error: two top-level headings leave a
+    // crawler without a single statement of what the page is about. The
+    // tagline is that statement; the header logo is branding.
+    // Comments stripped: a parser does not see them, and a comment explaining
+    // the rule would otherwise be counted as breaking it.
+    for (const [label, doc] of [['index', html], ['about page', aboutHtml], ['privacy page', privacyHtml]]) {
+      const headings = (doc.replace(/<!--[\s\S]*?-->/g, '').match(/<h1\b/g) || []).length;
+      check(`seo: the ${label} has exactly one h1`, headings === 1, `${headings} found`);
+    }
+    // A content image with an empty alt reads as an oversight. Decorative ones
+    // are exempt, but only when something else names them.
+    const images = [...html.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    const unnamed = images.filter((tag) => {
+      const alt = tag.match(/\balt="([^"]*)"/);
+      if (!alt) return true;
+      if (alt[1].trim()) return false;
+      // Empty alt is correct only where a label already exists nearby.
+      return !new RegExp(`aria-label="[^"]+"[^>]*>\\s*${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(html);
+    });
+    check('seo: every image is either described or explicitly decorative',
+      unnamed.length === 0, unnamed[0] || `${images.length} checked`);
     // The IndexNow key is public by design; the Bing one is a credential. The
     // difference is worth enforcing, because they sit in the same file.
     const indexNow = readFileSync(join('scripts', 'submit-indexnow.mjs'), 'utf8');

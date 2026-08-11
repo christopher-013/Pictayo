@@ -156,10 +156,14 @@
 
 <header class="app-header" id="app-header" hidden>
   <div class="app-header-inner">
-    <h1 class="app-logo">
+    <!-- Branding, not a heading. The page's single top-level heading is the
+         tagline on the start screen; a second one here gave the document two,
+         which Bing reports as an error and which leaves a crawler without one
+         statement of what the page is about. -->
+    <div class="app-logo">
       <img class="app-logo-full" src="/logo.webp" alt="Pictayo logo featuring a white Maltipoo taking a photo beside a Mount Fuji picture, map, and location pin" width="760" height="608" decoding="async">
       <span class="app-logo-mobile" aria-label="Pictayo"><img src="/mark.webp" alt="" width="192" height="192" decoding="async"><span><strong>Pic</strong>tayo</span></span>
-    </h1>
+    </div>
     <div class="app-actions">
       <button type="button" class="btn btn-primary" id="btn-add-more"><span class="desktop-action-label">Add photos &amp; videos</span><span class="mobile-action-label">Add</span></button>
       <button type="button" class="btn" id="btn-add-folder-more">Add folder</button>
@@ -369,7 +373,11 @@
     <div class="photo-lightbox-stage" id="photo-lightbox-stage">
       <button type="button" class="photo-lightbox-close" id="photo-lightbox-close" aria-label="Close">×</button>
       <button type="button" class="photo-lightbox-nav prev" id="photo-lightbox-prev" aria-label="Previous">‹</button>
-      <img class="photo-lightbox-media" id="photo-lightbox-image" alt="">
+      <!-- Replaced with the photo's own title the moment one is opened. The
+           static value describes what the element holds, because a content
+           image with an empty alt reads as an oversight to a crawler — unlike
+           the mascot mark above, which is decorative and correctly empty. -->
+      <img class="photo-lightbox-media" id="photo-lightbox-image" alt="The opened photo">
       <!-- Both live in the DOM; whichever the current item needs is shown. -->
       <video class="photo-lightbox-media" id="photo-lightbox-video" controls playsinline hidden></video>
       <button type="button" class="photo-lightbox-nav next" id="photo-lightbox-next" aria-label="Next">›</button>
