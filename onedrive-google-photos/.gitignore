@@ -1,0 +1,7 @@
+config.json
+inventory/
+logs/
+state/
+cache/
+*.local
+
