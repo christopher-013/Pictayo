@@ -47,8 +47,10 @@
     <section class="privacy-section">
       <h2>Usage counts</h2>
       <p>Pictayo adds 1 to a daily total at three moments: when you open the app, when an import finishes, and when you export an album. The site is hosted as static files and keeps no visitor logs, so without this there is no way to tell it is being used at all.</p>
-      <p>Each request sends one word — <code>open</code>, <code>import</code>, or <code>export</code> — and nothing else. There is no identifier, account, cookie, or device, browser, screen, or location detail. Nothing is stored that could be traced back to you, used to link one visit to another, or used to connect one of these counts to another: they are three separate tallies with nothing in common to join them on.</p>
-      <p>What is kept is a single number per day for each. Anything else reported from them — weekly and monthly figures, how many days had activity, averages per active day — is arithmetic on those numbers rather than extra information about you. A tab is counted once per event no matter how many times you repeat it.</p>
+      <p>Each request sends one word — <code>open</code>, <code>import</code>, or <code>export</code> — and nothing else. There is no identifier, account, cookie, or device, browser, screen, or location detail.</p>
+      <p>What is kept is the word, the UTC time it arrived, and the two-letter country Cloudflare resolved the request to, plus a running count per day. The country is derived from your network address and the address is then discarded; it is never stored, and when the country cannot be determined nothing is recorded in its place.</p>
+      <p>Because the entries are timed, ones close together read as a single visit — the app opening at 09:14 followed by an import at 09:15 is plainly the same session — so the log shows the shape of a visit as well as how many there were.</p>
+      <p>It still holds nothing that could be traced back to you: no address, cookie, account, browser or device is stored, a country is shared by everyone using the app from it, nothing distinguishes one visitor from another, and nothing connects a visit on one day to a visit on any other. Anything else reported — weekly and monthly figures, how many days had activity, averages per active day — is arithmetic on those entries rather than extra information about you. A tab is counted once per event no matter how many times you repeat it.</p>
     </section>
 
     <section class="privacy-section">

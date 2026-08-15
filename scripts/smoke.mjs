@@ -1680,8 +1680,12 @@ if (!existsSync(fixturesDir)) {
   // thread stays readable once the daily keys have expired and the comments
   // above it can no longer be summed.
   check('usage digest: each daily line carries the running total',
-    /const line = `\*\*\$\{day\} \(UTC\)\*\* — \$\{dailySummary\(stats\)\}`;/.test(digestSource) &&
+    /const summary = `\*\*\$\{day\} \(UTC\)\*\* — \$\{dailySummary\(stats\)\}`;/.test(digestSource) &&
       /Running total: \$\{imports \? imports\.total : 0\} imports\./.test(feedbackWorkerSource));
+  // The summary heading is followed by the day's own events, so the log answers
+  // when something happened and not only how often.
+  check('usage digest: the day summary is followed by its timeline',
+    /const line = timeline \? `\$\{summary\}\\n\\n\$\{timeline\}` : summary;/.test(digestSource));
   // A digest that could name a visitor would defeat the whole design, so the
   // line it publishes must be built from counts and a date alone.
   check('usage digest: publishes only a date and a count',
