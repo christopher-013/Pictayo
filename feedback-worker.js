@@ -812,6 +812,44 @@ function requestCountry(request) {
 }
 
 /**
+ * What each event is called in the log. Separate from EVENT_LABELS, which are the
+ * plural column headings the daily summary counts with ("3 trips"); these are the
+ * announcement a single entry makes.
+ */
+const EVENT_LOG_LABELS = {
+  open: 'New Session Started',
+  import: 'New Pictures Imported',
+  export: 'New Pictures Exported'
+};
+/**
+ * Entries carry Pacific time beside UTC because that is where they are read from.
+ *
+ * The zone abbreviation is formatted rather than hardcoded: America/Los_Angeles is
+ * PST for part of the year and PDT for the rest, so a fixed "PST" label would be
+ * wrong for eight months of it. h23 keeps midnight as 00 rather than 24.
+ */
+const PACIFIC_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+  timeZoneName: 'short'
+});
+
+function pacificTime(at) {
+  try {
+    const parts = PACIFIC_FORMAT.formatToParts(at);
+    const value = (type) => parts.find((part) => part.type === type)?.value || '';
+    const clock = `${value('hour')}:${value('minute')}:${value('second')}`;
+    return { clock, zone: value('timeZoneName') || 'PT' };
+  } catch {
+    // A runtime without the tz database should cost the entry its local time, not the entry.
+    return { clock: '', zone: '' };
+  }
+}
+
+/**
  * Records one event as its own KV key.
  *
  * The first version appended to a single key per day, which lost lines badly.
@@ -821,18 +859,36 @@ function requestCountry(request) {
  * key per event has no read and nothing to clobber.
  *
  * The key is the millisecond plus a random suffix, so keys sort in the order the
- * events happened and two in the same millisecond cannot collide. The value
- * carries everything the log renders, so listing keys is enough to rebuild a day.
+ * events happened and two in the same millisecond cannot collide. The value is
+ * pipe-separated because a country can be absent and positions must still line
+ * up: `utc|pacific|zone|event|country`.
  */
 async function appendEventLog(counts, day, event, at, country) {
-  const time = at.toISOString().slice(11, 19);
+  const utc = at.toISOString().slice(11, 19);
+  const pacific = pacificTime(at);
   const ordinal = String(at.getTime()).padStart(14, '0');
   const unique = Math.random().toString(36).slice(2, 8);
   await counts.put(
     `${EVENT_LOG_PREFIX}${day}:${ordinal}-${unique}`,
-    country ? `${time} ${event} ${country}` : `${time} ${event}`,
+    [utc, pacific.clock, pacific.zone, event, country || ''].join('|'),
     { expirationTtl: COUNT_TTL_SECONDS }
   );
+}
+
+/**
+ * Parses a stored entry.
+ *
+ * Entries written before the format changed are space-separated and carry only a
+ * UTC time, so they are read on their own terms rather than being dropped or
+ * shown as garbage: a day already in the log keeps rendering.
+ */
+function parseEventLogEntry(value) {
+  if (value.includes('|')) {
+    const [utc, pacific, zone, event, country] = value.split('|');
+    return { utc, pacific, zone, event, country };
+  }
+  const [utc, event, country] = value.split(' ');
+  return { utc, pacific: '', zone: '', event, country: country || '' };
 }
 
 /** Reads back a day's events in the order they happened. */
@@ -860,34 +916,38 @@ async function readEventLog(counts, day) {
  * falls back to the summary line alone.
  */
 async function eventLogLines(counts, day, totalToday) {
-  const { entries: lines = [], overflowed = false } = (await readEventLog(counts, day).catch(() => ({}))) || {};
-  if (!lines.length) return '';
+  const { entries = [], overflowed = false } = (await readEventLog(counts, day).catch(() => ({}))) || {};
+  if (!entries.length) return '';
+  const parsed = entries.map(parseEventLogEntry);
+
   // A long day is unreadable for origin, so lead with the tally.
   const byCountry = new Map();
-  for (const line of lines) {
-    const country = line.split(' ')[2];
-    if (country) byCountry.set(country, (byCountry.get(country) || 0) + 1);
+  for (const entry of parsed) {
+    if (entry.country) byCountry.set(entry.country, (byCountry.get(entry.country) || 0) + 1);
   }
   const origins = [...byCountry.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([country, count]) => `${country} ${count}`)
     .join(' · ');
 
-  const rendered = lines.map((line) => {
-    const [time, event, country] = line.split(' ');
-    const label = EVENT_LABELS[event] ? EVENT_LABELS[event].replace(/s$/, '') : event;
-    return `- \`${time}\` UTC — ${label}${country ? ` · ${country}` : ''}`;
+  const rendered = parsed.map((entry) => {
+    const name = EVENT_LOG_LABELS[entry.event] || `New ${entry.event}`;
+    const when = entry.pacific
+      ? `\`${entry.utc}\` UTC / \`${entry.pacific}\` ${entry.zone}`
+      : `\`${entry.utc}\` UTC`;
+    return `- **${name}** — ${when} · Country Origin: ${entry.country || 'unknown'}`;
   });
+
   // The counters and the log can disagree for two very different reasons, and
   // blaming the cap for both was wrong: a day whose events predate per-event
   // logging is not a day that overflowed.
-  const missing = totalToday - lines.length;
+  const missing = totalToday - parsed.length;
   if (overflowed) {
     rendered.push(`- …and ${Math.max(missing, 1)} more, past the ${MAX_LOG_ENTRIES_PER_DAY}-line listing cap.`);
   } else if (missing > 0) {
     rendered.push(`- …and ${missing} more counted today but not listed individually.`);
   }
-  return origins ? `From: ${origins}\n\n${rendered.join('\n')}` : rendered.join('\n');
+  return origins ? `Origins: ${origins}\n\n${rendered.join('\n')}` : rendered.join('\n');
 }
 
 function allowedOrigins(value) {
