@@ -812,19 +812,46 @@ function requestCountry(request) {
 }
 
 /**
- * Appends `HH:MM:SS event` to the day's log.
+ * Records one event as its own KV key.
  *
- * Like the counters this is read-modify-write and so can lose a line to a
- * simultaneous ping. The counters are written separately and stay authoritative:
- * the log is the timeline, the count is the number.
+ * The first version appended to a single key per day, which lost lines badly.
+ * KV reads are eventually consistent — a read can return a value up to a minute
+ * old — so read-modify-write does not just lose the rare simultaneous ping, it
+ * loses most events that land within the propagation window of each other. A
+ * key per event has no read and nothing to clobber.
+ *
+ * The key is the millisecond plus a random suffix, so keys sort in the order the
+ * events happened and two in the same millisecond cannot collide. The value
+ * carries everything the log renders, so listing keys is enough to rebuild a day.
  */
 async function appendEventLog(counts, day, event, at, country) {
   const time = at.toISOString().slice(11, 19);
-  const existing = (await counts.get(`${EVENT_LOG_PREFIX}${day}`)) || '';
-  const lines = existing ? existing.split('\n') : [];
-  if (lines.length >= MAX_LOG_ENTRIES_PER_DAY) return;
-  lines.push(country ? `${time} ${event} ${country}` : `${time} ${event}`);
-  await counts.put(`${EVENT_LOG_PREFIX}${day}`, lines.join('\n'), { expirationTtl: COUNT_TTL_SECONDS });
+  const ordinal = String(at.getTime()).padStart(14, '0');
+  const unique = Math.random().toString(36).slice(2, 8);
+  await counts.put(
+    `${EVENT_LOG_PREFIX}${day}:${ordinal}-${unique}`,
+    country ? `${time} ${event} ${country}` : `${time} ${event}`,
+    { expirationTtl: COUNT_TTL_SECONDS }
+  );
+}
+
+/** Reads back a day's events in the order they happened. */
+async function readEventLog(counts, day) {
+  if (typeof counts.list !== 'function') return { entries: [], overflowed: false };
+  const prefix = `${EVENT_LOG_PREFIX}${day}:`;
+  const keys = [];
+  let cursor;
+  // One extra key beyond the cap tells the renderer the day overflowed without
+  // reading, or paying for, the whole tail of a very busy day.
+  do {
+    const page = await counts.list({ prefix, cursor, limit: 1000 });
+    keys.push(...page.keys.map((key) => key.name));
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor && keys.length <= MAX_LOG_ENTRIES_PER_DAY);
+  keys.sort();
+  const capped = keys.slice(0, MAX_LOG_ENTRIES_PER_DAY);
+  const entries = await Promise.all(capped.map((key) => counts.get(key).catch(() => null)));
+  return { entries: entries.filter(Boolean), overflowed: keys.length > MAX_LOG_ENTRIES_PER_DAY };
 }
 
 /**
@@ -833,8 +860,7 @@ async function appendEventLog(counts, day, event, at, country) {
  * falls back to the summary line alone.
  */
 async function eventLogLines(counts, day, totalToday) {
-  const stored = (await counts.get(`${EVENT_LOG_PREFIX}${day}`).catch(() => null)) || '';
-  const lines = stored ? stored.split('\n').filter(Boolean) : [];
+  const { entries: lines = [], overflowed = false } = (await readEventLog(counts, day).catch(() => ({}))) || {};
   if (!lines.length) return '';
   // A long day is unreadable for origin, so lead with the tally.
   const byCountry = new Map();
@@ -852,9 +878,14 @@ async function eventLogLines(counts, day, totalToday) {
     const label = EVENT_LABELS[event] ? EVENT_LABELS[event].replace(/s$/, '') : event;
     return `- \`${time}\` UTC — ${label}${country ? ` · ${country}` : ''}`;
   });
-  // The cap is on what is listed, not on what is counted, so say when they differ.
-  if (totalToday > lines.length) {
-    rendered.push(`- …and ${totalToday - lines.length} more, past the ${MAX_LOG_ENTRIES_PER_DAY}-line listing cap.`);
+  // The counters and the log can disagree for two very different reasons, and
+  // blaming the cap for both was wrong: a day whose events predate per-event
+  // logging is not a day that overflowed.
+  const missing = totalToday - lines.length;
+  if (overflowed) {
+    rendered.push(`- …and ${Math.max(missing, 1)} more, past the ${MAX_LOG_ENTRIES_PER_DAY}-line listing cap.`);
+  } else if (missing > 0) {
+    rendered.push(`- …and ${missing} more counted today but not listed individually.`);
   }
   return origins ? `From: ${origins}\n\n${rendered.join('\n')}` : rendered.join('\n');
 }
