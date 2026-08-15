@@ -1681,7 +1681,7 @@ if (!existsSync(fixturesDir)) {
   // above it can no longer be summed.
   check('usage digest: each daily line carries the running total',
     /const summary = `\*\*\$\{day\} \(UTC\)\*\* — \$\{dailySummary\(stats\)\}`;/.test(digestSource) &&
-      /Running total: \$\{imports \? imports\.total : 0\} imports\./.test(feedbackWorkerSource));
+      /Running total: \$\{total\} \$\{total === 1 \? 'import' : 'imports'\}\./.test(feedbackWorkerSource));
   // The summary heading is followed by the day's own events, so the log answers
   // when something happened and not only how often.
   check('usage digest: the day summary is followed by its timeline',
@@ -1698,8 +1698,16 @@ if (!existsSync(fixturesDir)) {
   // of this system that writes to GitHub on a visitor's request rather than on
   // a timer. It must stay off the response path and stay throttled.
   check('usage: the running total is published after the response, not during it',
-    /ctx\.waitUntil\(syncLogIssue\(env, counts, false, recorded\)\)/.test(feedbackWorkerSource) &&
+    /ctx\.waitUntil\(\s*syncLogIssue\(env, counts, false, recorded\)/.test(feedbackWorkerSource) &&
       /async function handlePing\(request, env, ctx\)/.test(feedbackWorkerSource));
+  // The issue body a ping rewrites carries the running figures, not the timeline.
+  // Publishing the day's comment on the same ping is what makes an event visible
+  // the day it happens instead of after the next cron.
+  check('usage: each ping also files the day comment carrying its timeline',
+    /syncLogIssue\(env, counts, false, recorded\)\.then\(\(\) => syncDailyComment\(env, counts, today\)\)/
+      .test(feedbackWorkerSource));
+  check('usage: the cron does not re-post a day the live writes already filed',
+    /if \(await counts\.get\(`\$\{DAY_COMMENT_PREFIX\}\$\{day\}`\)/.test(feedbackWorkerSource));
   // KV is eventually consistent, so a read that follows its own write can hand
   // back the old value. Taking the larger of the stored and the just-written
   // figure is what stops a freshly raised counter publishing as zero, and can

@@ -92,6 +92,16 @@ const ISSUE_SYNC_MIN_MS = 60_000;
  * where an edit is not, so it is throttled by the hour rather than the minute.
  */
 const COMMENT_SYNC_KEY = 'digest:comment-synced';
+/**
+ * The day's own comment, filed as events happen rather than waiting for the cron.
+ *
+ * Without this the per-event log was written to KV on every ping and published
+ * once a day, so anyone testing the app saw nothing at all until the next cron
+ * fired. The issue body a ping rewrites carries the running figures, not the
+ * timeline; the timeline needs a comment, and it needs one the same day.
+ */
+const DAY_COMMENT_PREFIX = 'digest:day-comment:';
+const DAY_COMMENT_SYNC_PREFIX = 'digest:day-comment-synced:';
 const COMMENT_SYNC_MIN_MS = 60 * 60_000;
 /**
  * Must track the repository's current name. GitHub answers a renamed repo with
@@ -393,7 +403,9 @@ async function handlePing(request, env, ctx) {
   // Publish after responding. Whatever the visitor was doing has already
   // finished, and nothing they see should wait on GitHub.
   if (recorded && ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(syncLogIssue(env, counts, false, recorded));
+    ctx.waitUntil(
+      syncLogIssue(env, counts, false, recorded).then(() => syncDailyComment(env, counts, today))
+    );
   }
 
   // Always no-content: the client neither needs nor reads an answer, and a
@@ -565,7 +577,8 @@ function dailySummary(stats) {
       return `${s.today} ${s.today === 1 ? label.replace(/s$/, '') : label}`;
     });
   const imports = stats.find((s) => s.event === 'import');
-  return `${parts.join(', ') || 'no activity'}. Running total: ${imports ? imports.total : 0} imports.`;
+  const total = imports ? imports.total : 0;
+  return `${parts.join(', ') || 'no activity'}. Running total: ${total} ${total === 1 ? 'import' : 'imports'}.`;
 }
 
 /**
@@ -692,6 +705,68 @@ async function ensureLogIssue(env, counts, repo, headers, initialBody) {
   }
 }
 
+/**
+ * Creates the day's comment on first activity and keeps it current after that.
+ *
+ * Updates are throttled to one a minute, but the first event of a day is never
+ * throttled: that write is what makes the day appear at all. The entry itself is
+ * already in KV by this point, so throttling only delays publication.
+ */
+async function syncDailyComment(env, counts, day) {
+  if (!env.GITHUB_TOKEN) return;
+  try {
+    const commentKey = `${DAY_COMMENT_PREFIX}${day}`;
+    const existing = await counts.get(commentKey).catch(() => null);
+
+    if (existing) {
+      const syncKey = `${DAY_COMMENT_SYNC_PREFIX}${day}`;
+      const last = Number.parseInt((await counts.get(syncKey).catch(() => '')) || '0', 10);
+      if (Number.isFinite(last) && Date.now() - last < ISSUE_SYNC_MIN_MS) return;
+      await counts.put(syncKey, String(Date.now()), { expirationTtl: COUNT_TTL_SECONDS });
+    }
+
+    const issue = await counts.get(DIGEST_ISSUE_KEY).catch(() => null);
+    if (!issue) return; // the body sync creates it; the next ping will find it
+
+    const stats = [];
+    for (const name of REPORTED_EVENTS) stats.push(await eventStats(counts, name, day, null));
+    const timeline = await eventLogLines(counts, day, stats.reduce((sum, total) => sum + total.today, 0));
+    const summary = `**${day} (UTC)** — ${dailySummary(stats)}`;
+    const body = timeline ? `${summary}\n\n${timeline}` : summary;
+
+    const repo = env.GITHUB_REPO || DEFAULT_REPO;
+    const headers = githubHeaders(env);
+    if (existing) {
+      await fetch(`https://api.github.com/repos/${repo}/issues/comments/${existing}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ body }),
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10_000),
+      });
+      return;
+    }
+    const created = await fetch(`https://api.github.com/repos/${repo}/issues/${issue}/comments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ body }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!created.ok) {
+      console.error('Daily comment could not be created', { status: created.status });
+      return;
+    }
+    const comment = await created.json();
+    if (comment?.id) {
+      await counts.put(commentKey, String(comment.id), { expirationTtl: COUNT_TTL_SECONDS });
+      await counts.put(`${DAY_COMMENT_SYNC_PREFIX}${day}`, String(Date.now()), { expirationTtl: COUNT_TTL_SECONDS });
+    }
+  } catch (error) {
+    console.error('Daily comment failed', { message: String(error?.message || '') });
+  }
+}
+
 async function sendDigest(env) {
   const counts = env.USAGE_COUNTS;
   if (!counts || typeof counts.get !== 'function') {
@@ -710,6 +785,14 @@ async function sendDigest(env) {
   // Quiet days are not news. Staying silent keeps the log to real signal and
   // stops a daily "no activity" comment from training the inbox to ignore it.
   if (stats.every((s) => s.today === 0)) return;
+
+  // Days now file their own comment as they happen, so the cron is only a
+  // backstop for a day whose live writes never landed. Without this check it
+  // would post the same day a second time.
+  if (await counts.get(`${DAY_COMMENT_PREFIX}${day}`).catch(() => null)) {
+    await syncLogIssue(env, counts, true);
+    return;
+  }
 
   const timeline = await eventLogLines(counts, day, stats.reduce((sum, s) => sum + s.today, 0));
   const summary = `**${day} (UTC)** — ${dailySummary(stats)}`;
